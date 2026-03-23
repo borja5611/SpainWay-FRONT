@@ -6,7 +6,7 @@ import LayoutPrincipal from "./LayoutPrincipal";
 
 import SplashPantalla from "@/app/pantallas/onboarding/SplashPantalla";
 import OnboardingPantalla from "@/app/pantallas/onboarding/OnboardingPantalla";
-
+import SelectorDestinoPantalla from '@/app/pantallas/inicio/SelectorDestinoPantalla';
 import LoginPantalla from "@/app/pantallas/auth/LoginPantalla";
 import RegistroPantalla from "@/app/pantallas/auth/RegistroPantalla";
 import RecuperarContrasenaPantalla from "@/app/pantallas/auth/RecuperarContrasenaPantalla";
@@ -36,6 +36,7 @@ export const router = createBrowserRouter([
     children: [
       { path: RUTAS_APP.perfil, element: <PerfilPantalla /> },
       { path: RUTAS_APP.editarPerfil, element: <EditarPerfilPantalla /> },
+      { path: RUTAS_APP.selectorDestino, element: <SelectorDestinoPantalla />,},
     ],
   },
 ]);

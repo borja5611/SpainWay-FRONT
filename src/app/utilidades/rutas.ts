@@ -20,7 +20,7 @@ export const RUTAS_APP = {
 
   chat: "/chat",
   resultadoChat: "/chat/resultados",
-
+  selectorDestino: '/selector-destino', 
   perfil: "/perfil",
   editarPerfil: "/perfil/editar",
 };
