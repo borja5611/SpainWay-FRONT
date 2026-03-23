@@ -7,7 +7,5 @@ export default function LayoutPrincipal() {
       <Outlet />
       <NavegacionInferior />
     </div>
-    
   );
-  
 }

@@ -1,26 +1,50 @@
-import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import ContenedorPantalla from "@/app/componentes/layout/ContenedorPantalla";
+import splashPortada from "@/assets/SplashPortada.png";
+import logoSpainWay from "@/assets/LogoSpainway.png";
 
 export default function SplashPantalla() {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      navigate("/onboarding/1");
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [navigate]);
-
   return (
-    <ContenedorPantalla className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <div className="mb-4 rounded-3xl bg-blue-600 px-6 py-4 text-3xl font-bold text-white">
-          SpainWay
-        </div>
-        <p className="text-sm text-gray-500">Preparando tu experiencia...</p>
+    <div className="relative min-h-screen w-full overflow-hidden bg-white">
+      <div className="absolute inset-0">
+        <img
+          alt="Portada SpainWay"
+          className="h-full w-full object-cover"
+          src={splashPortada}
+        />
       </div>
-    </ContenedorPantalla>
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[393px] flex-col justify-between px-6 py-8">
+        <div className="flex justify-center pt-4">
+          <img
+            alt="SpainWay Logo"
+            className="h-[140px] w-[220px] object-contain"
+            src={logoSpainWay}
+          />
+        </div>
+
+        <div className="pb-10 text-center text-white">
+          <p className="mb-1 font-serif text-[20px] font-semibold">
+            Prepárate para
+          </p>
+          <p className="mb-5 font-serif text-[38px] font-semibold leading-none">
+            Nuevas Aventuras
+          </p>
+          <p className="mx-auto mb-8 max-w-[300px] text-[14px] leading-5">
+            Si te gusta viajar, esta app es para ti. Descubre la belleza de
+            España y planifica nuevas experiencias.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => navigate("/onboarding/1")}
+            className="mx-auto block h-[47px] w-[233px] rounded-full bg-white text-[18px] text-black shadow-lg transition hover:bg-neutral-100"
+          >
+            Let&apos;s Tour
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

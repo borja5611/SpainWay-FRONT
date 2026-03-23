@@ -1,11 +1,9 @@
 import { Outlet } from "react-router-dom";
-import NavegacionInferior from "@/app/componentes/layout/NavegacionInferior";
 
-export default function LayoutPrincipal() {
+export default function LayoutAuth() {
   return (
     <div className="min-h-screen bg-white">
       <Outlet />
-      <NavegacionInferior />
     </div>
   );
 }

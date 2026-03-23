@@ -6,7 +6,7 @@ import LayoutPrincipal from "./LayoutPrincipal";
 
 import SplashPantalla from "@/app/pantallas/onboarding/SplashPantalla";
 import OnboardingPantalla from "@/app/pantallas/onboarding/OnboardingPantalla";
-import SelectorDestinoPantalla from '@/app/pantallas/inicio/SelectorDestinoPantalla';
+
 import LoginPantalla from "@/app/pantallas/auth/LoginPantalla";
 import RegistroPantalla from "@/app/pantallas/auth/RegistroPantalla";
 import RecuperarContrasenaPantalla from "@/app/pantallas/auth/RecuperarContrasenaPantalla";
@@ -14,6 +14,11 @@ import VerificacionOtpPantalla from "@/app/pantallas/auth/VerificacionOtpPantall
 import NuevaContrasenaPantalla from "@/app/pantallas/auth/NuevaContrasenaPantalla";
 import ConfirmacionContrasenaPantalla from "@/app/pantallas/auth/ConfirmacionContrasenaPantalla";
 
+import InicioPantalla from "@/app/pantallas/inicio/InicioPantalla";
+import SelectorDestinoPantalla from "@/app/pantallas/inicio/SelectorDestinoPantalla";
+import MapaPantalla from "@/app/pantallas/mapa/MapaPantalla";
+import ListaItinerariosPantalla from "@/app/pantallas/itinerarios/ListaItinerariosPantalla";
+import ChatPantalla from "@/app/pantallas/chat/ChatPantalla";
 import PerfilPantalla from "@/app/pantallas/perfil/PerfilPantalla";
 import EditarPerfilPantalla from "@/app/pantallas/perfil/EditarPerfilPantalla";
 
@@ -34,9 +39,13 @@ export const router = createBrowserRouter([
   {
     element: <LayoutPrincipal />,
     children: [
+      { path: RUTAS_APP.inicio, element: <InicioPantalla /> },
+      { path: RUTAS_APP.selectorDestino, element: <SelectorDestinoPantalla /> },
+      { path: RUTAS_APP.mapa, element: <MapaPantalla /> },
+      { path: RUTAS_APP.itinerarios, element: <ListaItinerariosPantalla /> },
+      { path: RUTAS_APP.chat, element: <ChatPantalla /> },
       { path: RUTAS_APP.perfil, element: <PerfilPantalla /> },
       { path: RUTAS_APP.editarPerfil, element: <EditarPerfilPantalla /> },
-      { path: RUTAS_APP.selectorDestino, element: <SelectorDestinoPantalla />,},
     ],
   },
 ]);

@@ -1,6 +1,6 @@
 export const RUTAS_APP = {
   splash: "/",
-  onboarding: "/onboarding/:paso",
+  onboarding: "/onboarding/:step",
 
   login: "/login",
   registro: "/registro",
@@ -10,17 +10,11 @@ export const RUTAS_APP = {
   confirmacionContrasena: "/confirmacion-contrasena",
 
   inicio: "/inicio",
+  selectorDestino: "/destinos",
 
   mapa: "/mapa",
-  detallePoi: "/poi/:id",
-
   itinerarios: "/itinerarios",
-  detalleItinerario: "/itinerarios/:id",
-  calendario: "/calendario",
-
   chat: "/chat",
-  resultadoChat: "/chat/resultados",
-  selectorDestino: '/selector-destino', 
   perfil: "/perfil",
   editarPerfil: "/perfil/editar",
 };
