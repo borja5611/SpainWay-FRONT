@@ -1,7 +1,21 @@
+import HeroMadrid from "@/assets/inicio/madrid/HeroMadrid.png";
+import HeroBarcelona from "@/assets/inicio/barcelona/HeroBarcelona.png";
+import HeroValencia from "@/assets/inicio/valencia/HeroValencia.png";
+
+export type DestinoId =
+  | "madrid"
+  | "cataluna"
+  | "cv"
+  | "andalucia"
+  | "asturias"
+  | "baleares"
+  | "canarias"
+  | "cantabria";
+
 export type Destino = {
-  id: string;
+  id: DestinoId;
   nombre: string;
-  descripcion: string;
+  subtitulo: string;
   imagen: string;
 };
 
@@ -9,19 +23,49 @@ export const destinosMock: Destino[] = [
   {
     id: "madrid",
     nombre: "Madrid",
-    descripcion: "Cultura, gastronomía y vida urbana.",
-    imagen: "https://picsum.photos/400/240?random=1",
+    subtitulo: "Capital, cultura y vida urbana",
+    imagen: HeroMadrid,
   },
   {
-    id: "barcelona",
-    nombre: "Barcelona",
-    descripcion: "Arquitectura, mar y barrios con identidad.",
-    imagen: "https://picsum.photos/400/240?random=2",
+    id: "cataluna",
+    nombre: "Cataluña",
+    subtitulo: "Barcelona, costa y arquitectura",
+    imagen: HeroBarcelona,
   },
   {
-    id: "valencia",
-    nombre: "Valencia",
-    descripcion: "Ciudad mediterránea, ciencia y playas.",
-    imagen: "https://picsum.photos/400/240?random=3",
+    id: "cv",
+    nombre: "Comunidad Valenciana",
+    subtitulo: "Valencia, ciencia y Mediterráneo",
+    imagen: HeroValencia,
+  },
+  {
+    id: "andalucia",
+    nombre: "Andalucía",
+    subtitulo: "Historia, patrimonio y costa",
+    imagen: HeroMadrid,
+  },
+  {
+    id: "asturias",
+    nombre: "Asturias",
+    subtitulo: "Naturaleza, mar y montaña",
+    imagen: HeroBarcelona,
+  },
+  {
+    id: "baleares",
+    nombre: "Baleares",
+    subtitulo: "Islas, calas y turismo activo",
+    imagen: HeroValencia,
+  },
+  {
+    id: "canarias",
+    nombre: "Canarias",
+    subtitulo: "Volcanes, playas y clima único",
+    imagen: HeroMadrid,
+  },
+  {
+    id: "cantabria",
+    nombre: "Cantabria",
+    subtitulo: "Costa, cuevas y naturaleza",
+    imagen: HeroBarcelona,
   },
 ];

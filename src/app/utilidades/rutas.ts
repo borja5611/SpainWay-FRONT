@@ -13,7 +13,11 @@ export const RUTAS_APP = {
   selectorDestino: "/destinos",
 
   mapa: "/mapa",
+  detallePoi: "/poi/:poiId",
+
   itinerarios: "/itinerarios",
+  calendario: "/calendario",
+
   chat: "/chat",
   perfil: "/perfil",
   editarPerfil: "/perfil/editar",

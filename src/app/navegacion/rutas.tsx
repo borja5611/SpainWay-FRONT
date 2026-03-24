@@ -6,14 +6,14 @@ import LayoutPrincipal from "./LayoutPrincipal";
 
 import SplashPantalla from "@/app/pantallas/onboarding/SplashPantalla";
 import OnboardingPantalla from "@/app/pantallas/onboarding/OnboardingPantalla";
-
+import DetallePoiPantalla from "@/app/pantallas/mapa/DetallePoiPantalla";
 import LoginPantalla from "@/app/pantallas/auth/LoginPantalla";
 import RegistroPantalla from "@/app/pantallas/auth/RegistroPantalla";
 import RecuperarContrasenaPantalla from "@/app/pantallas/auth/RecuperarContrasenaPantalla";
 import VerificacionOtpPantalla from "@/app/pantallas/auth/VerificacionOtpPantalla";
 import NuevaContrasenaPantalla from "@/app/pantallas/auth/NuevaContrasenaPantalla";
 import ConfirmacionContrasenaPantalla from "@/app/pantallas/auth/ConfirmacionContrasenaPantalla";
-
+import CalendarioPantalla from "@/app/pantallas/itinerarios/CalendarioPantalla";
 import InicioPantalla from "@/app/pantallas/inicio/InicioPantalla";
 import SelectorDestinoPantalla from "@/app/pantallas/inicio/SelectorDestinoPantalla";
 import MapaPantalla from "@/app/pantallas/mapa/MapaPantalla";
@@ -30,6 +30,7 @@ export const router = createBrowserRouter([
       { path: RUTAS_APP.onboarding, element: <OnboardingPantalla /> },
       { path: RUTAS_APP.login, element: <LoginPantalla /> },
       { path: RUTAS_APP.registro, element: <RegistroPantalla /> },
+      { path: RUTAS_APP.detallePoi, element: <DetallePoiPantalla /> },
       { path: RUTAS_APP.recuperarContrasena, element: <RecuperarContrasenaPantalla /> },
       { path: RUTAS_APP.verificacionOtp, element: <VerificacionOtpPantalla /> },
       { path: RUTAS_APP.nuevaContrasena, element: <NuevaContrasenaPantalla /> },
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
   {
     element: <LayoutPrincipal />,
     children: [
+      { path: RUTAS_APP.calendario, element: <CalendarioPantalla /> },
       { path: RUTAS_APP.inicio, element: <InicioPantalla /> },
       { path: RUTAS_APP.selectorDestino, element: <SelectorDestinoPantalla /> },
       { path: RUTAS_APP.mapa, element: <MapaPantalla /> },
