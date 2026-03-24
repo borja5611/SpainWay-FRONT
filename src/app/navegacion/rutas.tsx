@@ -21,6 +21,12 @@ import ListaItinerariosPantalla from "@/app/pantallas/itinerarios/ListaItinerari
 import ChatPantalla from "@/app/pantallas/chat/ChatPantalla";
 import PerfilPantalla from "@/app/pantallas/perfil/PerfilPantalla";
 import EditarPerfilPantalla from "@/app/pantallas/perfil/EditarPerfilPantalla";
+import InicioItinerarioPantalla from "@/app/pantallas/chat/InicioItinerarioPantalla";
+import ChatPreferenciasPantalla from "@/app/pantallas/chat/ChatPreferenciasPantalla";
+import ChatPresupuestoPantalla from "@/app/pantallas/chat/ChatPresupuestoPantalla";
+import ChatInteresesPantalla from "@/app/pantallas/chat/ChatInteresesPantalla";
+import CargandoItinerarioPantalla from "@/app/pantallas/chat/CargandoItinerarioPantalla";
+import ResultadoChatPantalla from "@/app/pantallas/chat/ResultadoChatPantalla";
 
 export const router = createBrowserRouter([
   {
@@ -46,6 +52,15 @@ export const router = createBrowserRouter([
       { path: RUTAS_APP.mapa, element: <MapaPantalla /> },
       { path: RUTAS_APP.itinerarios, element: <ListaItinerariosPantalla /> },
       { path: RUTAS_APP.chat, element: <ChatPantalla /> },
+      { path: RUTAS_APP.perfil, element: <PerfilPantalla /> },
+      { path: RUTAS_APP.editarPerfil, element: <EditarPerfilPantalla /> },
+      { path: RUTAS_APP.chat, element: <InicioItinerarioPantalla /> },
+      { path: RUTAS_APP.chatDestino, element: <ChatPantalla /> },
+      { path: RUTAS_APP.chatPreferencias, element: <ChatPreferenciasPantalla /> },
+      { path: RUTAS_APP.chatPresupuesto, element: <ChatPresupuestoPantalla /> },
+      { path: RUTAS_APP.chatIntereses, element: <ChatInteresesPantalla /> },
+      { path: RUTAS_APP.chatCargando, element: <CargandoItinerarioPantalla /> },
+      { path: RUTAS_APP.resultadoChat, element: <ResultadoChatPantalla /> },
       { path: RUTAS_APP.perfil, element: <PerfilPantalla /> },
       { path: RUTAS_APP.editarPerfil, element: <EditarPerfilPantalla /> },
     ],

@@ -19,6 +19,13 @@ export const RUTAS_APP = {
   calendario: "/calendario",
 
   chat: "/chat",
+  chatDestino: "/chat/destino",
+  chatPreferencias: "/chat/preferencias",
+  chatPresupuesto: "/chat/presupuesto",
+  chatIntereses: "/chat/intereses",
+  chatCargando: "/chat/cargando",
+  resultadoChat: "/chat/resultado",
+
   perfil: "/perfil",
   editarPerfil: "/perfil/editar",
 };
