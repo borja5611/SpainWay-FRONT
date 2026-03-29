@@ -1,21 +1,37 @@
-type Props = {
+import { motion } from "motion/react";
+import { ImageWithFallback } from "@/app/componentes/figma/ImageWithFallback";
+
+interface EventoDiaCardProps {
   titulo: string;
   imagen: string;
-};
+}
 
-export default function EventoDiaCard({ titulo, imagen }: Props) {
+export default function EventoDiaCard({ titulo, imagen }: EventoDiaCardProps) {
   return (
-    <div className="w-[145px] shrink-0">
-      <div className="h-[96px] w-full overflow-hidden rounded-[23px] bg-neutral-200 shadow-sm">
-        <img
-          src={imagen}
-          alt={titulo}
-          className="h-full w-full object-cover"
-        />
+    <motion.div
+      className="flex-shrink-0 w-48 cursor-pointer group"
+      whileHover={{ y: -4 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="relative h-32 rounded-xl overflow-hidden shadow-md group-hover:shadow-xl transition-shadow duration-300">
+        <motion.div
+          className="w-full h-full"
+          whileHover={{ scale: 1.1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <ImageWithFallback
+            src={imagen}
+            alt={titulo}
+            className="w-full h-full object-cover"
+          />
+        </motion.div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-3">
+          <p className="text-white font-semibold text-sm leading-tight line-clamp-2">
+            {titulo}
+          </p>
+        </div>
       </div>
-      <p className="mt-2 font-['Poppins:Medium',sans-serif] text-[11px] text-black">
-        {titulo}
-      </p>
-    </div>
+    </motion.div>
   );
 }

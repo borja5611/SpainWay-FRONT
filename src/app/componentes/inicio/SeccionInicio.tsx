@@ -1,17 +1,23 @@
+import { motion } from "motion/react";
 import type { ReactNode } from "react";
 
-type Props = {
+interface SeccionInicioProps {
   titulo: string;
   children: ReactNode;
-};
+}
 
-export default function SeccionInicio({ titulo, children }: Props) {
+export default function SeccionInicio({ titulo, children }: SeccionInicioProps) {
   return (
-    <section className="mt-8">
-      <h2 className="font-['Poppins:SemiBold',sans-serif] text-[20px] text-black mb-4">
+    <motion.div
+      className="mb-8"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">
         {titulo}
       </h2>
       {children}
-    </section>
+    </motion.div>
   );
 }

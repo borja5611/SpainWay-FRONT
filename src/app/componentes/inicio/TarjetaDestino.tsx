@@ -1,29 +1,52 @@
-import type { Destino } from "@/app/datos/mock/destinos";
+import { motion } from "motion/react";
+import { ImageWithFallback } from "@/app/componentes/figma/ImageWithFallback";
 
-type Props = {
+interface Destino {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  imagen: string;
+}
+
+interface TarjetaDestinoProps {
   destino: Destino;
-  onClick?: () => void;
-};
+  onClick: () => void;
+}
 
-export default function TarjetaDestino({ destino, onClick }: Props) {
+export default function TarjetaDestino({ destino, onClick }: TarjetaDestinoProps) {
   return (
-    <button
-      type="button"
+    <motion.button
       onClick={onClick}
-      className="w-full overflow-hidden rounded-[24px] bg-white text-left shadow-sm transition hover:shadow-md"
+      className="w-full bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer group"
+      whileHover={{ y: -4, scale: 1.01 }}
+      whileTap={{ scale: 0.98 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
     >
-      <div className="h-[160px] w-full bg-neutral-200">
-        <img
-          src={destino.imagen}
-          alt={destino.nombre}
-          className="h-full w-full object-cover"
-        />
+      <div className="relative h-48 overflow-hidden">
+        <motion.div
+          className="w-full h-full"
+          whileHover={{ scale: 1.1 }}
+          transition={{ duration: 0.6 }}
+        >
+          <ImageWithFallback
+            src={destino.imagen}
+            alt={destino.nombre}
+            className="w-full h-full object-cover"
+          />
+        </motion.div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
       </div>
-
-      <div className="p-4">
-        <h3 className="text-[18px] font-semibold text-black">{destino.nombre}</h3>
-        <p className="mt-1 text-[13px] text-[#7c6b69]">{destino.subtitulo}</p>
+      
+      <div className="p-5 text-left">
+        <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-red-600 transition-colors duration-300">
+          {destino.nombre}
+        </h3>
+        <p className="text-sm text-gray-600 leading-relaxed">
+          {destino.descripcion}
+        </p>
       </div>
-    </button>
+    </motion.button>
   );
 }

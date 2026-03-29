@@ -1,12 +1,15 @@
-type Props = {
+import { motion } from "motion/react";
+import { ImageWithFallback } from "@/app/componentes/figma/ImageWithFallback";
+
+interface HeroDestinoProps {
   titulo: string;
   subtitulo: string;
   imagen: string;
   onExplorar: () => void;
   onEventos: () => void;
-  botonExplorarTexto?: string;
-  botonEventosTexto?: string;
-};
+  botonExplorarTexto: string;
+  botonEventosTexto: string;
+}
 
 export default function HeroDestino({
   titulo,
@@ -14,49 +17,70 @@ export default function HeroDestino({
   imagen,
   onExplorar,
   onEventos,
-  botonExplorarTexto = "Explora más",
-  botonEventosTexto = "Ver eventos hoy",
-}: Props) {
+  botonExplorarTexto,
+  botonEventosTexto,
+}: HeroDestinoProps) {
   return (
-    <section className="relative h-[335px] w-full overflow-hidden rounded-b-[24px]">
-      <img
-        src={imagen}
-        alt={titulo}
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      <div className="absolute inset-0 bg-black/20" />
-
-      <div className="absolute inset-x-0 top-[52px] px-6 text-center text-white">
-        <h1 className="font-['Poppins:SemiBold',sans-serif] text-[30px] leading-[40px]">
-          {titulo}
-        </h1>
-
-        <p className="mt-3 font-['Poppins:SemiBold',sans-serif] text-[10px]">
-          {subtitulo}
-        </p>
-
-        <div className="mt-10 flex justify-center gap-3">
-          <button
-            onClick={onExplorar}
-            className="h-[31px] rounded-[10px] bg-[#f2361d] px-6 transition hover:bg-[#d12f17]"
-            type="button"
-          >
-            <span className="font-['Poppins:SemiBold',sans-serif] text-[10px] text-white">
-              {botonExplorarTexto}
-            </span>
-          </button>
-
-          <button
-            onClick={onEventos}
-            className="h-[31px] rounded-[10px] bg-[#f2361d] px-6 transition hover:bg-[#d12f17]"
-            type="button"
-          >
-            <span className="font-['Poppins:SemiBold',sans-serif] text-[10px] text-white">
-              {botonEventosTexto}
-            </span>
-          </button>
-        </div>
+    <motion.div
+      className="relative h-[400px] w-full overflow-hidden rounded-b-3xl mb-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+    >
+      <div className="absolute inset-0">
+        <ImageWithFallback
+          src={imagen}
+          alt={titulo}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/70" />
       </div>
-    </section>
+
+      <div className="relative h-full flex flex-col justify-end p-6 pb-8">
+        <motion.h1
+          className="text-4xl font-bold text-white mb-3 leading-tight"
+          style={{ fontFamily: 'var(--font-family-display)' }}
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+        >
+          {titulo}
+        </motion.h1>
+        
+        <motion.p
+          className="text-base text-white/90 mb-6 leading-relaxed"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.6 }}
+        >
+          {subtitulo}
+        </motion.p>
+
+        <motion.div
+          className="flex gap-3"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
+        >
+          <motion.button
+            onClick={onExplorar}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3.5 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {botonExplorarTexto}
+          </motion.button>
+          
+          <motion.button
+            onClick={onEventos}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3.5 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {botonEventosTexto}
+          </motion.button>
+        </motion.div>
+      </div>
+    </motion.div>
   );
 }

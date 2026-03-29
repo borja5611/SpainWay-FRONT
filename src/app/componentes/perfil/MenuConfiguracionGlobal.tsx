@@ -16,7 +16,7 @@ const items = [
   "Logout",
 ];
 
-export default function MenuConfiguracionLateral({
+export default function MenuConfiguracionGlobal({
   abierto,
   onCerrar,
 }: Props) {
@@ -25,17 +25,17 @@ export default function MenuConfiguracionLateral({
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/30"
+        className="fixed inset-0 z-[60] bg-black/30"
         onClick={onCerrar}
       />
 
-      <aside className="fixed right-0 top-0 z-50 h-full w-[320px] bg-white shadow-2xl">
+      <aside className="fixed right-0 top-0 z-[70] h-full w-[320px] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b px-5 py-4">
-          <h2 className="text-[20px] font-semibold text-black">Settings</h2>
+          <h2 className="text-[22px] font-semibold text-black">Settings</h2>
           <button
             type="button"
             onClick={onCerrar}
-            className="rounded-full px-3 py-1 text-[18px]"
+            className="rounded-full px-3 py-1 text-[20px]"
           >
             ×
           </button>
@@ -46,7 +46,7 @@ export default function MenuConfiguracionLateral({
             <button
               key={item}
               type="button"
-              className={`flex w-full items-center justify-between rounded-[12px] px-3 py-4 text-left text-[15px] text-black transition hover:bg-[#f5f5f5] ${
+              className={`flex w-full items-center justify-between rounded-[14px] px-3 py-4 text-left text-[15px] text-black transition hover:bg-[#f5f5f5] ${
                 index === 0 ? "bg-[#f1f1f1]" : ""
               }`}
             >

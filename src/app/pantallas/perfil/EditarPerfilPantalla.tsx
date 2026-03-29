@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logoPerfil from "@/assets/perfil/LogoPerfil.png";
-import MenuConfiguracionLateral from "@/app/componentes/perfil/MenuConfiguracionLateral";
+import MenuConfiguracionLateral from "@/app/componentes/perfil/MenuConfiguracionGlobal";
 
 export default function EditarPerfilPantalla() {
   const navigate = useNavigate();
