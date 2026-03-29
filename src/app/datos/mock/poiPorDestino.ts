@@ -3,7 +3,6 @@ import type { DestinoId } from "./destinos";
 import BernabeuHero from "@/assets/poi/madrid/BernabeuHero.png";
 
 import SagradaHero from "@/assets/poi/barcelona/SagradaHero.png";
-import SagradaPreview from "@/assets/poi/barcelona/SagradaPreview.png";
 
 import CiudadArtesHero from "@/assets/poi/valencia/CiudadArtesHero.png";
 import CiudadArtesPreview from "@/assets/poi/valencia/CiudadArtesPreview.png";
@@ -46,7 +45,6 @@ export const poiPorDestino: Record<DestinoId, PoiDetalle[]> = {
       descripcion:
         "La Sagrada Familia es uno de los lugares más icónicos de Barcelona y un imprescindible en cualquier visita a la ciudad.",
       imagenHero: SagradaHero,
-      imagenPreview: SagradaPreview,
     },
   ],
 

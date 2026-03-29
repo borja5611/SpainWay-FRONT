@@ -1,95 +1,63 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import logoPerfil from "@/assets/perfil/LogoPerfil.png";
-import MenuConfiguracionLateral from "@/app/componentes/perfil/MenuConfiguracionGlobal";
 
 export default function PerfilPantalla() {
   const navigate = useNavigate();
-  const [menuAbierto, setMenuAbierto] = useState(false);
 
   return (
-    <>
-      <div className="min-h-screen bg-white pb-24">
-        <div className="mx-auto w-full max-w-[393px] px-6 pt-6">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="absolute left-0 top-0 text-[20px]"
-            >
-              ←
-            </button>
-
-            <h1 className="text-center text-[18px] font-semibold text-black">
-              Editar Perfil
-            </h1>
-
-            <button
-              type="button"
-              onClick={() => setMenuAbierto(true)}
-              className="absolute right-0 top-0 text-[20px]"
-            >
-              ⚙
-            </button>
-          </div>
-
-          <div className="mt-6 flex justify-center">
-            <img
-              src={logoPerfil}
-              alt="Logo perfil"
-              className="h-[140px] w-[90px] object-contain"
-            />
-          </div>
-
-          <div className="mt-8 space-y-5">
-            <div>
-              <label className="mb-2 block text-[14px] font-medium text-black">
-                Usuario
-              </label>
-              <input
-                className="h-[40px] w-full rounded-[8px] border border-[#a9a9a9] px-4 text-[14px] outline-none"
-                value="Rose"
-                readOnly
+    <div className="min-h-screen bg-[#f6f6f3]">
+      <div className="mx-auto w-full max-w-[980px] px-4 pt-4">
+        <div className="rounded-[28px] bg-white p-6 shadow-sm">
+          <div className="flex flex-col items-center">
+            <div className="flex h-[110px] w-[110px] items-center justify-center overflow-hidden rounded-full bg-[#fff7f5] shadow-sm">
+              <img
+                src={logoPerfil}
+                alt="Logo perfil"
+                className="h-[62px] w-[62px] object-contain"
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-[14px] font-medium text-black">
-                Correo Electrónico
-              </label>
-              <input
-                className="h-[40px] w-full rounded-[8px] border border-[#a9a9a9] px-4 text-[14px] outline-none"
-                value="rose@email.com"
-                readOnly
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[14px] font-medium text-black">
-                Número de Teléfono
-              </label>
-              <input
-                className="h-[40px] w-full rounded-[8px] border border-[#a9a9a9] px-4 text-[14px] outline-none"
-                value="+34 600 000 000"
-                readOnly
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => navigate("/perfil/editar")}
-              className="mt-2 h-[45px] w-full rounded-[10px] bg-[#f2361d] text-[15px] font-semibold text-white"
-            >
-              Actualizar
-            </button>
+            <h2 className="mt-4 text-[28px] font-bold text-black">Rose</h2>
+            <p className="mt-1 text-[14px] text-[#6d6d6d]">rose@email.com</p>
           </div>
+
+          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-[18px] border border-[#ededed] bg-[#fafafa] p-4">
+              <p className="text-[13px] text-[#6d6d6d]">Usuario</p>
+              <p className="mt-1 text-[16px] font-semibold text-black">Rose</p>
+            </div>
+
+            <div className="rounded-[18px] border border-[#ededed] bg-[#fafafa] p-4">
+              <p className="text-[13px] text-[#6d6d6d]">Correo electrónico</p>
+              <p className="mt-1 text-[16px] font-semibold text-black">
+                rose@email.com
+              </p>
+            </div>
+
+            <div className="rounded-[18px] border border-[#ededed] bg-[#fafafa] p-4">
+              <p className="text-[13px] text-[#6d6d6d]">Número de teléfono</p>
+              <p className="mt-1 text-[16px] font-semibold text-black">
+                +34 600 000 000
+              </p>
+            </div>
+
+            <div className="rounded-[18px] border border-[#ededed] bg-[#fafafa] p-4">
+              <p className="text-[13px] text-[#6d6d6d]">Cuenta</p>
+              <p className="mt-1 text-[16px] font-semibold text-black">
+                Configuración personal
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate("/perfil/editar")}
+            className="mt-8 h-[48px] w-full rounded-[14px] bg-[#f2361d] text-[15px] font-semibold text-white shadow-md transition hover:bg-[#d92f17]"
+          >
+            Editar perfil
+          </button>
         </div>
       </div>
-
-      <MenuConfiguracionLateral
-        abierto={menuAbierto}
-        onCerrar={() => setMenuAbierto(false)}
-      />
-    </>
+    </div>
   );
 }

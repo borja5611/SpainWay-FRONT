@@ -1,110 +1,109 @@
 import { useNavigate } from "react-router-dom";
-import TarjetaDestino from "@/app/componentes/inicio/TarjetaDestino";
-import HeroDestino from "@/app/componentes/inicio/HeroDestino";
-import ExploraVisualmenteCard from "@/app/componentes/inicio/ExploraVisualmenteCard";
-import EventoDiaCard from "@/app/componentes/inicio/EventoDiaCard";
-import RecomendacionCard from "@/app/componentes/inicio/RecomendacionCard";
-import SeccionInicio from "@/app/componentes/inicio/SeccionInicio";
-import CambiarDestinoButton from "@/app/componentes/inicio/CambiarDestinoButton";
-import { destinosMock } from "@/app/datos/mock/destinos";
-import { inicioPorDestino } from "@/app/datos/mock/inicioPorDestino";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
+import {
+  ciudadesInicio,
+  poisInicioPorCiudad,
+} from "@/app/datos/mock/inicioDescubrimiento";
+import TarjetaCiudadDestacada from "@/app/componentes/inicio/TarjetaCiudadDestacada";
+import TarjetaPoiPreview from "@/app/componentes/inicio/TarjetaPoiPreview";
+import SeccionHorizontalPoi from "@/app/componentes/inicio/SeccionHorizontalPoi";
 
 export default function InicioPantalla() {
   const navigate = useNavigate();
-  const destinoSeleccionado = useDestinoStore((state) => state.destinoSeleccionado);
   const setDestinoSeleccionado = useDestinoStore(
     (state) => state.setDestinoSeleccionado
   );
-  const limpiarDestinoSeleccionado = useDestinoStore(
-    (state) => state.limpiarDestinoSeleccionado
-  );
 
-  if (!destinoSeleccionado) {
-    return (
-      <div className="min-h-screen bg-[#f5f7fb] pb-24">
-        <div className="mx-auto w-full max-w-[393px] px-4 pt-6">
-          <div className="mb-6">
-            <h1 className="text-[28px] font-bold text-black">Descubre tu destino</h1>
-            <p className="mt-2 text-[14px] text-[#7c6b69]">
-              Selecciona una ciudad o región para empezar a explorar
+  const seleccionarDestino = (destinoId: "madrid" | "cataluna" | "cv") => {
+    setDestinoSeleccionado(destinoId);
+    navigate("/mapa");
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f6f6f3]">
+      <div className="mx-auto w-full max-w-[980px] pt-2">
+        <section className="px-4">
+          <div className="rounded-[28px] bg-white p-5 shadow-sm">
+            <p
+              className="text-[30px] font-bold leading-[34px] text-black"
+              style={{ fontFamily: "var(--font-family-display)" }}
+            >
+              Descubre tu próxima escapada
+            </p>
+
+            <p className="mt-3 max-w-[620px] text-[15px] leading-[26px] text-[#6d6d6d]">
+              SpainWay reúne ciudades, planes y puntos de interés en una sola
+              experiencia visual para que encuentres destinos, guardes ideas y
+              prepares itinerarios con mucho más estilo.
             </p>
           </div>
+        </section>
 
-          <div className="space-y-4">
-            {destinosMock.map((destino) => (
-              <TarjetaDestino
-                key={destino.id}
-                destino={destino}
-                onClick={() => setDestinoSeleccionado(destino.id)}
+        <section className="mt-8 px-4">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            {ciudadesInicio.map((ciudad) => (
+              <TarjetaCiudadDestacada
+                key={ciudad.id}
+                nombre={ciudad.nombre}
+                subtitulo={ciudad.subtitulo}
+                imagen={ciudad.imagen}
+                onClick={() => seleccionarDestino(ciudad.id)}
               />
             ))}
           </div>
-        </div>
+        </section>
+
+        <SeccionHorizontalPoi
+          titulo="Madrid ahora"
+          subtitulo="Una selección de lugares para empezar"
+        >
+          {poisInicioPorCiudad.madrid.map((poi) => (
+            <TarjetaPoiPreview
+              key={poi.id}
+              titulo={poi.titulo}
+              imagen={poi.imagen}
+              onClick={() => {
+                setDestinoSeleccionado("madrid");
+                navigate("/mapa");
+              }}
+            />
+          ))}
+        </SeccionHorizontalPoi>
+
+        <SeccionHorizontalPoi
+          titulo="Barcelona ahora"
+          subtitulo="Arquitectura, mar y rincones emblemáticos"
+        >
+          {poisInicioPorCiudad.cataluna.map((poi) => (
+            <TarjetaPoiPreview
+              key={poi.id}
+              titulo={poi.titulo}
+              imagen={poi.imagen}
+              onClick={() => {
+                setDestinoSeleccionado("cataluna");
+                navigate("/mapa");
+              }}
+            />
+          ))}
+        </SeccionHorizontalPoi>
+
+        <SeccionHorizontalPoi
+          titulo="Valencia ahora"
+          subtitulo="Mediterráneo, cultura y experiencias"
+        >
+          {poisInicioPorCiudad.cv.map((poi) => (
+            <TarjetaPoiPreview
+              key={poi.id}
+              titulo={poi.titulo}
+              imagen={poi.imagen}
+              onClick={() => {
+                setDestinoSeleccionado("cv");
+                navigate("/mapa");
+              }}
+            />
+          ))}
+        </SeccionHorizontalPoi>
       </div>
-    );
-  }
-
-  const data = inicioPorDestino[destinoSeleccionado];
-
-  return (
-    <div className="bg-white min-h-screen w-full max-w-[393px] mx-auto relative overflow-y-auto pb-24">
-      <HeroDestino
-        titulo={data.heroTitulo}
-        subtitulo={data.heroSubtitulo}
-        imagen={data.heroImagen}
-        onExplorar={() => navigate("/mapa")}
-        onEventos={() => navigate("/calendario")}
-        botonExplorarTexto={data.botonExplorarTexto}
-        botonEventosTexto={data.botonEventosTexto}
-      />
-
-      <ExploraVisualmenteCard
-        titulo={data.exploraTitulo}
-        descripcion={data.exploraDescripcion}
-        imagen={data.exploraImagen}
-        onAbrirMapa={() => navigate("/mapa")}
-      />
-
-      <div className="px-6">
-        <SeccionInicio titulo="Eventos de hoy">
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {data.eventosHoy.length > 0 ? (
-              data.eventosHoy.map((evento) => (
-                <EventoDiaCard
-                  key={evento.id}
-                  titulo={evento.titulo}
-                  imagen={evento.imagen}
-                />
-              ))
-            ) : (
-              <p className="text-[12px] text-[#7c6b69]">
-                Próximamente habrá eventos destacados para este destino.
-              </p>
-            )}
-          </div>
-        </SeccionInicio>
-
-        <SeccionInicio titulo="Recomendaciones del día">
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {data.recomendaciones.length > 0 ? (
-              data.recomendaciones.map((recomendacion) => (
-                <RecomendacionCard
-                  key={recomendacion.id}
-                  titulo={recomendacion.titulo}
-                  imagen={recomendacion.imagen}
-                />
-              ))
-            ) : (
-              <p className="text-[12px] text-[#7c6b69]">
-                Próximamente habrá recomendaciones destacadas para este destino.
-              </p>
-            )}
-          </div>
-        </SeccionInicio>
-      </div>
-
-      <CambiarDestinoButton onClick={limpiarDestinoSeleccionado} />
     </div>
   );
 }

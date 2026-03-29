@@ -1,5 +1,5 @@
 import { Home, Map, Calendar, MessageCircle, User } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export default function NavegacionInferior() {
   const navigate = useNavigate();
@@ -14,9 +14,9 @@ export default function NavegacionInferior() {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-2xl z-50">
-      <div className="mx-auto max-w-[393px] px-4">
-        <div className="flex justify-around items-center py-2">
+    <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center pointer-events-none">
+      <div className="pointer-events-auto w-[92%] max-w-[980px]">
+        <div className="mx-auto flex h-[88px] items-center justify-around rounded-[999px] border border-gray-200 bg-white px-4 shadow-lg backdrop-blur-sm">
           {navItems.map((item) => {
             const isActive =
               location.pathname === item.path ||
@@ -29,18 +29,24 @@ export default function NavegacionInferior() {
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`flex flex-col items-center justify-center py-2 px-3 rounded-lg transition-all duration-300 ${
-                  isActive
-                    ? "text-red-600"
-                    : "text-gray-500 hover:text-gray-900"
-                }`}
+                className="flex min-w-[62px] flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 transition-all duration-300 hover:bg-gray-50"
+                type="button"
               >
                 <Icon
-                  className={`w-6 h-6 mb-1 transition-all duration-300 ${
-                    isActive ? "scale-110" : ""
+                  className={`h-7 w-7 transition-all duration-300 ${
+                    isActive 
+                      ? "text-red-500 scale-105" 
+                      : "text-gray-500"
                   }`}
+                  strokeWidth={2}
                 />
-                <span className="text-xs font-medium">{item.label}</span>
+                <span
+                  className={`text-[13px] font-medium transition-all duration-300 ${
+                    isActive ? "text-red-500" : "text-gray-500"
+                  }`}
+                >
+                  {item.label}
+                </span>
               </button>
             );
           })}
