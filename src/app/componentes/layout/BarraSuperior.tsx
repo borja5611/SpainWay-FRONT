@@ -14,7 +14,7 @@ export default function BarraSuperior({
   subtitulo,
 }: Props) {
   return (
-    <header className="sticky top-0 z-40 bg-[#f6f6f3]/95 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-[#eceae5] bg-[#f6f6f3]/95 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-[980px] items-start justify-between px-4 pt-5 pb-4">
         <div className="flex min-w-0 items-center gap-3">
           {mostrarLogo && (

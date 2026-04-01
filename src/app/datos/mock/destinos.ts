@@ -1,16 +1,22 @@
-import HeroMadrid from "@/assets/inicio/madrid/HeroMadrid.png";
+import EventoAlhambra from "@/assets/inicio/andalucia/EventoAlhambra.png";
+import AsturiasHero from "@/assets/inicio/asturias/AsturiasHero.png";
+import HomeBaleares from "@/assets/inicio/baleares/HomeBaleares.png";
+import HeroCanarias from "@/assets/inicio/canarias/HeroCanarias.png";
+import HeroCantabria from "@/assets/inicio/cantabria/HeroCantabria.png";
+
 import HeroBarcelona from "@/assets/inicio/barcelona/HeroBarcelona.png";
 import HeroValencia from "@/assets/inicio/valencia/HeroValencia.png";
+import HeroMadrid from "@/assets/inicio/madrid/HeroMadrid.png";
 
 export type DestinoId =
-  | "madrid"
-  | "cataluna"
-  | "cv"
   | "andalucia"
   | "asturias"
   | "baleares"
   | "canarias"
-  | "cantabria";
+  | "cantabria"
+  | "cataluna"
+  | "cv"
+  | "madrid";
 
 export type Destino = {
   id: DestinoId;
@@ -21,51 +27,51 @@ export type Destino = {
 
 export const destinosMock: Destino[] = [
   {
-    id: "madrid",
-    nombre: "Madrid",
-    subtitulo: "Capital, cultura y vida urbana",
-    imagen: HeroMadrid,
+    id: "andalucia",
+    nombre: "Andalucía",
+    subtitulo: "Patrimonio, ciudades históricas y grandes iconos culturales",
+    imagen: EventoAlhambra,
+  },
+  {
+    id: "asturias",
+    nombre: "Asturias",
+    subtitulo: "Costa, naturaleza y rincones con identidad propia",
+    imagen: AsturiasHero,
+  },
+  {
+    id: "baleares",
+    nombre: "Baleares",
+    subtitulo: "Islas, patrimonio y experiencias junto al mar",
+    imagen: HomeBaleares,
+  },
+  {
+    id: "canarias",
+    nombre: "Canarias",
+    subtitulo: "Volcanes, paisajes únicos y ciudades con carácter",
+    imagen: HeroCanarias,
+  },
+  {
+    id: "cantabria",
+    nombre: "Cantabria",
+    subtitulo: "Costa, cuevas y patrimonio natural y cultural",
+    imagen: HeroCantabria,
   },
   {
     id: "cataluna",
     nombre: "Cataluña",
-    subtitulo: "Barcelona, costa y arquitectura",
+    subtitulo: "Arquitectura, mar y diseño urbano",
     imagen: HeroBarcelona,
   },
   {
     id: "cv",
     nombre: "Comunidad Valenciana",
-    subtitulo: "Valencia, ciencia y Mediterráneo",
+    subtitulo: "Mediterráneo, ciencia y cultura",
     imagen: HeroValencia,
   },
   {
-    id: "andalucia",
-    nombre: "Andalucía",
-    subtitulo: "Historia, patrimonio y costa",
+    id: "madrid",
+    nombre: "Madrid",
+    subtitulo: "Capital, cultura y vida urbana",
     imagen: HeroMadrid,
-  },
-  {
-    id: "asturias",
-    nombre: "Asturias",
-    subtitulo: "Naturaleza, mar y montaña",
-    imagen: HeroBarcelona,
-  },
-  {
-    id: "baleares",
-    nombre: "Baleares",
-    subtitulo: "Islas, calas y turismo activo",
-    imagen: HeroValencia,
-  },
-  {
-    id: "canarias",
-    nombre: "Canarias",
-    subtitulo: "Volcanes, playas y clima único",
-    imagen: HeroMadrid,
-  },
-  {
-    id: "cantabria",
-    nombre: "Cantabria",
-    subtitulo: "Costa, cuevas y naturaleza",
-    imagen: HeroBarcelona,
   },
 ];

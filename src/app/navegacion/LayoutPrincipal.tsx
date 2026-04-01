@@ -68,9 +68,7 @@ export default function LayoutPrincipal() {
         onAbrirConfiguracion={() => setMenuAbierto(true)}
       />
 
-      <div className="pb-28">
-        <Outlet />
-      </div>
+      <Outlet />
 
       <NavegacionInferior />
 
