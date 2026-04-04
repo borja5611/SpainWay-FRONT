@@ -17,6 +17,8 @@ export const RUTAS_APP = {
 
   itinerarios: "/itinerarios",
   calendario: "/calendario",
+  crearItinerario: "/itinerarios/crear",
+  detalleItinerario: "/itinerarios/:itinerarioId",
 
   chat: "/chat",
   chatDestino: "/chat/destino",
