@@ -1,0 +1,184 @@
+Plan correcto de integración
+
+Voy a decirte qué pantallas tocar, qué servicios usan, y qué mocks deberían dejar de usarse.
+
+Fase 1. Integrar territorio y catálogo base
+
+Esta fase sirve para validar que todo el front navega con datos reales.
+
+Pantallas a tocar primero
+1. src/app/pantallas/inicio/InicioPantalla.tsx
+2. src/app/pantallas/inicio/SelectorDestinoPantalla.tsx
+3. src/app/pantallas/mapa/MapaPantalla.tsx
+Servicios a usar
+territorio.ts
+pois.ts
+Endpoints que deben consumir
+GET /api/comunidades
+GET /api/provincias/comunidad/:id_CCAA
+GET /api/municipios/provincia/:id_provincia
+GET /api/categorias-poi
+GET /api/pois/filtros
+GET /api/pois/destacados
+GET /api/pois/explorar
+Mocks que deberías dejar de usar aquí
+src/app/datos/mock/destinos.ts
+src/app/datos/mock/inicioPorDestino.ts
+parte de src/app/datos/mock/mapaPorDestino.ts
+parte de src/app/datos/mock/poiPorDestino.ts
+Resultado esperado
+selector de destino real
+filtros reales
+home con destacados reales
+mapa con POIs reales
+Fase 2. Integrar la pantalla de detalle de POI
+Pantalla
+src/app/pantallas/mapa/DetallePoiPantalla.tsx
+Servicios
+pois.ts
+favoritos.ts
+Endpoints
+GET /api/pois/:id
+GET /api/pois/id-global/:id_global
+GET /api/favoritos/check/:id_usuario/:id_poi
+POST /api/favoritos
+DELETE /api/favoritos/:id_usuario/:id_poi
+Mocks a reemplazar
+src/app/datos/mock/poiPorDestino.ts
+Resultado esperado
+ficha POI real
+botón favorito real
+navegación desde mapa/listado a detalle real
+Fase 3. Integrar perfil y preferencias
+Pantallas
+src/app/pantallas/perfil/PerfilPantalla.tsx
+src/app/pantallas/perfil/EditarPerfilPantalla.tsx
+Servicios
+auth.ts
+preferencias.ts
+favoritos.ts
+Endpoints
+GET /api/auth/me
+GET /api/usuarios/:id
+GET /api/usuarios/:id/resumen
+GET /api/preferencias/:id_usuario
+POST /api/preferencias
+PATCH /api/preferencias/:id_usuario
+GET /api/favoritos/:id_usuario
+Resultado esperado
+perfil real
+resumen real del usuario
+preferencias reales
+favoritos reales en perfil
+Fase 4. Integrar auth
+Pantallas
+src/app/pantallas/auth/LoginPantalla.tsx
+src/app/pantallas/auth/RegistroPantalla.tsx
+src/app/pantallas/auth/RecuperarContrasenaPantalla.tsx
+Servicio
+auth.ts
+Endpoints
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/logout
+GET /api/auth/me
+POST /api/auth/refresh
+Resultado esperado
+login real
+registro real
+guardar token
+usuario persistido en sesión
+Nota importante
+
+RecuperarContrasenaPantalla, NuevaContrasenaPantalla, VerificacionOtpPantalla seguramente ahora mismo son solo visuales.
+Esas yo no las conectaría aún si tu backend todavía no tiene flujo real de recuperación.
+
+Fase 5. Integrar favoritos
+Pantallas
+probablemente PerfilPantalla.tsx
+y parte de DetallePoiPantalla.tsx
+Servicio
+favoritos.ts
+Endpoints
+GET /api/favoritos/:id_usuario
+GET /api/favoritos/check/:id_usuario/:id_poi
+POST /api/favoritos
+DELETE /api/favoritos/:id_usuario/:id_poi
+Resultado esperado
+sección favoritos real
+toggle favorito real
+Fase 6. Integrar itinerarios
+
+Esta es una de las fases más importantes.
+
+Pantallas
+src/app/pantallas/itinerarios/ListaItinerariosPantalla.tsx
+src/app/pantallas/itinerarios/DetalleItinerarioPantalla.tsx
+src/app/pantallas/itinerarios/CreaItinerarioPantalla.tsx
+src/app/pantallas/itinerarios/CalendarioPantalla.tsx
+Servicio
+itinerarios.ts
+Endpoints
+GET /api/itinerarios/:id_usuario
+GET /api/itinerarios/resumen/:id_usuario
+GET /api/itinerarios/detalle/:id_itinerario
+POST /api/itinerarios
+PATCH /api/itinerarios/:id_itinerario
+DELETE /api/itinerarios/:id_itinerario
+GET /api/dias-itinerario/:id_itinerario
+POST /api/dias-itinerario
+PATCH /api/dias-itinerario/:id_dia_itinerario
+DELETE /api/dias-itinerario/:id_dia_itinerario
+GET /api/elementos-itinerario/:id_dia_itinerario
+POST /api/elementos-itinerario
+Mocks a reemplazar
+src/app/datos/mock/itinerariosMock.ts
+src/app/datos/mock/calendarioPorDestino.ts
+Resultado esperado
+lista de itinerarios real
+detalle real
+calendario real
+creación real
+Fase 7. Integrar chat y conversación
+Pantallas
+src/app/pantallas/chat/ChatPantalla.tsx
+src/app/pantallas/chat/ResultadoChatPantalla.tsx
+src/app/pantallas/chat/InicioItinerarioPantalla.tsx
+src/app/pantallas/chat/ChatInteresesPantalla.tsx
+src/app/pantallas/chat/ChatPresupuestoPantalla.tsx
+src/app/pantallas/chat/ChatPreferenciasPantalla.tsx
+Servicio
+conversacion.ts
+Endpoints
+GET /api/conversaciones/:id_usuario
+GET /api/conversaciones/detalle/:id_conversacion
+POST /api/conversaciones
+DELETE /api/conversaciones/:id_conversacion
+GET /api/mensajes/:id_conversacion
+POST /api/mensajes
+Resultado esperado
+conversaciones persistidas
+mensajes reales
+historial de chat
+Nota importante
+
+Aquí todavía no metería el modelo IA final.
+Solo persistencia y flujo del chat.
+
+Fase 8. Integrar eventos y programación POI
+Pantallas candidatas
+InicioPantalla.tsx
+MapaPantalla.tsx
+DetallePoiPantalla.tsx
+Servicios
+podrías ampliar pois.ts o crear:
+eventos.ts
+programacionPoi.ts
+Endpoints
+GET /api/eventos
+GET /api/eventos/:id
+GET /api/eventos/municipio/:id_municipio
+GET /api/programacion-poi/:id_poi
+Resultado esperado
+horarios reales del POI
+eventos reales asociados a municipio/destino
