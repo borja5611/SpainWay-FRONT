@@ -1,5 +1,7 @@
-import NavegacionApp from "@/app/navegacion";
+import PantallaPruebaBackend from "./app/pantallas/PantallaPruebaBackend";
 
-export default function App() {
-  return <NavegacionApp />;
+function App() {
+  return <PantallaPruebaBackend />;
 }
+
+export default App;
