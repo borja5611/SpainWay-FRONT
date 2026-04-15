@@ -14,6 +14,7 @@ export const RUTAS_APP = {
 
   mapa: "/mapa",
   detallePoi: "/poi/:poiId",
+  
 
   itinerarios: "/itinerarios",
   calendario: "/calendario",

@@ -1,5 +1,10 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import LogoSpainway from "../../../assets/LogoSpainway.png";
+import { me, type UsuarioAuth } from "@/app/servicios/auth";
+import { useAuthStore } from "@/app/store/useAuthStore";
+import { getFavoritos } from "@/app/servicios/favoritos";
+import { getItinerarios } from "@/app/servicios/itinerarios";
 
 function IconoEditar() {
   return (
@@ -128,7 +133,7 @@ function IconoRuta() {
   );
 }
 
-const accesosRapidos = [
+const accesosRapidosBase = [
   {
     titulo: "Editar perfil",
     descripcion: "Actualiza tus datos personales y preferencias básicas.",
@@ -149,8 +154,53 @@ const accesosRapidos = [
   },
 ];
 
+function formatearTelefono(telefono: string | null | undefined) {
+  if (!telefono) return "No indicado";
+  return telefono;
+}
+
 export default function PerfilPantalla() {
   const navigate = useNavigate();
+  const { token, usuario } = useAuthStore();
+
+  const [perfil, setPerfil] = useState<UsuarioAuth | null>(usuario);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [totalFavoritos, setTotalFavoritos] = useState(0);
+  const [totalItinerarios, setTotalItinerarios] = useState(0);
+
+  useEffect(() => {
+    async function cargarPerfil() {
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await me(token);
+        setPerfil(data);
+
+        const [favoritos, itinerarios] = await Promise.all([
+          getFavoritos(data.id_usuario),
+          getItinerarios(data.id_usuario),
+        ]);
+
+        setTotalFavoritos(Array.isArray(favoritos) ? favoritos.length : 0);
+        setTotalItinerarios(Array.isArray(itinerarios) ? itinerarios.length : 0);
+      } catch (err) {
+        console.error(err);
+        setError("No se pudo cargar el perfil.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void cargarPerfil();
+  }, [token, navigate]);
+
 
   function manejarAccion(accion: string) {
     if (accion === "editar") {
@@ -162,6 +212,37 @@ export default function PerfilPantalla() {
       navigate("/itinerarios");
       return;
     }
+
+    if (accion === "configuracion") {
+      navigate("/perfil");
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-full bg-[#eef2f8] text-[#111827] flex items-center justify-center">
+        <p className="text-sm text-[#667085]">Cargando perfil...</p>
+      </div>
+    );
+  }
+
+  if (error || !perfil) {
+    return (
+      <div className="min-h-full bg-[#eef2f8] px-5 py-10">
+        <div className="mx-auto max-w-[430px] rounded-[24px] bg-white p-6 text-center shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
+          <p className="text-sm text-red-600">
+            {error || "No se pudo cargar el perfil"}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/login")}
+            className="mt-4 rounded-xl bg-[#ff6a47] px-4 py-3 text-sm font-semibold text-white"
+          >
+            Ir a login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -174,7 +255,7 @@ export default function PerfilPantalla() {
               <div className="absolute left-[-12px] bottom-[-18px] h-24 w-24 rounded-full bg-[#7c3aed]/10 blur-3xl" />
 
               <div className="relative flex flex-col items-center text-center">
-                <div className="flex h-28 w-28 items-center justify-center rounded-full bg-[#fff4ef] shadow-[0_14px_32px_rgba(15,23,42,0.08)]">
+                <div className="flex h-28 w-28 items-center justify-center rounded-full bg-[#fff4ef] shadow-[0_14px_32px_rgba(15,23,42,0.08)] overflow-hidden">
                   <img
                     src={LogoSpainway}
                     alt="Perfil SpainWay"
@@ -187,12 +268,12 @@ export default function PerfilPantalla() {
                   Perfil activo
                 </div>
 
-                <h1 className="mt-4 text-[34px] font-extrabold tracking-[-0.04em] text-[#111827]">
-                  Rose
+                <h1 className="mt-4 text-[34px] font-extrabold tracking-[-0.04em] text-[#111827] break-words">
+                  {perfil.nombre}
                 </h1>
 
-                <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  rose@email.com
+                <p className="mt-2 text-sm leading-6 text-[#667085] break-all">
+                  {perfil.email}
                 </p>
 
                 <p className="mt-4 max-w-[290px] text-sm leading-6 text-[#667085]">
@@ -202,17 +283,25 @@ export default function PerfilPantalla() {
               </div>
 
               <div className="relative mt-6 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)] min-h-[82px] flex flex-col items-center justify-center">
                   <p className="text-xs text-[#94a3b8]">Itinerarios</p>
-                  <p className="mt-1 text-lg font-bold text-[#0f172a]">6</p>
+                  <p className="mt-1 text-lg font-bold text-[#0f172a]">
+                    {totalItinerarios}
+                  </p>
                 </div>
-                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+
+                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)] min-h-[82px] flex flex-col items-center justify-center">
                   <p className="text-xs text-[#94a3b8]">Favoritos</p>
-                  <p className="mt-1 text-lg font-bold text-[#0f172a]">14</p>
+                  <p className="mt-1 text-lg font-bold text-[#0f172a]">
+                    {totalFavoritos}
+                  </p>
                 </div>
-                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <p className="text-xs text-[#94a3b8]">Estado</p>
-                  <p className="mt-1 text-lg font-bold text-[#0f172a]">Activo</p>
+
+                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)] min-h-[82px] flex flex-col items-center justify-center">
+                  <p className="text-xs text-[#94a3b8]">Teléfono</p>
+                  <p className="mt-1 text-[13px] font-bold text-[#0f172a] break-words leading-5">
+                    {perfil.telefono || "—"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -221,41 +310,43 @@ export default function PerfilPantalla() {
 
         <section className="px-5 pt-5">
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
+            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)] min-h-[140px]">
               <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff4ef] text-[#ff6a47]">
                 <IconoUsuario />
               </div>
               <p className="text-xs text-[#94a3b8]">Usuario</p>
-              <p className="mt-1 text-base font-bold text-[#111827]">Rose</p>
+              <p className="mt-1 text-base font-bold text-[#111827] break-words">
+                {perfil.nombre_usuario || perfil.nombre}
+              </p>
             </div>
 
-            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
+            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)] min-h-[140px]">
               <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff4ef] text-[#ff6a47]">
                 <IconoCorreo />
               </div>
               <p className="text-xs text-[#94a3b8]">Correo</p>
               <p className="mt-1 text-base font-bold text-[#111827] break-all">
-                rose@email.com
+                {perfil.email}
               </p>
             </div>
 
-            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
+            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)] min-h-[140px]">
               <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff4ef] text-[#ff6a47]">
                 <IconoTelefono />
               </div>
               <p className="text-xs text-[#94a3b8]">Teléfono</p>
-              <p className="mt-1 text-base font-bold text-[#111827]">
-                +34 600 000 000
+              <p className="mt-1 text-base font-bold text-[#111827] break-words leading-6">
+                {formatearTelefono(perfil.telefono)}
               </p>
             </div>
 
-            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)]">
+            <div className="rounded-[26px] bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.07)] min-h-[140px]">
               <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#fff4ef] text-[#ff6a47]">
                 <IconoAjustes />
               </div>
               <p className="text-xs text-[#94a3b8]">Cuenta</p>
-              <p className="mt-1 text-base font-bold text-[#111827]">
-                Configuración personal
+              <p className="mt-1 text-base font-bold text-[#111827] break-words">
+                Personalización activa
               </p>
             </div>
           </div>
@@ -272,7 +363,7 @@ export default function PerfilPantalla() {
           </div>
 
           <div className="space-y-4">
-            {accesosRapidos.map((item) => (
+            {accesosRapidosBase.map((item) => (
               <button
                 key={item.titulo}
                 type="button"

@@ -1,67 +1,66 @@
-// src/app/servicios/preferencias.ts
-import { apiGet, apiPatch, apiPost } from "./api";
+const API_URL = import.meta.env.VITE_API_URL;
 
-export interface Preferencias {
-  id_user_preference: number;
+if (!API_URL) {
+  throw new Error("VITE_API_URL no está definida en el .env del front");
+}
+
+export interface PreferenciasUsuario {
+  id_user_preference?: number;
+  id_usuario: number;
   presupuesto: number | null;
   modo_transporte: string | null;
   accesibilidad: string | null;
   con_ninos: boolean | null;
   estilo_viaje: string | null;
   intereses: string | null;
-  id_usuario: number;
 }
 
-export interface CrearPreferenciasPayload {
-  id_usuario: number;
-  presupuesto?: number;
-  modo_transporte?: string;
-  accesibilidad?: string;
-  con_ninos?: boolean;
-  estilo_viaje?: string;
-  intereses?: string;
+export async function getPreferencias(idUsuario: number): Promise<PreferenciasUsuario> {
+  const response = await fetch(`${API_URL}/api/preferencias/${idUsuario}`);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Error obteniendo preferencias: ${response.status} ${text}`);
+  }
+
+  return response.json() as Promise<PreferenciasUsuario>;
 }
 
-export interface ActualizarPreferenciasPayload {
-  presupuesto?: number;
-  modo_transporte?: string;
-  accesibilidad?: string;
-  con_ninos?: boolean;
-  estilo_viaje?: string;
-  intereses?: string;
+export async function crearPreferencias(
+  payload: Omit<PreferenciasUsuario, "id_user_preference">
+): Promise<PreferenciasUsuario> {
+  const response = await fetch(`${API_URL}/api/preferencias`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Error creando preferencias: ${response.status} ${text}`);
+  }
+
+  return response.json() as Promise<PreferenciasUsuario>;
 }
 
-export interface UsuarioResumen {
-  usuario: {
-    id_usuario: number;
-    nombre: string;
-    email: string;
-    rol: string;
-    creado: string;
-    actualizado: string;
-    preferencias: Preferencias | null;
-  };
-  resumen: {
-    totalFavoritos: number;
-    totalItinerarios: number;
-    totalConversaciones: number;
-  };
-}
-
-export const getPreferencias = (idUsuario: number) =>
-  apiGet<Preferencias>(`/api/preferencias/${idUsuario}`);
-
-export const getUsuarioResumen = (idUsuario: number) =>
-  apiGet<UsuarioResumen>(`/api/usuarios/${idUsuario}/resumen`);
-
-export const crearPreferencias = (payload: CrearPreferenciasPayload) =>
-  apiPost<Preferencias, CrearPreferenciasPayload>("/api/preferencias", payload);
-
-export const actualizarPreferencias = (
+export async function actualizarPreferencias(
   idUsuario: number,
-  payload: ActualizarPreferenciasPayload
-) =>
-  apiPatch<Preferencias, ActualizarPreferenciasPayload>(
-    `/api/preferencias/${idUsuario}`,
-    payload
-  );
+  payload: Partial<Omit<PreferenciasUsuario, "id_user_preference" | "id_usuario">>
+): Promise<PreferenciasUsuario> {
+  const response = await fetch(`${API_URL}/api/preferencias/${idUsuario}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Error actualizando preferencias: ${response.status} ${text}`);
+  }
+
+  return response.json() as Promise<PreferenciasUsuario>;
+}

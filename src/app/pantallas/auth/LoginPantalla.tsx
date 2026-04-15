@@ -1,21 +1,83 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthLayout } from "@/app/componentes/auth/AuthLayout";
 import { Logo } from "@/app/componentes/auth/Logo";
 import { InputField } from "@/app/componentes/auth/InputField";
 import { SocialLogin } from "@/app/componentes/auth/SocialLogin";
 import { EmailIcon, LockIcon, EyeIcon } from "@/app/componentes/auth/icons";
+import { RUTAS_APP } from "@/app/utilidades/rutas";
+import {
+  getSocialAuthUrl,
+  guardarSesion,
+  login,
+  type UsuarioAuth,
+} from "@/app/servicios/auth";
+import { useAuthStore } from "@/app/store/useAuthStore";
 
 export default function LoginPantalla() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const { setSesion } = useAuthStore();
+
+  const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const user = params.get("user");
+
+    if (token && user) {
+      try {
+        const usuario = JSON.parse(decodeURIComponent(user)) as UsuarioAuth;
+        guardarSesion({ token, usuario });
+        setSesion(token, usuario);
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+        navigate(RUTAS_APP.inicio);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, [navigate, setSesion]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    navigate("/inicio");
-  };
+
+    if (!emailOrUsername.trim() || !password.trim()) {
+      setError("Debes rellenar usuario/email y contraseña");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const auth = await login({
+        emailOrUsername: emailOrUsername.trim(),
+        password,
+      });
+
+      setSesion(auth.token, auth.usuario);
+      navigate(RUTAS_APP.inicio);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo iniciar sesión. Revisa tus credenciales.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function loginSocial(provider: "google" | "facebook" | "linkedin") {
+    if (provider !== "google") {
+      setError("De momento solo está activo el acceso con Google.");
+      return;
+    }
+
+    window.location.href = getSocialAuthUrl("google");
+  }
 
   return (
     <AuthLayout>
@@ -41,10 +103,10 @@ export default function LoginPantalla() {
       <form onSubmit={handleSubmit}>
         <div className="mb-5">
           <InputField
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email o número de telefono"
+            type="text"
+            value={emailOrUsername}
+            onChange={(e) => setEmailOrUsername(e.target.value)}
+            placeholder="Email o nombre de usuario"
             icon={<EmailIcon />}
             backgroundColor="light"
             required
@@ -65,27 +127,39 @@ export default function LoginPantalla() {
           />
         </div>
 
-        <div className="text-right mb-8">
+        <div className="text-right mb-6">
           <button
             type="button"
-            onClick={() => navigate("/recuperar-contrasena")}
-            className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] leading-[24px] text-[#e12414] tracking-[0.5px] hover:underline transition-all active:opacity-70"
+            className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] leading-[24px] text-[#e12414] tracking-[0.5px] opacity-50 cursor-not-allowed"
+            disabled
           >
             ¿Has olvidado tu contraseña?
           </button>
         </div>
 
+        {error && (
+          <div className="mb-4 rounded-[10px] bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         <button
           type="submit"
-          className="bg-[#e12414] w-full px-6 py-[10px] rounded-[10px] mb-6 hover:bg-[#c41f12] active:bg-[#a01810] transition-all duration-200 shadow-sm active:shadow-none"
+          disabled={loading}
+          className="bg-[#e12414] w-full px-6 py-[10px] rounded-[10px] mb-6 hover:bg-[#c41f12] active:bg-[#a01810] transition-all duration-200 shadow-sm active:shadow-none disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold leading-[24px] text-[#f2f2f2] text-[16px] text-center">
-            Inicia Sesión
+            {loading ? "Iniciando..." : "Inicia Sesión"}
           </p>
         </button>
 
         <div className="mb-6">
-          <SocialLogin text="O continúa con" />
+          <SocialLogin
+            text="O continúa con"
+            onGoogle={() => loginSocial("google")}
+            onFacebook={() => loginSocial("facebook")}
+            onLinkedin={() => loginSocial("linkedin")}
+          />
         </div>
 
         <div className="mt-2 text-center pb-2">
@@ -94,7 +168,7 @@ export default function LoginPantalla() {
           </span>
           <button
             type="button"
-            onClick={() => navigate("/registro")}
+            onClick={() => navigate(RUTAS_APP.registro)}
             className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[15px] leading-[25px] text-[#e12414] tracking-[0.5px] hover:underline transition-all active:opacity-70"
           >
             Regístrate

@@ -35,6 +35,7 @@ import ResultadoChatPantalla from "@/app/pantallas/chat/ResultadoChatPantalla";
 
 import PerfilPantalla from "@/app/pantallas/perfil/PerfilPantalla";
 import EditarPerfilPantalla from "@/app/pantallas/perfil/EditarPerfilPantalla";
+import EditarPreferenciasPantalla from "@/app/pantallas/perfil/EditarPreferenciasPantalla";
 
 export const router = createBrowserRouter([
   {
@@ -74,6 +75,7 @@ export const router = createBrowserRouter([
 
       { path: RUTAS_APP.perfil, element: <PerfilPantalla /> },
       { path: RUTAS_APP.editarPerfil, element: <EditarPerfilPantalla /> },
+      { path: "/perfil/preferencias", element: <EditarPreferenciasPantalla /> },
     ],
   },
 ]);

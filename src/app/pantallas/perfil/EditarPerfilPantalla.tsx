@@ -1,313 +1,444 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import LogoSpainway from "../../../assets/LogoSpainway.png";
+import { useEffect, useState } from "react";
+import { useAuthStore } from "@/app/store/useAuthStore";
+import { actualizarUsuario, getUsuarioById } from "@/app/servicios/usuarios";
 
-function IconoUsuario() {
+const PREFIJOS_PAISES = [
+  { label: "🇪🇸 +34", value: "+34" },
+  { label: "🇵🇹 +351", value: "+351" },
+  { label: "🇫🇷 +33", value: "+33" },
+  { label: "🇮🇹 +39", value: "+39" },
+  { label: "🇩🇪 +49", value: "+49" },
+  { label: "🇬🇧 +44", value: "+44" },
+  { label: "🇺🇸 +1", value: "+1" },
+];
+
+function limpiarTelefono(valor: string) {
+  return valor.replace(/\D/g, "");
+}
+
+function esTelefonoValido(valor: string) {
+  return /^[0-9]{6,15}$/.test(valor);
+}
+
+function separarTelefono(telefono: string | null | undefined) {
+  if (!telefono) {
+    return {
+      prefijo: "+34",
+      numero: "",
+    };
+  }
+
+  const prefijoDetectado =
+    PREFIJOS_PAISES.find((p) => telefono.startsWith(p.value))?.value || "+34";
+
+  const numero = telefono.startsWith(prefijoDetectado)
+    ? telefono.slice(prefijoDetectado.length)
+    : telefono.replace(/\D/g, "");
+
+  return {
+    prefijo: prefijoDetectado,
+    numero: numero.replace(/\D/g, ""),
+  };
+}
+
+export default function EditarPerfilPantalla() {
+  const { usuario, setSesion, token } = useAuthStore();
+
+  const [loading, setLoading] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+
+  const [formData, setFormData] = useState({
+    nombre: "",
+    nombre_usuario: "",
+    email: "",
+    prefijo: "+34",
+    telefono: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
+  });
+
+  useEffect(() => {
+    async function cargar() {
+      if (!usuario?.id_usuario) {
+        setError("No hay usuario autenticado.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await getUsuarioById(usuario.id_usuario);
+        const tel = separarTelefono(data.telefono);
+
+        setFormData((prev) => ({
+          ...prev,
+          nombre: data.nombre || "",
+          nombre_usuario: data.nombre_usuario || "",
+          email: data.email || "",
+          prefijo: tel.prefijo,
+          telefono: tel.numero,
+        }));
+      } catch (err) {
+        console.error(err);
+        setError("No se pudieron cargar los datos del perfil.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void cargar();
+  }, [usuario?.id_usuario]);
+
+  function handleChange(field: keyof typeof formData, value: string) {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  }
+
+  async function handleGuardar(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (!usuario?.id_usuario) {
+      setError("No hay usuario autenticado.");
+      return;
+    }
+
+    const nombre = formData.nombre.trim();
+    const nombreUsuario = formData.nombre_usuario.trim().toLowerCase();
+    const telefonoLimpio = limpiarTelefono(formData.telefono);
+
+    if (!nombre || !nombreUsuario) {
+      setError("Nombre y nombre de usuario son obligatorios.");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9._-]{3,30}$/.test(nombreUsuario)) {
+      setError(
+        "El nombre de usuario debe tener entre 3 y 30 caracteres y solo usar letras, números, punto, guion o guion bajo."
+      );
+      return;
+    }
+
+    if (formData.telefono.trim() && !esTelefonoValido(telefonoLimpio)) {
+      setError("Introduce un número de teléfono válido.");
+      return;
+    }
+
+    const quiereCambiarPassword =
+      formData.currentPassword.trim() ||
+      formData.newPassword.trim() ||
+      formData.confirmNewPassword.trim();
+
+    if (quiereCambiarPassword) {
+      if (!formData.currentPassword.trim()) {
+        setError("Debes introducir tu contraseña actual.");
+        return;
+      }
+
+      if (!formData.newPassword.trim()) {
+        setError("Debes introducir una nueva contraseña.");
+        return;
+      }
+
+      if (formData.newPassword.length < 6) {
+        setError("La nueva contraseña debe tener al menos 6 caracteres.");
+        return;
+      }
+
+      if (formData.newPassword !== formData.confirmNewPassword) {
+        setError("La nueva contraseña y la confirmación no coinciden.");
+        return;
+      }
+    }
+
+    try {
+      setGuardando(true);
+      setError("");
+      setOk("");
+
+      const telefonoCompleto = formData.telefono.trim()
+        ? `${formData.prefijo}${telefonoLimpio}`
+        : null;
+
+      const actualizado = await actualizarUsuario(usuario.id_usuario, {
+        nombre,
+        nombre_usuario: nombreUsuario,
+        telefono: telefonoCompleto,
+        currentPassword: formData.currentPassword || undefined,
+        newPassword: formData.newPassword || undefined,
+        confirmNewPassword: formData.confirmNewPassword || undefined,
+      });
+
+      if (token) {
+        setSesion(token, {
+          id_usuario: actualizado.id_usuario,
+          nombre: actualizado.nombre,
+          nombre_usuario: actualizado.nombre_usuario,
+          email: actualizado.email,
+          telefono: actualizado.telefono,
+          rol: actualizado.rol,
+        });
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        currentPassword: "",
+        newPassword: "",
+        confirmNewPassword: "",
+      }));
+
+      setOk("Perfil actualizado correctamente.");
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo actualizar el perfil.");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      />
-      <path
-        d="M5 20C5.85038 17.1085 8.53784 15 12 15C15.4622 15 18.1496 17.1085 19 20"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
+    <div className="min-h-full bg-[#eef2f8]">
+      <div className="mx-auto w-full max-w-[520px] px-5 py-5 pb-28">
+        {loading ? (
+          <div className="rounded-[28px] bg-white p-6 text-center shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
+            <p className="text-sm text-[#667085]">Cargando datos del perfil...</p>
+          </div>
+        ) : (
+          <form className="space-y-4" onSubmit={handleGuardar}>
+            <div className="rounded-[30px] bg-[linear-gradient(135deg,#fff8f4_0%,#ffffff_55%,#f4f1ff_100%)] p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
+                Cuenta y perfil
+              </p>
+              <h2 className="mt-2 text-[26px] font-bold tracking-[-0.03em] text-[#111827]">
+                Editar perfil
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#667085]">
+                Actualiza tus datos personales y deja tu cuenta preparada para una experiencia más coherente con el resto de la app.
+              </p>
+
+              <div className="mt-5 grid grid-cols-3 gap-3">
+                <ResumenMini label="Cuenta" value="Activa" />
+                <ResumenMini label="Perfil" value="Editable" />
+                <ResumenMini label="Seguridad" value="Protegida" />
+              </div>
+            </div>
+
+            <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
+                Información principal
+              </p>
+              <h3 className="mt-2 text-[20px] font-bold text-[#111827]">
+                Datos de la cuenta
+              </h3>
+
+              <div className="mt-5 space-y-4">
+                <CampoTexto
+                  label="Nombre completo"
+                  value={formData.nombre}
+                  onChange={(value) => handleChange("nombre", value)}
+                  placeholder="Tu nombre completo"
+                />
+
+                <CampoTexto
+                  label="Nombre de usuario"
+                  value={formData.nombre_usuario}
+                  onChange={(value) => handleChange("nombre_usuario", value)}
+                  placeholder="Tu nombre de usuario"
+                />
+
+                <CampoTexto
+                  label="Correo electrónico"
+                  value={formData.email}
+                  onChange={() => {}}
+                  placeholder="Correo electrónico"
+                  disabled
+                />
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#667085]">
+                    Número de teléfono
+                  </label>
+
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.prefijo}
+                      onChange={(e) => handleChange("prefijo", e.target.value)}
+                      className="h-[54px] rounded-[16px] border border-[#d9dfe8] bg-[#f8fafc] px-3 text-[#111827] outline-none min-w-[108px]"
+                    >
+                      {PREFIJOS_PAISES.map((pais) => (
+                        <option key={pais.value} value={pais.value}>
+                          {pais.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      type="tel"
+                      value={formData.telefono}
+                      onChange={(e) =>
+                        handleChange("telefono", limpiarTelefono(e.target.value))
+                      }
+                      placeholder="Número de teléfono"
+                      className="flex-1 h-[54px] rounded-[16px] border border-[#d9dfe8] bg-[#f8fafc] px-4 text-[#111827] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
+                Seguridad
+              </p>
+              <h3 className="mt-2 text-[20px] font-bold text-[#111827]">
+                Cambiar contraseña
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-[#667085]">
+                Para cambiar tu contraseña debes indicar primero la contraseña actual.
+              </p>
+
+              <div className="mt-5 space-y-4">
+                <CampoPassword
+                  label="Contraseña actual"
+                  value={formData.currentPassword}
+                  onChange={(value) => handleChange("currentPassword", value)}
+                  placeholder="Tu contraseña actual"
+                />
+
+                <CampoPassword
+                  label="Nueva contraseña"
+                  value={formData.newPassword}
+                  onChange={(value) => handleChange("newPassword", value)}
+                  placeholder="Nueva contraseña"
+                />
+
+                <CampoPassword
+                  label="Confirmar nueva contraseña"
+                  value={formData.confirmNewPassword}
+                  onChange={(value) => handleChange("confirmNewPassword", value)}
+                  placeholder="Repite la nueva contraseña"
+                />
+              </div>
+            </div>
+
+            {error ? (
+              <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            {ok ? (
+              <div className="rounded-[18px] border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                {ok}
+              </div>
+            ) : null}
+
+            <div className="rounded-[28px] bg-[#111827] p-5 text-white shadow-[0_16px_34px_rgba(17,24,39,0.18)]">
+              <p className="text-xs uppercase tracking-[0.18em] text-white/50">
+                Confirmación
+              </p>
+              <h3 className="mt-2 text-[20px] font-bold">Guarda los cambios del perfil</h3>
+              <p className="mt-2 text-sm leading-6 text-white/75">
+                Revisa tus datos y aplica los cambios cuando todo esté correcto.
+              </p>
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => window.history.back()}
+                  className="flex-1 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-white backdrop-blur"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={guardando}
+                  className="flex-1 rounded-2xl bg-[#ff6a47] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(255,106,71,0.28)] disabled:opacity-60"
+                >
+                  {guardando ? "Guardando..." : "Guardar cambios"}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
   );
 }
 
-function IconoCorreo() {
+function ResumenMini({ label, value }: { label: string; value: string }) {
   return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M4 7L11.2 12.4C11.6745 12.7559 12.3255 12.7559 12.8 12.4L20 7M6 19H18C19.1046 19 20 18.1046 20 17V7C20 5.89543 19.1046 5 18 5H6C4.89543 5 4 5.89543 4 7V17C4 18.1046 4.89543 19 6 19Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
+      <p className="text-xs text-[#94a3b8]">{label}</p>
+      <p className="mt-1 text-sm font-bold text-[#111827]">{value}</p>
+    </div>
   );
 }
 
-function IconoTelefono() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M7.5 4H5.6C4.71634 4 4 4.71634 4 5.6C4 13.5529 10.4471 20 18.4 20C19.2837 20 20 19.2837 20 18.4V16.5C20 15.6716 19.3284 15 18.5 15H16.2627C15.8733 15 15.4999 15.1518 15.2208 15.4231L13.8543 16.7511C11.6835 15.6429 9.95707 13.9165 8.8489 11.7457L10.1769 10.3792C10.4482 10.1001 10.6 9.72668 10.6 9.33726V7.5C10.6 6.67157 9.92843 6 9.1 6H7.5Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconoCandado() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M8 11V8.5C8 6.29086 9.79086 4.5 12 4.5C14.2091 4.5 16 6.29086 16 8.5V11"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconoCheck() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M5 13L9 17L19 7"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconoChevron() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M9 6L15 12L9 18"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-type CampoInputProps = {
-  label: string;
-  value: string;
-  onChange: (valor: string) => void;
-  placeholder?: string;
-  type?: string;
-  icono: React.ReactNode;
-};
-
-function CampoInput({
+function CampoTexto({
   label,
   value,
   onChange,
   placeholder,
-  type = "text",
-  icono,
-}: CampoInputProps) {
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+}) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-sm font-semibold text-[#111827]">{label}</span>
-      <div className="flex items-center gap-3 rounded-[22px] border border-[#e8edf4] bg-[#f8fafc] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] transition focus-within:border-[#ff6a47] focus-within:bg-white">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[#ff6a47] shadow-[0_6px_16px_rgba(15,23,42,0.06)]">
-          {icono}
-        </div>
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full bg-transparent text-sm font-medium text-[#111827] outline-none placeholder:text-[#98a2b3]"
-        />
-      </div>
-    </label>
+    <div>
+      <label className="mb-2 block text-sm font-medium text-[#667085]">
+        {label}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={`w-full h-[54px] rounded-[16px] border px-4 outline-none ${
+          disabled
+            ? "border-[#e5e7eb] bg-[#f3f4f6] text-[#94a3b8]"
+            : "border-[#d9dfe8] bg-[#f8fafc] text-[#111827]"
+        }`}
+      />
+    </div>
   );
 }
 
-export default function EditarPerfilPantalla() {
-  const navigate = useNavigate();
-
-  const [nombre, setNombre] = useState("Rose");
-  const [correo, setCorreo] = useState("rose@email.com");
-  const [telefono, setTelefono] = useState("+34 600 000 000");
-  const [contrasena, setContrasena] = useState("");
-  const [confirmarContrasena, setConfirmarContrasena] = useState("");
-  const [guardado, setGuardado] = useState(false);
-
-  function manejarGuardar() {
-    setGuardado(true);
-    window.setTimeout(() => {
-      navigate("/perfil");
-    }, 700);
-  }
-
+function CampoPassword({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
   return (
-    <div className="min-h-full bg-[#eef2f8] text-[#111827]">
-      <div className="mx-auto w-full max-w-[430px] pb-28">
-        <section className="px-5 pt-5">
-          <div className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#fff8f4_0%,#ffffff_50%,#f4f1ff_100%)] shadow-[0_18px_38px_rgba(15,23,42,0.08)]">
-            <div className="relative px-5 pb-6 pt-6">
-              <div className="absolute right-[-20px] top-[-16px] h-28 w-28 rounded-full bg-[#ff6a47]/10 blur-3xl" />
-              <div className="absolute left-[-12px] bottom-[-18px] h-24 w-24 rounded-full bg-[#7c3aed]/10 blur-3xl" />
-
-              <div className="relative flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#fff4ef] shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
-                  <img
-                    src={LogoSpainway}
-                    alt="SpainWay"
-                    className="h-10 w-10 object-contain"
-                  />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs uppercase tracking-[0.18em] text-[#98a2b3]">
-                    Cuenta y perfil
-                  </p>
-                  <h1 className="mt-1 text-[28px] font-extrabold tracking-[-0.04em] text-[#111827]">
-                    Editar perfil
-                  </h1>
-                  <p className="mt-2 text-sm leading-6 text-[#667085]">
-                    Actualiza tus datos personales y deja tu cuenta preparada para
-                    una experiencia más coherente con el resto de la app.
-                  </p>
-                </div>
-              </div>
-
-              <div className="relative mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <p className="text-xs text-[#94a3b8]">Cuenta</p>
-                  <p className="mt-1 text-sm font-bold text-[#0f172a]">Activa</p>
-                </div>
-                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <p className="text-xs text-[#94a3b8]">Perfil</p>
-                  <p className="mt-1 text-sm font-bold text-[#0f172a]">Personal</p>
-                </div>
-                <div className="rounded-2xl bg-white/90 p-3 text-center shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <p className="text-xs text-[#94a3b8]">Estado</p>
-                  <p className="mt-1 text-sm font-bold text-[#0f172a]">Seguro</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="px-5 pt-5">
-          <div className="rounded-[30px] bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-[#98a2b3]">
-                Información principal
-              </p>
-              <h2 className="mt-2 text-[19px] font-bold tracking-[-0.02em] text-[#111827]">
-                Datos de la cuenta
-              </h2>
-            </div>
-
-            <div className="space-y-4">
-              <CampoInput
-                label="Usuario"
-                value={nombre}
-                onChange={setNombre}
-                placeholder="Tu nombre"
-                icono={<IconoUsuario />}
-              />
-
-              <CampoInput
-                label="Correo electrónico"
-                value={correo}
-                onChange={setCorreo}
-                placeholder="Tu email"
-                type="email"
-                icono={<IconoCorreo />}
-              />
-
-              <CampoInput
-                label="Número de teléfono"
-                value={telefono}
-                onChange={setTelefono}
-                placeholder="Tu teléfono"
-                icono={<IconoTelefono />}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="px-5 pt-5">
-          <div className="rounded-[30px] bg-white p-5 shadow-[0_16px_34px_rgba(15,23,42,0.08)]">
-            <div className="mb-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-[#98a2b3]">
-                Seguridad
-              </p>
-              <h2 className="mt-2 text-[19px] font-bold tracking-[-0.02em] text-[#111827]">
-                Cambiar contraseña
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-[#667085]">
-                Déjalo vacío si no quieres cambiarla ahora.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <CampoInput
-                label="Contraseña"
-                value={contrasena}
-                onChange={setContrasena}
-                placeholder="Nueva contraseña"
-                type="password"
-                icono={<IconoCandado />}
-              />
-
-              <CampoInput
-                label="Confirmar contraseña"
-                value={confirmarContrasena}
-                onChange={setConfirmarContrasena}
-                placeholder="Repite la contraseña"
-                type="password"
-                icono={<IconoCheck />}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="px-5 pt-5">
-          <div className="rounded-[30px] bg-[#111827] p-5 text-white shadow-[0_18px_36px_rgba(17,24,39,0.18)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-white/50">
-                  Confirmación
-                </p>
-                <h2 className="mt-2 text-[21px] font-bold tracking-[-0.03em]">
-                  Guarda los cambios del perfil
-                </h2>
-                <p className="mt-3 text-sm leading-6 text-white/74">
-                  Revisa tus datos y aplica los cambios cuando todo esté correcto.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-white/10 p-3">
-                <IconoChevron />
-              </div>
-            </div>
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate("/perfil")}
-                className="flex-1 rounded-2xl border border-white/12 bg-white/10 px-4 py-3 text-sm font-semibold text-white backdrop-blur"
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={manejarGuardar}
-                className="flex-1 rounded-2xl bg-[#ff6a47] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(255,106,71,0.28)]"
-              >
-                {guardado ? "Guardado" : "Guardar cambios"}
-              </button>
-            </div>
-          </div>
-        </section>
-      </div>
+    <div>
+      <label className="mb-2 block text-sm font-medium text-[#667085]">
+        {label}
+      </label>
+      <input
+        type="password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full h-[54px] rounded-[16px] border border-[#d9dfe8] bg-[#f8fafc] px-4 text-[#111827] outline-none"
+      />
     </div>
   );
 }
