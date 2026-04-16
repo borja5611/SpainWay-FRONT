@@ -6,15 +6,15 @@ const sugerenciasRapidas = [
     id: "escapada-urbana",
     titulo: "Escapada urbana",
     descripcion:
-      "Ciudades con ritmo cómodo, iconos imprescindibles y buena organización por zonas.",
+      "Ciudades cómodas, imprescindibles bien elegidos y un ritmo realista.",
     prompt:
-      "Quiero una escapada urbana bien organizada, con imprescindibles, buena gastronomía y rutas cómodas por zonas.",
+      "Quiero una escapada urbana bien organizada, con imprescindibles y buena gastronomía.",
   },
   {
     id: "viaje-cultural",
     titulo: "Viaje cultural",
     descripcion:
-      "Museos, patrimonio, monumentos y contexto real para entender mejor cada destino.",
+      "Patrimonio, museos y monumentos con un orden que tenga sentido.",
     prompt:
       "Quiero un viaje cultural centrado en patrimonio, monumentos y visitas bien distribuidas.",
   },
@@ -22,26 +22,17 @@ const sugerenciasRapidas = [
     id: "naturaleza-relax",
     titulo: "Naturaleza y relax",
     descripcion:
-      "Paisajes, miradores, costa o interior con un ritmo más relajado y disfrutable.",
+      "Paisajes, paradas bonitas y un ritmo más relajado y disfrutable.",
     prompt:
-      "Quiero un viaje de naturaleza y relax con paisajes, paradas bonitas y un ritmo tranquilo.",
-  },
-  {
-    id: "gastronomico",
-    titulo: "Ruta gastronómica",
-    descripcion:
-      "Propuestas donde comer bien forme parte real del viaje y no un añadido genérico.",
-    prompt:
-      "Quiero un viaje donde la gastronomía sea importante, con zonas buenas para comer y experiencias locales.",
+      "Quiero un viaje de naturaleza y relax con paisajes y un ritmo tranquilo.",
   },
 ];
 
-const preguntasBase = [
-  "¿A qué destino te gustaría viajar?",
-  "¿Cuántos días tienes disponibles?",
-  "¿Qué presupuesto aproximado manejas?",
-  "¿Quieres un viaje relajado, equilibrado o intenso?",
-  "¿Qué te interesa más: cultura, naturaleza, gastronomía, playa o una mezcla?",
+const pasosResumen = [
+  "Destino",
+  "Días disponibles",
+  "Presupuesto",
+  "Estilo del viaje",
 ];
 
 function IconoSpark() {
@@ -51,20 +42,6 @@ function IconoSpark() {
         d="M12 3L13.8 8.2L19 10L13.8 11.8L12 17L10.2 11.8L5 10L10.2 8.2L12 3Z"
         stroke="currentColor"
         strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconoChat() {
-  return (
-    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M8 10H16M8 14H13M7 19L4 20V6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V16C20 17.1046 19.1046 18 18 18H8.41421L7 19Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
@@ -108,7 +85,7 @@ export default function InicioItinerarioPantalla() {
       <div className="mx-auto w-full max-w-[430px] pb-28">
         <section className="px-5 pt-5">
           <div className="overflow-hidden rounded-[32px] bg-white shadow-[0_14px_35px_rgba(15,23,42,0.08)]">
-            <div className="relative h-[290px] overflow-hidden">
+            <div className="relative h-[250px] overflow-hidden">
               <img
                 src={HeroInicio}
                 alt="Asistente de viaje SpainWay"
@@ -123,75 +100,43 @@ export default function InicioItinerarioPantalla() {
               <div className="absolute bottom-5 left-5 right-5 text-white">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-2 text-xs font-medium backdrop-blur">
                   <IconoSpark />
-                  Planificación personalizada
+                  Planificación simplificada
                 </div>
 
-                <h1 className="text-[34px] font-extrabold leading-[1.02] tracking-[-0.04em]">
+                <h1 className="text-[32px] font-extrabold leading-[1.02] tracking-[-0.04em]">
                   Diseña tu viaje ideal
                 </h1>
 
-                <p className="mt-3 max-w-[290px] text-sm leading-6 text-white/85">
-                  Responde unas pocas preguntas y deja que SpainWay construya una
-                  propuesta mucho más útil, realista y adaptada a tu estilo.
+                <p className="mt-3 max-w-[300px] text-sm leading-6 text-white/85">
+                  Solo te pediré 4 cosas clave y te prepararé una propuesta inicial útil y guardable.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 p-5">
-              <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="text-xs text-[#94a3b8]">Ritmo</p>
-                <p className="mt-1 text-sm font-semibold text-[#0f172a]">
-                  Personalizado
-                </p>
-              </div>
-              <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="text-xs text-[#94a3b8]">Plan</p>
-                <p className="mt-1 text-sm font-semibold text-[#0f172a]">
-                  Por días
-                </p>
-              </div>
-              <div className="rounded-2xl bg-[#f8fafc] p-3">
-                <p className="text-xs text-[#94a3b8]">Enfoque</p>
-                <p className="mt-1 text-sm font-semibold text-[#0f172a]">
-                  A medida
-                </p>
-              </div>
+            <div className="grid grid-cols-2 gap-3 p-5">
+              {pasosResumen.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl bg-[#f8fafc] p-3"
+                >
+                  <p className="text-xs text-[#94a3b8]">Paso</p>
+                  <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                    {item}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
         <section className="px-5 pt-5">
           <div className="rounded-[28px] bg-gradient-to-br from-[#fff8f4] via-[#ffffff] to-[#f6f2ff] p-5 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-[#ff5a36] shadow-[0_8px_20px_rgba(15,23,42,0.08)]">
-                <IconoChat />
-              </div>
-
-              <div>
-                <h2 className="text-[18px] font-bold tracking-[-0.02em]">
-                  Cómo trabaja el asistente
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Primero entiende tu destino, tus días, tu presupuesto y el tipo
-                  de viaje que buscas. Después genera una propuesta mucho mejor
-                  estructurada para continuar afinándola contigo.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {preguntasBase.map((pregunta, index) => (
-                <div
-                  key={pregunta}
-                  className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_8px_18px_rgba(15,23,42,0.04)]"
-                >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#fff4ef] text-xs font-bold text-[#ff5a36]">
-                    {index + 1}
-                  </div>
-                  <p className="text-sm leading-6 text-[#334155]">{pregunta}</p>
-                </div>
-              ))}
-            </div>
+            <h2 className="text-[18px] font-bold tracking-[-0.02em]">
+              Qué hace ahora mismo
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#667085]">
+              El asistente ya puede guardar tu conversación, construir un briefing y generar una propuesta inicial de itinerario sin depender todavía del modelo IA final.
+            </p>
 
             <button
               type="button"
@@ -210,7 +155,7 @@ export default function InicioItinerarioPantalla() {
               Empieza con una idea
             </h2>
             <p className="text-sm text-[#6b7280]">
-              Accesos rápidos para lanzar una conversación con intención clara.
+              Accesos rápidos para abrir el chat con intención clara.
             </p>
           </div>
 
@@ -220,7 +165,7 @@ export default function InicioItinerarioPantalla() {
                 key={item.id}
                 type="button"
                 onClick={() => irAChat(item.prompt)}
-                className="w-full rounded-[26px] bg-white p-5 text-left shadow-[0_12px_30px_rgba(15,23,42,0.07)] transition hover:translate-y-[-1px]"
+                className="w-full rounded-[28px] bg-white p-5 text-left shadow-[0_14px_30px_rgba(15,23,42,0.08)] transition hover:translate-y-[-1px]"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -232,12 +177,12 @@ export default function InicioItinerarioPantalla() {
                     </p>
                   </div>
 
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff4ef] text-[#ff5a36]">
+                  <div className="rounded-2xl bg-[#fff4ef] p-3 text-[#ff5a36]">
                     <IconoSpark />
                   </div>
                 </div>
 
-                <div className="mt-4 inline-flex rounded-full bg-[#f8fafc] px-3 py-2 text-xs font-medium text-[#475467]">
+                <div className="mt-4 inline-flex rounded-full bg-[#f8fafc] px-4 py-2 text-sm font-medium text-[#334155]">
                   Usar como punto de partida
                 </div>
               </button>
@@ -247,21 +192,20 @@ export default function InicioItinerarioPantalla() {
 
         <section className="px-5 pt-5">
           <div className="rounded-[28px] bg-[#111827] p-5 text-white shadow-[0_16px_34px_rgba(17,24,39,0.18)]">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/55">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/50">
               Recomendación
             </p>
-            <h2 className="mt-2 text-[20px] font-bold tracking-[-0.02em]">
+            <h2 className="mt-2 text-[22px] font-bold tracking-[-0.03em]">
               Cuanto más concreto seas, mejor será el itinerario
             </h2>
-            <p className="mt-3 text-sm leading-6 text-white/75">
-              Indica si priorizas monumentos, comida, relax, playa, escapadas
-              cortas o días intensos. Eso le da mucha más calidad a la propuesta.
+            <p className="mt-3 text-sm leading-6 text-white/74">
+              Indica si priorizas monumentos, comida, relax, playa, escapadas cortas o días intensos. Eso le da mucha más calidad a la propuesta.
             </p>
 
             <button
               type="button"
-              onClick={() => irAChat("Quiero que me ayudes a crear un viaje totalmente a medida.")}
-              className="mt-5 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+              onClick={() => irAChat()}
+              className="mt-5 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-[#111827]"
             >
               Hablar con el asistente
             </button>
