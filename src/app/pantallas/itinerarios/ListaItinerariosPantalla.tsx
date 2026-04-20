@@ -4,16 +4,33 @@ import {
   itinerariosMock,
   type CategoriaItinerario,
 } from "../../datos/mock/itinerariosMock";
-import { getItinerarios, type Itinerario } from "@/app/servicios/itinerarios";
-import { useAuthStore } from "@/app/store/useAuthStore";
 
-const filtros: Array<"Todos" | CategoriaItinerario> = [
+type UserItinerary = {
+  id: string;
+  titulo: string;
+  subtitulo: string;
+  destino: string;
+  categoria: CategoriaItinerario | "Personalizado";
+  dias: number;
+  lugares: string;
+  presupuesto: string;
+  progreso: number;
+  siguientePaso: string;
+  imagen: string;
+  destacado?: boolean;
+  etiquetas?: string[];
+};
+
+const STORAGE_KEY = "spainway_user_itineraries";
+
+const filtros: Array<"Todos" | CategoriaItinerario | "Personalizado"> = [
   "Todos",
   "Escapada",
   "Cultural",
   "Costa",
   "Gastronomía",
   "Naturaleza",
+  "Personalizado",
 ];
 
 function IconoBusqueda() {
@@ -51,7 +68,20 @@ function IconoUbicacion() {
         stroke="currentColor"
         strokeWidth="1.8"
       />
-      <circle cx="12" cy="10.5" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="10.5" r="2.25" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function IconoCalendario() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M8 3V6M16 3V6M4 9H20M6 5H18C19.1046 5 20 5.89543 20 7V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V7C4 5.89543 4.89543 5 6 5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -69,7 +99,25 @@ function IconoSparkle() {
   );
 }
 
-function colorCategoria(categoria: CategoriaItinerario) {
+function IconoChevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <path
+        d="M6 9L12 15L18 9"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function obtenerColorCategoria(categoria: string) {
   switch (categoria) {
     case "Cultural":
       return "bg-[#eef2ff] text-[#4f46e5]";
@@ -81,90 +129,71 @@ function colorCategoria(categoria: CategoriaItinerario) {
       return "bg-[#fef2f2] text-[#dc2626]";
     case "Naturaleza":
       return "bg-[#ecfdf5] text-[#059669]";
+    case "Personalizado":
+      return "bg-[#fff4ef] text-[#ff5a36]";
     default:
       return "bg-[#f3f4f6] text-[#374151]";
   }
 }
 
-type ItinerarioDemo = (typeof itinerariosMock)[number];
-
-function obtenerDescripcionPreview(item: ItinerarioDemo) {
-  return (
-    item.subtitulo ||
-    `Una propuesta de ${item.dias} días en ${item.destino} con un enfoque ${item.categoria.toLowerCase()}.`
-  );
-}
-
-function formatearFecha(valor?: string | null) {
-  if (!valor) return "Sin fecha";
-  const fecha = new Date(valor);
-  if (Number.isNaN(fecha.getTime())) return "Sin fecha";
-  return fecha.toLocaleDateString("es-ES");
-}
-
-function construirTituloReal(item: Itinerario) {
-  return item.titulo || "Itinerario sin título";
-}
-
-function construirSubtituloReal(item: Itinerario) {
-  const destino = item.destino || "Destino sin definir";
-  const inicio = formatearFecha(item.inicio);
-  const fin = formatearFecha(item.fin);
-
-  if (inicio !== "Sin fecha" || fin !== "Sin fecha") {
-    return `${destino} · ${inicio} - ${fin}`;
+function readUserItineraries(): UserItinerary[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as UserItinerary[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
-
-  return destino;
 }
 
 export default function ListaItinerariosPantalla() {
   const navigate = useNavigate();
-  const { usuario } = useAuthStore();
-
   const [busqueda, setBusqueda] = useState("");
-  const [filtroActivo, setFiltroActivo] = useState<"Todos" | CategoriaItinerario>(
-    "Todos"
-  );
-
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [itinerariosReales, setItinerariosReales] = useState<Itinerario[]>([]);
-
-  const [itinerarioPreview, setItinerarioPreview] = useState<ItinerarioDemo | null>(null);
+  const [filtroActivo, setFiltroActivo] = useState<
+    "Todos" | CategoriaItinerario | "Personalizado"
+  >("Todos");
+  const [userItineraries, setUserItineraries] = useState<UserItinerary[]>([]);
+  const [ejemplosAbiertos, setEjemplosAbiertos] = useState(false);
 
   useEffect(() => {
-    async function cargarItinerarios() {
-      if (!usuario?.id_usuario) {
-        setLoading(false);
-        setError("No hay usuario autenticado.");
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError("");
-
-        const data = await getItinerarios(usuario.id_usuario);
-        setItinerariosReales(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error(err);
-        setError("No se pudieron cargar los itinerarios reales.");
-        setItinerariosReales([]);
-      } finally {
-        setLoading(false);
-      }
+    function load() {
+      setUserItineraries(readUserItineraries());
     }
 
-    void cargarItinerarios();
-  }, [usuario?.id_usuario]);
+    load();
+    window.addEventListener("storage", load);
+    window.addEventListener("focus", load);
 
-  const hayItinerariosReales = itinerariosReales.length > 0;
+    return () => {
+      window.removeEventListener("storage", load);
+      window.removeEventListener("focus", load);
+    };
+  }, []);
 
-  const destacados = itinerariosMock.filter((item) => item.destacado);
+  const ejemplos = itinerariosMock;
 
-  const itinerariosMockFiltrados = useMemo(() => {
-    return itinerariosMock.filter((item) => {
+  const itinerariosUsuarioFiltrados = useMemo(() => {
+    return userItineraries.filter((item) => {
+      const coincideFiltro =
+        filtroActivo === "Todos" ? true : item.categoria === filtroActivo;
+
+      const texto = [
+        item.titulo,
+        item.subtitulo,
+        item.destino,
+        item.categoria,
+        item.etiquetas?.join(" ") ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return coincideFiltro && texto.includes(busqueda.trim().toLowerCase());
+    });
+  }, [busqueda, filtroActivo, userItineraries]);
+
+  const ejemplosFiltrados = useMemo(() => {
+    return ejemplos.filter((item) => {
       const coincideFiltro =
         filtroActivo === "Todos" ? true : item.categoria === filtroActivo;
 
@@ -178,480 +207,328 @@ export default function ListaItinerariosPantalla() {
         .join(" ")
         .toLowerCase();
 
-      const coincideBusqueda = texto.includes(busqueda.toLowerCase());
-
-      return coincideFiltro && coincideBusqueda;
+      return coincideFiltro && texto.includes(busqueda.trim().toLowerCase());
     });
-  }, [busqueda, filtroActivo]);
-
-  const itinerariosRealesFiltrados = useMemo(() => {
-    return itinerariosReales.filter((item) => {
-      const texto = [
-        item.titulo || "",
-        item.destino || "",
-        item.estado || "",
-        item.transporte || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return texto.includes(busqueda.toLowerCase());
-    });
-  }, [itinerariosReales, busqueda]);
-
-  const resumenReal = useMemo(() => {
-    return {
-      guardados: itinerariosReales.length,
-      enProgreso: itinerariosReales.filter(
-        (i) => (i.estado || "").toLowerCase() !== "archivado"
-      ).length,
-      destinos: new Set(
-        itinerariosReales
-          .map((i) => i.destino)
-          .filter((x): x is string => Boolean(x))
-      ).size,
-    };
-  }, [itinerariosReales]);
-
-  const resumenMock = useMemo(() => {
-    return {
-      guardados: 0,
-      enProgreso: 0,
-      destinos: 0,
-    };
-  }, []);
-
-  const resumen = hayItinerariosReales ? resumenReal : resumenMock;
-
-  if (loading) {
-    return (
-      <div className="min-h-full bg-[#f3f5f9] text-[#111827] px-5 py-6">
-        <div className="mx-auto w-full max-w-[430px] rounded-[28px] bg-white p-6 text-center shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
-          <p className="text-sm text-[#667085]">Cargando itinerarios...</p>
-        </div>
-      </div>
-    );
-  }
+  }, [busqueda, ejemplos, filtroActivo]);
 
   return (
-    <>
-      <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
-        <div className="mx-auto w-full max-w-[430px] pb-28">
-          <section className="px-5 pt-5">
-            <div className="rounded-[30px] bg-gradient-to-br from-[#fff8f4] via-[#ffffff] to-[#f4f1ff] p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-[16px] font-bold tracking-[-0.02em] text-[#0f172a]">
-                    Retoma y organiza mejor tus viajes
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-[#667085]">
-                    Busca itinerarios guardados, abre sus detalles o revisa una vista previa antes de entrar.
-                  </p>
-                </div>
+    <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
+      <div className="mx-auto w-full max-w-[430px] pb-28">
+        <section className="px-5 pt-5">
+          <div className="rounded-[30px] bg-gradient-to-br from-[#fff8f4] via-[#ffffff] to-[#f5f3ff] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
+            <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
+              Itinerarios
+            </p>
+            <h1 className="mt-2 text-[28px] font-bold tracking-[-0.03em] text-[#111827]">
+              Retoma y organiza mejor tus viajes
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-[#667085]">
+              Aquí verás primero los itinerarios reales del usuario. Los ejemplos
+              quedan guardados en un desplegable aparte.
+            </p>
 
-                <button
-                  type="button"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
-                >
-                  <IconoFiltro />
-                </button>
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <div className="rounded-2xl bg-white p-4">
+                <p className="text-xs text-[#94a3b8]">Guardados</p>
+                <p className="mt-1 text-lg font-bold text-[#111827]">
+                  {userItineraries.length}
+                </p>
               </div>
 
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-white/90 p-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <p className="text-xs text-[#6b7280]">Guardados</p>
-                  <p className="mt-1 text-xl font-bold">{resumen.guardados}</p>
-                </div>
-
-                <div className="rounded-2xl bg-white/90 p-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <p className="text-xs text-[#6b7280]">En progreso</p>
-                  <p className="mt-1 text-xl font-bold">{resumen.enProgreso}</p>
-                </div>
-
-                <div className="rounded-2xl bg-white/90 p-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <p className="text-xs text-[#6b7280]">Destinos</p>
-                  <p className="mt-1 text-xl font-bold">{resumen.destinos}</p>
-                </div>
+              <div className="rounded-2xl bg-white p-4">
+                <p className="text-xs text-[#94a3b8]">En progreso</p>
+                <p className="mt-1 text-lg font-bold text-[#111827]">
+                  {userItineraries.filter((item) => item.progreso < 100).length}
+                </p>
               </div>
 
-              <div className="mt-5 flex gap-3">
-                <div className="flex flex-1 items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
-                  <IconoBusqueda />
-                  <input
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder={
-                      hayItinerariosReales
-                        ? "Buscar itinerarios reales..."
-                        : "Buscar ejemplos por destino, estilo o categoría..."
-                    }
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-[#9ca3af]"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("/itinerarios/crear")}
-                  className="flex h-[56px] w-[56px] items-center justify-center rounded-2xl bg-[#ff5a36] text-[28px] leading-none text-white shadow-[0_12px_24px_rgba(255,90,54,0.28)]"
-                  aria-label="Crear itinerario"
-                >
-                  +
-                </button>
+              <div className="rounded-2xl bg-white p-4">
+                <p className="text-xs text-[#94a3b8]">Ejemplos</p>
+                <p className="mt-1 text-lg font-bold text-[#111827]">{ejemplos.length}</p>
               </div>
             </div>
-          </section>
 
-          {error ? (
-            <section className="px-5 pt-4">
-              <div className="rounded-[18px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            </section>
-          ) : null}
-
-          {hayItinerariosReales ? (
-            <section className="px-5 pt-5 space-y-4">
-              {itinerariosRealesFiltrados.length === 0 ? (
-                <div className="rounded-[28px] bg-white p-6 text-center shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
-                  <p className="text-[18px] font-bold text-[#111827]">
-                    No hay resultados para esa búsqueda
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-[#667085]">
-                    Prueba con otro título, destino o estado.
-                  </p>
-                </div>
-              ) : (
-                itinerariosRealesFiltrados.map((item) => (
-                  <article
-                    key={item.id_itinerario}
-                    className="rounded-[28px] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="inline-flex rounded-full bg-[#fff4ef] px-3 py-1 text-xs font-semibold text-[#ff5a36]">
-                          {item.estado || "activo"}
-                        </p>
-
-                        <h3 className="mt-3 text-[20px] font-bold text-[#111827] break-words">
-                          {construirTituloReal(item)}
-                        </h3>
-
-                        <p className="mt-2 text-sm leading-6 text-[#667085] break-words">
-                          {construirSubtituloReal(item)}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/itinerarios/detalle/${item.id_itinerario}`)}
-                        className="shrink-0 rounded-xl bg-[#ff5a36] px-4 py-2 text-sm font-semibold text-white"
-                      >
-                        Ver
-                      </button>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <MiniDato label="Presupuesto" value={item.presupuesto ? `${item.presupuesto}` : "—"} />
-                      <MiniDato label="Transporte" value={item.transporte || "—"} />
-                      <MiniDato label="Inicio" value={formatearFecha(item.inicio)} />
-                      <MiniDato label="Fin" value={formatearFecha(item.fin)} />
-                    </div>
-                  </article>
-                ))
-              )}
-            </section>
-          ) : (
-            <>
-              <section className="px-5 pt-5">
-                <div className="rounded-[28px] bg-white p-6 text-center shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
-                  <h2 className="text-[20px] font-bold text-[#111827]">
-                    Vaya, no hay ningún itinerario guardado
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-[#667085]">
-                    Todavía no has creado rutas en tu cuenta. Mientras tanto, aquí tienes algunos ejemplos para inspirarte.
-                  </p>
-                </div>
-              </section>
-
-              <section className="px-5 pt-5">
-                <div className="mb-3">
-                  <h2 className="text-[18px] font-bold tracking-[-0.02em]">Ejemplos destacados</h2>
-                  <p className="text-sm text-[#6b7280]">
-                    Ideas visuales para que veas cómo podrían ser tus próximos itinerarios.
-                  </p>
-                </div>
-
-                <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {destacados.map((item) => (
-                    <article
-                      key={item.id}
-                      className="min-w-[290px] overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
-                    >
-                      <div className="relative h-[180px] overflow-hidden">
-                        <img
-                          src={item.imagen}
-                          alt={item.titulo}
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
-
-                        <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827] backdrop-blur">
-                          <span className="text-[#ff5a36]">
-                            <IconoSparkle />
-                          </span>
-                          Ejemplo
-                        </div>
-
-                        <div className="absolute bottom-4 left-4 right-4 text-white">
-                          <h3 className="text-[21px] font-bold leading-tight">{item.titulo}</h3>
-                          <p className="mt-1 text-sm text-white/85">
-                            {item.dias} días · {item.destino}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="p-4">
-                        <p className="text-sm leading-5 text-[#6b7280]">
-                          {obtenerDescripcionPreview(item)}
-                        </p>
-
-                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#eceff5]">
-                          <div
-                            className="h-full rounded-full bg-[#ff5a36]"
-                            style={{ width: `${item.progreso}%` }}
-                          />
-                        </div>
-
-                        <div className="mt-3 flex items-center justify-between gap-3">
-                          <span className="text-sm text-[#6b7280]">
-                            {item.progreso}% completado
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setItinerarioPreview(item)}
-                            className="rounded-full bg-[#111827] px-4 py-2 text-sm font-semibold text-white"
-                          >
-                            Vista previa
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section className="px-5 pt-4">
-                <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {filtros.map((filtro) => {
-                    const activo = filtro === filtroActivo;
-
-                    return (
-                      <button
-                        key={filtro}
-                        type="button"
-                        onClick={() => setFiltroActivo(filtro)}
-                        className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
-                          activo
-                            ? "bg-[#111827] text-white shadow-[0_8px_20px_rgba(17,24,39,0.16)]"
-                            : "bg-white text-[#4b5563] shadow-[0_6px_18px_rgba(15,23,42,0.05)]"
-                        }`}
-                      >
-                        {filtro}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="px-5 pt-5 space-y-4">
-                {itinerariosMockFiltrados.map((item) => (
-                  <article
-                    key={item.id}
-                    className="overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
-                  >
-                    <div className="relative h-[180px] overflow-hidden">
-                      <img
-                        src={item.imagen}
-                        alt={item.titulo}
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
-
-                      <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${colorCategoria(
-                            item.categoria
-                          )}`}
-                        >
-                          {item.categoria}
-                        </span>
-                        {item.etiquetas.slice(0, 2).map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827]"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="absolute bottom-4 left-4 right-4 text-white">
-                        <h3 className="text-[22px] font-bold leading-tight">{item.titulo}</h3>
-                        <p className="mt-1 text-sm text-white/85">{item.subtitulo}</p>
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      <p className="text-sm leading-6 text-[#667085]">
-                        {obtenerDescripcionPreview(item)}
-                      </p>
-
-                      <div className="mt-4 grid grid-cols-3 gap-3">
-                        <MiniDato label="Días" value={`${item.dias}`} />
-                        <MiniDato label="Budget" value={item.presupuesto} />
-                        <MiniDato label="Avance" value={`${item.progreso}%`} />
-                      </div>
-
-                      <div className="mt-4 flex items-center gap-2 text-sm text-[#667085]">
-                        <span className="text-[#ff5a36]">
-                          <IconoUbicacion />
-                        </span>
-                        {item.destino}
-                      </div>
-
-                      <div className="mt-5 flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setItinerarioPreview(item)}
-                          className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
-                        >
-                          Ver ejemplo
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => navigate("/itinerarios/crear")}
-                          className="flex-1 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(255,90,54,0.28)]"
-                        >
-                          Crear itinerario
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </section>
-            </>
-          )}
-        </div>
-      </div>
-
-      {itinerarioPreview && (
-        <>
-          <div
-            className="fixed inset-0 z-[80] bg-black/45"
-            onClick={() => setItinerarioPreview(null)}
-          />
-          <div className="fixed inset-0 z-[90] flex items-center justify-center px-5 py-10">
-            <div className="w-full max-w-[420px] overflow-hidden rounded-[30px] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.25)]">
-              <div className="relative h-[220px] overflow-hidden">
-                <img
-                  src={itinerarioPreview.imagen}
-                  alt={itinerarioPreview.titulo}
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-                <button
-                  type="button"
-                  onClick={() => setItinerarioPreview(null)}
-                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#111827]"
-                >
-                  ×
-                </button>
-
-                <div className="absolute left-5 bottom-5 right-5 text-white">
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${colorCategoria(
-                        itinerarioPreview.categoria
-                      )}`}
-                    >
-                      {itinerarioPreview.categoria}
-                    </span>
-                    <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827]">
-                      {itinerarioPreview.dias} días
-                    </span>
-                  </div>
-
-                  <h3 className="text-[24px] font-bold leading-tight">
-                    {itinerarioPreview.titulo}
-                  </h3>
-                  <p className="mt-1 text-sm text-white/85">
-                    {itinerarioPreview.destino}
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-5">
-                <p className="text-sm leading-7 text-[#667085]">
-                  {obtenerDescripcionPreview(itinerarioPreview)}
-                </p>
-
-                <div className="mt-5 grid grid-cols-3 gap-3">
-                  <MiniDato label="Presupuesto" value={itinerarioPreview.presupuesto} />
-                  <MiniDato label="Avance" value={`${itinerarioPreview.progreso}%`} />
-                  <MiniDato label="Estilo" value={itinerarioPreview.categoria} />
-                </div>
-
-                <div className="mt-5">
-                  <p className="text-xs uppercase tracking-[0.16em] text-[#94a3b8]">
-                    Qué incluiría
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {itinerarioPreview.etiquetas.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full bg-[#f8fafc] px-3 py-2 text-sm font-medium text-[#374151]"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-6 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setItinerarioPreview(null)}
-                    className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
-                  >
-                    Cerrar
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setItinerarioPreview(null);
-                      navigate("/itinerarios/crear");
-                    }}
-                    className="flex-1 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(255,90,54,0.28)]"
-                  >
-                    Usar como base
-                  </button>
-                </div>
+            <div className="mt-5 flex items-center gap-3 rounded-[22px] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
+              <IconoBusqueda />
+              <input
+                value={busqueda}
+                onChange={(event) => setBusqueda(event.target.value)}
+                placeholder="Buscar destino, categoría o idea"
+                className="w-full bg-transparent text-sm text-[#111827] outline-none placeholder:text-[#98a2b3]"
+              />
+              <div className="rounded-full bg-[#f3f4f6] p-2">
+                <IconoFiltro />
               </div>
             </div>
           </div>
-        </>
-      )}
-    </>
-  );
-}
+        </section>
 
-function MiniDato({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-[#f8fafc] p-3 text-center">
-      <p className="text-[11px] text-[#94a3b8]">{label}</p>
-      <p className="mt-1 text-sm font-bold text-[#111827] break-words">{value}</p>
+        <section className="px-5 pt-5">
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => navigate("/itinerarios/crear")}
+              className="rounded-[26px] bg-white p-5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.07)]"
+            >
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">Crear</p>
+              <h3 className="mt-2 text-[18px] font-bold text-[#111827]">
+                Nuevo itinerario
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-[#667085]">
+                Usa el formulario base para preparar una propuesta nueva.
+              </p>
+              <div className="mt-4 inline-flex rounded-2xl bg-[#fff4ef] p-3 text-[#ff5a36]">
+                <IconoSparkle />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/calendario")}
+              className="rounded-[26px] bg-white p-5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.07)]"
+            >
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
+                Planificar
+              </p>
+              <h3 className="mt-2 text-[18px] font-bold text-[#111827]">
+                Calendario del viaje
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-[#667085]">
+                Selecciona el rango de fechas y define la base temporal.
+              </p>
+              <div className="mt-4 inline-flex rounded-2xl bg-[#fff4ef] p-3 text-[#ff5a36]">
+                <IconoCalendario />
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <section className="px-5 pt-4">
+          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {filtros.map((filtro) => {
+              const activo = filtro === filtroActivo;
+
+              return (
+                <button
+                  key={filtro}
+                  type="button"
+                  onClick={() => setFiltroActivo(filtro)}
+                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition ${
+                    activo
+                      ? "bg-[#111827] text-white shadow-[0_8px_20px_rgba(17,24,39,0.16)]"
+                      : "bg-white text-[#4b5563] shadow-[0_6px_18px_rgba(15,23,42,0.05)]"
+                  }`}
+                >
+                  {filtro}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="px-5 pt-5">
+          <div className="mb-3">
+            <h2 className="text-[20px] font-bold tracking-[-0.02em]">
+              Tus itinerarios
+            </h2>
+            <p className="text-sm text-[#6b7280]">
+              Aquí solo se muestran los itinerarios reales del usuario.
+            </p>
+          </div>
+
+          {itinerariosUsuarioFiltrados.length === 0 ? (
+            <div className="rounded-[24px] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+              <p className="text-base font-semibold text-[#111827]">
+                Aún no tienes itinerarios guardados
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                Cuando crees tu primer itinerario aparecerá aquí. Los ejemplos se
+                pueden consultar en el desplegable inferior.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/itinerarios/crear")}
+                className="mt-4 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)]"
+              >
+                Crear primer itinerario
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {itinerariosUsuarioFiltrados.map((item) => (
+                <article
+                  key={item.id}
+                  className="overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
+                >
+                  <div className="relative h-[190px] overflow-hidden">
+                    <img
+                      src={item.imagen}
+                      alt={item.titulo}
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+
+                    <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827] backdrop-blur">
+                        {item.dias} días
+                      </span>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(
+                          item.categoria
+                        )}`}
+                      >
+                        {item.categoria}
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-4 left-4 right-4 text-white">
+                      <h3 className="text-[22px] font-bold leading-tight">{item.titulo}</h3>
+                      <div className="mt-2 flex items-center gap-2 text-sm text-white/85">
+                        <IconoUbicacion />
+                        <span>{item.destino}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <p className="text-sm leading-6 text-[#6b7280]">{item.subtitulo}</p>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl bg-[#f8fafc] p-3">
+                        <p className="text-xs text-[#94a3b8]">Lugares</p>
+                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                          {item.lugares}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#f8fafc] p-3">
+                        <p className="text-xs text-[#94a3b8]">Presupuesto</p>
+                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                          {item.presupuesto}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-[#f8fafc] p-3">
+                        <p className="text-xs text-[#94a3b8]">Avance</p>
+                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                          {item.progreso}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-[#edf0f4] bg-[#fcfcfd] p-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-[#111827]">
+                        <IconoCalendario />
+                        Siguiente paso
+                      </div>
+                      <p className="mt-2 text-sm leading-5 text-[#6b7280]">
+                        {item.siguientePaso}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 flex gap-3">
+                      <button
+                        type="button"
+                        className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+                        onClick={() => navigate(`/itinerarios/${item.id}`)}
+                      >
+                        Ver detalle
+                      </button>
+
+                      <button
+                        type="button"
+                        className="flex-1 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)]"
+                        onClick={() => navigate("/calendario")}
+                      >
+                        Planificar fechas
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="px-5 pt-5">
+          <button
+            type="button"
+            onClick={() => setEjemplosAbiertos((prev) => !prev)}
+            className="flex w-full items-center justify-between rounded-[24px] bg-white px-5 py-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)]"
+          >
+            <div>
+              <p className="text-base font-semibold text-[#111827]">
+                Itinerarios de ejemplo
+              </p>
+              <p className="mt-1 text-sm text-[#6b7280]">
+                {ejemplosAbiertos
+                  ? "Oculta los ejemplos."
+                  : "Despliega propuestas de referencia."}
+              </p>
+            </div>
+            <div className="rounded-full bg-[#f8fafc] p-2 text-[#111827]">
+              <IconoChevron open={ejemplosAbiertos} />
+            </div>
+          </button>
+
+          {ejemplosAbiertos && (
+            <div className="mt-4 space-y-4">
+              {ejemplosFiltrados.map((item) => (
+                <article
+                  key={item.id}
+                  className="overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
+                >
+                  <div className="relative h-[190px] overflow-hidden">
+                    <img
+                      src={item.imagen}
+                      alt={item.titulo}
+                      className="h-full w-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+
+                    <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827] backdrop-blur">
+                        Ejemplo
+                      </span>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(
+                          item.categoria
+                        )}`}
+                      >
+                        {item.categoria}
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-4 left-4 right-4 text-white">
+                      <h3 className="text-[22px] font-bold leading-tight">{item.titulo}</h3>
+                      <div className="mt-2 flex items-center gap-2 text-sm text-white/85">
+                        <IconoUbicacion />
+                        <span>{item.destino}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4">
+                    <p className="text-sm leading-6 text-[#6b7280]">{item.subtitulo}</p>
+
+                    <div className="mt-4 flex gap-3">
+                      <button
+                        type="button"
+                        className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+                        onClick={() => navigate(`/itinerarios/${item.id}`)}
+                      >
+                        Ver ejemplo
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

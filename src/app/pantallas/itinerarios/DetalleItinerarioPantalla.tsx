@@ -1,10 +1,18 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { obtenerItinerarioPorId, itinerariosMock } from "../../datos/mock/itinerariosMock";
+import {
+  obtenerItinerarioPorId,
+  itinerariosMock,
+} from "../../datos/mock/itinerariosMock";
 
 export default function DetalleItinerarioPantalla() {
   const navigate = useNavigate();
-  const params = useParams<{ id: string }>();
-  const itinerarioId = params.id ?? "";
+  const params = useParams();
+
+  const itinerarioId =
+    params.id ??
+    params.itinerarioId ??
+    params.slug ??
+    "";
 
   const itinerario = obtenerItinerarioPorId(itinerarioId);
 
@@ -56,14 +64,6 @@ export default function DetalleItinerarioPantalla() {
             className="h-full w-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-          <button
-            type="button"
-            onClick={() => navigate("/itinerarios")}
-            className="absolute left-5 top-5 rounded-2xl bg-white/90 px-4 py-2 text-sm font-semibold text-[#111827] backdrop-blur"
-          >
-            Volver
-          </button>
 
           <div className="absolute bottom-5 left-5 right-5 text-white">
             <div className="flex flex-wrap gap-2">

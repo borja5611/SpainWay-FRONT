@@ -1,4 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
+import ScrollToTop from "@/app/componentes/layout/ScrollToTop";
 import { RUTAS_APP } from "@/app/utilidades/rutas";
 
 import LayoutAuth from "./LayoutAuth";
@@ -39,7 +40,12 @@ import EditarPreferenciasPantalla from "@/app/pantallas/perfil/EditarPreferencia
 
 export const router = createBrowserRouter([
   {
-    element: <LayoutAuth />,
+    element: (
+      <>
+        <ScrollToTop />
+        <LayoutAuth />
+      </>
+    ),
     children: [
       { path: RUTAS_APP.splash, element: <SplashPantalla /> },
       { path: RUTAS_APP.onboarding, element: <OnboardingPantalla /> },
@@ -52,7 +58,12 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    element: <LayoutPrincipal />,
+    element: (
+      <>
+        <ScrollToTop />
+        <LayoutPrincipal />
+      </>
+    ),
     children: [
       { path: RUTAS_APP.inicio, element: <InicioPantalla /> },
       { path: RUTAS_APP.selectorDestino, element: <SelectorDestinoPantalla /> },
