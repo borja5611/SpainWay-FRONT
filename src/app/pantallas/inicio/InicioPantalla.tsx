@@ -14,13 +14,18 @@ import {
   getPoisDestacadosByComunidad,
   type PoiDestacado,
 } from "@/app/servicios/poisDestacados";
-import {
-  DESTINO_TO_CCAA,
-  getImagenPoiDestacado,
-} from "@/app/datos/poisDestacadosVisuales";
+import { DESTINO_TO_CCAA } from "@/app/datos/poisDestacadosVisuales";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
 type PoisPorDestinoState = Partial<Record<DestinoId, PoiDestacado[]>>;
+
+const BLANK_IMAGE =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600">
+      <rect width="100%" height="100%" fill="white"/>
+    </svg>
+  `);
 
 function normalizarTexto(value: string): string {
   return value
@@ -64,13 +69,8 @@ function traducirCategoriaPoi(valor?: string | null): string {
   if (v.includes("nature") || v.includes("park") || v.includes("natural")) {
     return "Naturaleza";
   }
-  if (v.includes("route") || v.includes("ruta")) return "Ruta";
-  if (v.includes("ocio") || v.includes("leisure")) return "Ocio";
-  if (v.includes("food") || v.includes("gastr")) return "Gastronomía";
 
-  return valor
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return valor.replaceAll("_", " ");
 }
 
 function descripcionBasePorCategoria(
@@ -88,44 +88,12 @@ function descripcionBasePorCategoria(
     return `${nombreLugar} destaca como visita cultural recomendada para descubrir mejor la identidad histórica y artística de ${comunidad}.`;
   }
 
-  if (c.includes("otros lugares")) {
-    return `${nombreLugar} es una parada interesante para enriquecer una ruta variada por ${comunidad} con un punto diferente al resto.`;
-  }
-
   if (c.includes("playa")) {
     return `${nombreLugar} es una opción muy atractiva si buscas costa, vistas abiertas y una experiencia ligada al mar dentro de ${comunidad}.`;
   }
 
-  if (c.includes("ocio")) {
-    return `${nombreLugar} encaja bien en una jornada más relajada, combinando visita, paseo y disfrute del ambiente local en ${comunidad}.`;
-  }
-
-  if (c.includes("ruta")) {
-    return `${nombreLugar} funciona muy bien como parte de un recorrido más amplio por ${comunidad}, conectando varios puntos clave del viaje.`;
-  }
-
   if (c.includes("arquitectura")) {
     return `${nombreLugar} sobresale por su valor arquitectónico y es una visita recomendable si quieres descubrir construcciones singulares en ${comunidad}.`;
-  }
-
-  if (c.includes("deporte")) {
-    return `${nombreLugar} aporta una visita interesante ligada al deporte o al espectáculo dentro de una ruta completa por ${comunidad}.`;
-  }
-
-  if (c.includes("mirador")) {
-    return `${nombreLugar} es una muy buena parada para contemplar el entorno y añadir una vista panorámica potente a tu viaje por ${comunidad}.`;
-  }
-
-  if (c.includes("patrimonio religioso")) {
-    return `${nombreLugar} es una visita destacada si te interesa el patrimonio religioso y los espacios con valor simbólico e histórico en ${comunidad}.`;
-  }
-
-  if (c.includes("gastronomía")) {
-    return `${nombreLugar} suma interés gastronómico al recorrido y puede ayudarte a descubrir mejor los sabores y la identidad culinaria de ${comunidad}.`;
-  }
-
-  if (c.includes("lugar de interés")) {
-    return `${nombreLugar} es un punto representativo que merece la pena tener en cuenta dentro de una visita bien organizada por ${comunidad}.`;
   }
 
   if (c.includes("patrimonio")) {
@@ -134,14 +102,6 @@ function descripcionBasePorCategoria(
 
   return `${nombreLugar} es uno de los lugares más interesantes para completar una visita bien equilibrada por ${comunidad}.`;
 }
-
-type PoiVisualUi = {
-  id: string;
-  titulo: string;
-  descripcion: string;
-  imagen: string;
-  real: boolean;
-};
 
 export default function InicioPantalla() {
   const navigate = useNavigate();
@@ -161,7 +121,9 @@ export default function InicioPantalla() {
           ciudadesInicio.map(async (ciudad) => {
             const comunidad = DESTINO_TO_CCAA[ciudad.id];
             const items = comunidad
-            ? await getPoisDestacadosByComunidad(comunidad).catch(() => [])              : [];
+              ? await getPoisDestacadosByComunidad(comunidad).catch(() => [])
+              : [];
+
             return [ciudad.id, items] as const;
           })
         );
@@ -174,7 +136,6 @@ export default function InicioPantalla() {
         setPoisDestacados(data);
       } catch (error) {
         console.error(error);
-        setPoisDestacados({});
       } finally {
         setLoading(false);
       }
@@ -193,11 +154,11 @@ export default function InicioPantalla() {
       const reales = poisDestacados[ciudad.id] ?? [];
       const comunidad = DESTINO_TO_CCAA[ciudad.id] ?? ciudad.nombre;
 
-      const itemsVisuales: PoiVisualUi[] =
+      const itemsVisuales =
         reales.length > 0
           ? reales.map((poi) => {
               const nombre = poi.poi_canonico || poi.poi?.nombre || "POI destacado";
-              const categoriaTraducida = traducirCategoriaPoi(
+              const categoria = traducirCategoriaPoi(
                 poi.poi?.categoria ||
                   poi.poi?.categoria_poi?.nombre ||
                   poi.poi?.tipo ||
@@ -209,11 +170,8 @@ export default function InicioPantalla() {
                 titulo: nombre,
                 descripcion:
                   poi.poi?.descripcion_snippet ||
-                  descripcionBasePorCategoria(categoriaTraducida, nombre, comunidad),
-                imagen: getImagenPoiDestacado(
-                  ciudad.id,
-                  poi.poi_canonico || poi.poi?.nombre || ""
-                ),
+                  descripcionBasePorCategoria(categoria, nombre, comunidad),
+                imagen: poi.imagen_url || BLANK_IMAGE,
                 real: true,
               };
             })
@@ -225,20 +183,12 @@ export default function InicioPantalla() {
               real: false,
             }));
 
-      const subtitulo =
-        reales.length > 0
-          ? `${itemsVisuales.length} lugares destacados para inspirarte antes de entrar al mapa.`
-          : loading
-          ? "Cargando lugares destacados..."
-          : ciudad.subtitulo;
-
       return {
         ciudad,
         items: itemsVisuales,
-        subtitulo,
       };
     });
-  }, [loading, poisDestacados]);
+  }, [poisDestacados]);
 
   return (
     <div className="min-h-screen bg-[#f6f6f3]">
@@ -293,11 +243,17 @@ export default function InicioPantalla() {
           </div>
         </section>
 
-        {secciones.map(({ ciudad, items, subtitulo }) => (
+        {secciones.map(({ ciudad, items }) => (
           <SeccionHorizontalPoi
             key={ciudad.id}
             titulo={`${ciudad.nombre} ahora`}
-            subtitulo={subtitulo}
+            subtitulo={
+              poisDestacados[ciudad.id]?.length
+                ? `${poisDestacados[ciudad.id]?.length ?? 0} lugares destacados para inspirarte antes de entrar al mapa.`
+                : loading
+                ? "Cargando destacados..."
+                : ciudad.subtitulo
+            }
           >
             {items.map((poi) => (
               <TarjetaPoiPreview

@@ -1,5 +1,9 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
+if (!API_URL) {
+  throw new Error("VITE_API_URL no está definida en el .env del front");
+}
+
 export interface PoiApi {
   id_poi: number;
   id_global?: string;
@@ -7,6 +11,10 @@ export interface PoiApi {
   tipo?: string;
   categoria?: string;
   descripcion_snippet?: string;
+  descripcion?: string | null;
+  subcategoria?: string | null;
+  direccion?: string | null;
+  temporada?: string | null;
   latitud?: number | string | null;
   longitud?: number | string | null;
   lat?: number | string | null;
@@ -39,22 +47,13 @@ export interface PoiDestacado {
   prioridad_fuente: number;
   match_confianza?: number | null;
   motivo?: string | null;
+  imagen_url?: string | null;
   created_at?: string | null;
   poi: PoiApi;
 }
 
-function buildUrl(path: string): string {
-  if (!API_URL) {
-    throw new Error("VITE_API_URL no está definida en el .env del front");
-  }
-
-  const base = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${normalizedPath}`;
-}
-
 async function request<T>(path: string): Promise<T> {
-  const response = await fetch(buildUrl(path));
+  const response = await fetch(`${API_URL}${path}`);
 
   if (!response.ok) {
     const text = await response.text();
@@ -98,20 +97,14 @@ export function getPoiById(idPoi: number) {
   return request<PoiApi>(`/api/pois/${idPoi}`);
 }
 
-function normalizeCoordinate(value: number | string | null | undefined): number | null {
-  if (value === null || value === undefined || value === "") return null;
-
-  const normalized =
-    typeof value === "string" ? value.trim().replace(",", ".") : value;
-
-  const n = Number(normalized);
+export function extraerLat(poi: PoiApi): number | null {
+  const value = poi.latitud ?? poi.lat ?? null;
+  const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
 
-export function extraerLat(poi: PoiApi): number | null {
-  return normalizeCoordinate(poi.latitud ?? poi.lat ?? null);
-}
-
 export function extraerLng(poi: PoiApi): number | null {
-  return normalizeCoordinate(poi.longitud ?? poi.lon ?? null);
+  const value = poi.longitud ?? poi.lon ?? null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }

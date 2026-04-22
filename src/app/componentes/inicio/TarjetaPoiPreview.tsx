@@ -1,11 +1,8 @@
-import { motion } from "motion/react";
-import { ImageWithFallback } from "@/app/componentes/figma/ImageWithFallback";
-
 type Props = {
   titulo: string;
   descripcion: string;
   imagen: string;
-  onClick: () => void;
+  onClick?: () => void;
 };
 
 export default function TarjetaPoiPreview({
@@ -15,27 +12,31 @@ export default function TarjetaPoiPreview({
   onClick,
 }: Props) {
   return (
-    <motion.button
+    <button
       type="button"
       onClick={onClick}
-      className="w-[280px] shrink-0 overflow-hidden rounded-[24px] bg-white text-left shadow-md"
-      whileHover={{ y: -3 }}
-      whileTap={{ scale: 0.98 }}
+      className="w-[320px] shrink-0 overflow-hidden rounded-[24px] bg-white text-left shadow-sm transition hover:shadow-md"
     >
-      <div className="h-[185px] w-full overflow-hidden bg-neutral-200">
-        <ImageWithFallback
-          src={imagen}
-          alt={titulo}
-          className="h-full w-full object-cover"
-        />
-      </div>
+      <div className="flex h-[470px] flex-col">
+        <div className="h-[240px] w-full overflow-hidden bg-white">
+          <img
+            src={imagen}
+            alt={titulo}
+            loading="lazy"
+            className="block h-full w-full object-cover object-center"
+          />
+        </div>
 
-      <div className="p-4">
-        <p className="text-[18px] font-semibold text-black">{titulo}</p>
-        <p className="mt-2 text-[13px] leading-[22px] text-[#6d6d6d]">
-          {descripcion}
-        </p>
+        <div className="flex min-h-0 flex-1 flex-col border-t border-[#eef0f3] p-5">
+          <h4 className="line-clamp-2 min-h-[56px] text-[18px] font-semibold leading-[28px] text-black">
+            {titulo}
+          </h4>
+
+          <p className="mt-3 line-clamp-5 text-[14px] leading-[28px] text-[#667085]">
+            {descripcion}
+          </p>
+        </div>
       </div>
-    </motion.button>
+    </button>
   );
 }

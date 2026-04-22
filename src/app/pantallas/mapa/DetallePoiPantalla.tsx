@@ -9,11 +9,7 @@ import {
   extraerLat,
   extraerLng,
 } from "@/app/servicios/poisDestacados";
-import {
-  DESTINO_TO_CCAA,
-  getImagenFallbackPorDestino,
-  getImagenPoiDestacado,
-} from "@/app/datos/poisDestacadosVisuales";
+import { DESTINO_TO_CCAA } from "@/app/datos/poisDestacadosVisuales";
 import { poiPorDestino } from "@/app/datos/mock/poiPorDestino";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
@@ -38,6 +34,14 @@ type PoiMockRecord = {
 };
 
 type PoiRecordSafe = Record<string, unknown>;
+
+const BLANK_IMAGE =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900">
+      <rect width="100%" height="100%" fill="white"/>
+    </svg>
+  `);
 
 function normalizarTexto(value: string): string {
   return value
@@ -113,9 +117,7 @@ function traducirTipoValor(valor?: string | null): string {
   if (v.includes("building") || v.includes("edificio")) return "Edificio singular";
   if (v.includes("historic")) return "Lugar histórico";
 
-  return valor
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return valor.replaceAll("_", " ");
 }
 
 function traducirCategoriaValor(valor?: string | null): string {
@@ -137,15 +139,7 @@ function traducirCategoriaValor(valor?: string | null): string {
   if (v === "poi") return "Lugar de interés";
   if (v === "patrimonio") return "Patrimonio";
 
-  if (
-    v.includes("museum") ||
-    v.includes("museo") ||
-    v.includes("culture") ||
-    v.includes("cultura") ||
-    v.includes("arte") ||
-    v.includes("gallery") ||
-    v.includes("theatre")
-  ) {
+  if (v.includes("museum") || v.includes("museo") || v.includes("culture") || v.includes("cultura")) {
     return "Cultura";
   }
 
@@ -153,58 +147,27 @@ function traducirCategoriaValor(valor?: string | null): string {
     return "Arquitectura";
   }
 
-  if (
-    v.includes("heritage") ||
-    v.includes("patrimonio") ||
-    v.includes("historic") ||
-    v.includes("historia") ||
-    v.includes("monument")
-  ) {
+  if (v.includes("heritage") || v.includes("patrimonio") || v.includes("monument")) {
     return "Patrimonio";
   }
 
-  if (
-    v.includes("religious") ||
-    v.includes("religion") ||
-    v.includes("church") ||
-    v.includes("cathedral") ||
-    v.includes("iglesia")
-  ) {
+  if (v.includes("religious") || v.includes("church") || v.includes("cathedral") || v.includes("iglesia")) {
     return "Patrimonio religioso";
   }
 
-  if (
-    v.includes("nature") ||
-    v.includes("natural") ||
-    v.includes("park") ||
-    v.includes("parque") ||
-    v.includes("mountain") ||
-    v.includes("mirador")
-  ) {
+  if (v.includes("nature") || v.includes("natural") || v.includes("park") || v.includes("parque")) {
     return "Naturaleza";
   }
 
-  if (
-    v.includes("beach") ||
-    v.includes("playa") ||
-    v.includes("coast") ||
-    v.includes("costa")
-  ) {
+  if (v.includes("beach") || v.includes("playa") || v.includes("coast")) {
     return "Playa";
   }
 
-  if (
-    v.includes("sport") ||
-    v.includes("deporte") ||
-    v.includes("stadium") ||
-    v.includes("estadio")
-  ) {
+  if (v.includes("sport") || v.includes("deporte") || v.includes("stadium") || v.includes("estadio")) {
     return "Deporte";
   }
 
-  return valor
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return valor.replaceAll("_", " ");
 }
 
 function getIconoPoi(tipo?: string | null, categoria?: string | null): string {
@@ -213,70 +176,27 @@ function getIconoPoi(tipo?: string | null, categoria?: string | null): string {
   if (combinado.includes("museum") || combinado.includes("museo") || combinado.includes("cultura")) {
     return "🏛️";
   }
-  if (
-    combinado.includes("castle") ||
-    combinado.includes("castillo") ||
-    combinado.includes("fort") ||
-    combinado.includes("fortaleza") ||
-    combinado.includes("patrimonio")
-  ) {
+  if (combinado.includes("castle") || combinado.includes("castillo") || combinado.includes("fort") || combinado.includes("patrimonio")) {
     return "🏰";
   }
-  if (
-    combinado.includes("church") ||
-    combinado.includes("cathedral") ||
-    combinado.includes("iglesia") ||
-    combinado.includes("catedral") ||
-    combinado.includes("religioso")
-  ) {
+  if (combinado.includes("church") || combinado.includes("cathedral") || combinado.includes("iglesia") || combinado.includes("religioso")) {
     return "⛪";
   }
-  if (
-    combinado.includes("beach") ||
-    combinado.includes("playa") ||
-    combinado.includes("coast") ||
-    combinado.includes("costa")
-  ) {
+  if (combinado.includes("beach") || combinado.includes("playa") || combinado.includes("coast")) {
     return "🏖️";
   }
-  if (
-    combinado.includes("park") ||
-    combinado.includes("parque") ||
-    combinado.includes("nature") ||
-    combinado.includes("natural") ||
-    combinado.includes("mirador")
-  ) {
+  if (combinado.includes("park") || combinado.includes("parque") || combinado.includes("nature") || combinado.includes("mirador")) {
     return "🌿";
   }
-  if (
-    combinado.includes("theatre") ||
-    combinado.includes("theater") ||
-    combinado.includes("teatro") ||
-    combinado.includes("gallery") ||
-    combinado.includes("arte") ||
-    combinado.includes("cultural_center") ||
-    combinado.includes("ocio")
-  ) {
+  if (combinado.includes("theatre") || combinado.includes("gallery") || combinado.includes("arte") || combinado.includes("ocio")) {
     return "🎭";
   }
-  if (
-    combinado.includes("stadium") ||
-    combinado.includes("estadio") ||
-    combinado.includes("sport") ||
-    combinado.includes("deporte")
-  ) {
+  if (combinado.includes("stadium") || combinado.includes("deporte")) {
     return "🏟️";
   }
   if (combinado.includes("architecture") || combinado.includes("arquitect")) {
     return "🧱";
   }
-  if (combinado.includes("gastr")) {
-    return "🍽️";
-  }
-  if (combinado.includes("ruta")) {
-    return "🗺️";
-  }
-
   return "📍";
 }
 
@@ -349,44 +269,12 @@ function descripcionBasePorCategoria(
     return `${nombreLugar} es una visita cultural muy interesante para conocer mejor el legado artístico, histórico y simbólico de ${zona}.`;
   }
 
-  if (c.includes("otros lugares")) {
-    return `${nombreLugar} funciona como una parada complementaria para enriquecer una ruta variada por ${zona} con un punto diferente al resto.`;
-  }
-
   if (c.includes("playa")) {
     return `${nombreLugar} destaca como visita ligada a la costa y resulta una muy buena opción si quieres incorporar mar, paisaje y paseo a tu recorrido por ${zona}.`;
   }
 
-  if (c.includes("ocio")) {
-    return `${nombreLugar} encaja muy bien en una jornada más flexible, combinando visita, paseo y disfrute del ambiente local en ${zona}.`;
-  }
-
-  if (c.includes("ruta")) {
-    return `${nombreLugar} tiene valor como parte de un recorrido más amplio y ayuda a estructurar mejor una ruta por ${zona}.`;
-  }
-
   if (c.includes("arquitectura")) {
     return `${nombreLugar} sobresale por su interés arquitectónico y merece la pena si buscas construcciones singulares y espacios con identidad propia en ${zona}.`;
-  }
-
-  if (c.includes("deporte")) {
-    return `${nombreLugar} aporta una visita vinculada al deporte o al espectáculo y puede ser una parada muy atractiva dentro de una ruta por ${zona}.`;
-  }
-
-  if (c.includes("mirador")) {
-    return `${nombreLugar} es una opción excelente para añadir una vista panorámica potente y disfrutar mejor del entorno de ${zona}.`;
-  }
-
-  if (c.includes("patrimonio religioso")) {
-    return `${nombreLugar} es una visita muy recomendable si te interesa el patrimonio religioso, la historia local y los espacios con valor simbólico en ${zona}.`;
-  }
-
-  if (c.includes("gastronomía")) {
-    return `${nombreLugar} suma interés gastronómico a la experiencia y ayuda a conocer mejor la identidad culinaria de ${zona}.`;
-  }
-
-  if (c.includes("lugar de interés")) {
-    return `${nombreLugar} es un punto representativo que puede enriquecer una visita bien organizada por ${zona}.`;
   }
 
   if (c.includes("patrimonio")) {
@@ -604,8 +492,10 @@ export default function DetallePoiPantalla() {
 
     const descripcionRaw =
       poi.descripcion_snippet ??
+      poi.descripcion ??
       getDynamicString(poi, ["descripcion", "descripcion_corta", "resumen"]) ??
       poiDestacado?.poi?.descripcion_snippet ??
+      poiDestacado?.poi?.descripcion ??
       getDynamicString(poiDestacado?.poi ?? null, ["descripcion", "descripcion_corta", "resumen"]);
 
     const direccion =
@@ -661,10 +551,10 @@ export default function DetallePoiPantalla() {
     );
 
     const imagen =
+      poiDestacado?.imagen_url ||
       poi.image_url ||
       poiDestacado?.poi?.image_url ||
-      getImagenPoiDestacado(destinoVisual, nombre) ||
-      getImagenFallbackPorDestino(destinoVisual);
+      BLANK_IMAGE;
 
     const icono = getIconoPoi(tipoRaw, categoriaRaw);
 
@@ -691,6 +581,7 @@ export default function DetallePoiPantalla() {
       imagen,
       icono,
       puntosClave,
+      destinoVisual,
     };
   }, [poi, poiDestacado, destinoSeleccionado]);
 
@@ -732,7 +623,7 @@ export default function DetallePoiPantalla() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f6f3] px-5 py-6 pb-46 md:pb-26">
+    <div className="min-h-screen bg-[#f6f6f3] px-5 py-6 pb-48 md:pb-28">
       <div className="mx-auto max-w-[980px]">
         <div className="mb-5 flex items-center justify-between gap-4">
           <button
@@ -746,11 +637,11 @@ export default function DetallePoiPantalla() {
         </div>
 
         <section className="overflow-hidden rounded-[32px] bg-white shadow-sm">
-          <div className="relative h-[300px] w-full overflow-hidden md:h-[360px]">
+          <div className="relative h-[420px] w-full overflow-hidden bg-white md:h-[520px]">
             <img
               src={datosVista.imagen}
               alt={datosVista.nombre}
-              className="h-full w-full object-cover"
+              className="block h-full w-full object-cover object-center"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/22 to-transparent" />
 
