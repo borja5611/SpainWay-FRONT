@@ -29,14 +29,15 @@ type CardDestacadaUi = {
   categoria: string;
   descripcion: string;
   imagen: string;
+  enlaceGoogle?: string | null;
   real: boolean;
 };
 
 const BLANK_IMAGE =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600">
-      <rect width="100%" height="100%" fill="white"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900">
+      <rect width="100%" height="100%" fill="#f3f4f6"/>
     </svg>
   `);
 
@@ -73,12 +74,15 @@ function traducirCategoriaPoi(valor?: string | null): string {
   if (v.includes("architecture") || v.includes("arquitect")) return "Arquitectura";
   if (v.includes("sport") || v.includes("stadium") || v.includes("deporte")) return "Deporte";
   if (v.includes("mirador") || v.includes("viewpoint")) return "Mirador";
+
   if (v.includes("church") || v.includes("cathedral") || v.includes("religious")) {
     return "Patrimonio religioso";
   }
+
   if (v.includes("heritage") || v.includes("monument") || v.includes("castle")) {
     return "Patrimonio";
   }
+
   if (v.includes("nature") || v.includes("park") || v.includes("natural")) {
     return "Naturaleza";
   }
@@ -133,6 +137,7 @@ export default function MapaPantalla() {
 
       try {
         setLoading(true);
+
         const comunidad = DESTINO_TO_CCAA[destinoSeleccionado];
 
         if (!comunidad) {
@@ -176,6 +181,7 @@ export default function MapaPantalla() {
         if (lat === null || lng === null) return null;
 
         const nombre = item.poi_canonico || item.poi?.nombre || "POI destacado";
+
         const categoria = traducirCategoriaPoi(
           item.poi?.categoria ||
             item.poi?.categoria_poi?.nombre ||
@@ -188,9 +194,10 @@ export default function MapaPantalla() {
           nombre,
           categoria,
           descripcion:
+            item.poi?.descripcion ||
             item.poi?.descripcion_snippet ||
             descripcionBasePorCategoria(categoria, nombre, comunidad),
-          imagen: item.imagen_url || BLANK_IMAGE,
+          imagen: item.imagen_url || item.poi?.image_url || BLANK_IMAGE,
           lat,
           lng,
         };
@@ -206,6 +213,7 @@ export default function MapaPantalla() {
     if (poisReales.length > 0) {
       return poisReales.map((item) => {
         const nombre = item.poi_canonico || item.poi?.nombre || "POI destacado";
+
         const categoria = traducirCategoriaPoi(
           item.poi?.categoria ||
             item.poi?.categoria_poi?.nombre ||
@@ -218,9 +226,11 @@ export default function MapaPantalla() {
           titulo: nombre,
           categoria,
           descripcion:
+            item.poi?.descripcion ||
             item.poi?.descripcion_snippet ||
             descripcionBasePorCategoria(categoria, nombre, comunidad),
-          imagen: item.imagen_url || BLANK_IMAGE,
+          imagen: item.imagen_url || item.poi?.image_url || BLANK_IMAGE,
+          enlaceGoogle: item.poi?.google_search_url ?? null,
           real: true,
         };
       });
@@ -232,6 +242,7 @@ export default function MapaPantalla() {
       categoria: item.categoria,
       descripcion: item.descripcion,
       imagen: item.imagen,
+      enlaceGoogle: null,
       real: false,
     }));
   }, [config, destinoSeleccionado, poisReales]);
@@ -243,7 +254,9 @@ export default function MapaPantalla() {
           <h1 className="mb-3 text-[24px] font-semibold text-black">
             No has seleccionado destino
           </h1>
+
           <button
+            type="button"
             onClick={() => navigate("/inicio")}
             className="rounded-[10px] bg-[#e12414] px-6 py-3 text-white"
           >
@@ -261,7 +274,9 @@ export default function MapaPantalla() {
           <h1 className="mb-3 text-[22px] font-semibold text-black">
             Este destino todavía no tiene configuración de mapa
           </h1>
+
           <button
+            type="button"
             onClick={() => navigate("/inicio")}
             className="rounded-[10px] bg-[#e12414] px-6 py-3 text-white"
           >
@@ -277,6 +292,7 @@ export default function MapaPantalla() {
       <ContenedorPantallaPrincipal className="pt-3">
         <div className="rounded-[28px] bg-white p-5 shadow-sm">
           <h2 className="text-[22px] font-semibold text-black">{config.titulo}</h2>
+
           <p className="mt-2 text-[14px] leading-[24px] text-[#7c6b69]">
             {config.subtitulo}
           </p>
@@ -300,9 +316,10 @@ export default function MapaPantalla() {
           </div>
         </div>
 
-        <section className="mt-8">
+        <section className="mt-8 pb-24">
           <div className="mb-4">
-            <h3 className="text-[28px] font-bold text-black">Lugares destacados</h3>
+            <h3 className="text-[30px] font-bold text-black">Lugares destacados</h3>
+
             <p className="mt-1 text-[14px] leading-[24px] text-[#7c6b69]">
               {poisReales.length > 0
                 ? `${poisReales.length} lugares destacados disponibles en este destino.`
@@ -312,51 +329,71 @@ export default function MapaPantalla() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {cardsDestacadas.length > 0 ? (
-              cardsDestacadas.map((item) => (
-                <button
+          {cardsDestacadas.length > 0 ? (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {cardsDestacadas.map((item) => (
+                <article
                   key={item.id}
-                  type="button"
-                  onClick={() => {
-                    if (item.real) {
-                      navigate(`/poi/${item.id}`);
-                    }
-                  }}
-                  className="overflow-hidden rounded-[24px] bg-white text-left shadow-sm transition hover:shadow-md"
+                  className="overflow-hidden rounded-[24px] bg-white text-left shadow-sm"
                 >
-                  <div className="flex min-h-[470px] flex-col">
-                    <div className="h-[300px] w-full overflow-hidden bg-white">
-                      <img
-                        src={item.imagen}
-                        alt={item.titulo}
-                        loading="lazy"
-                        className="block h-full w-full object-cover object-center"
-                      />
-                    </div>
-
-                    <div className="border-t border-[#eef0f3] p-5">
-                      <div className="inline-flex rounded-full bg-[#fff4ef] px-3 py-1 text-xs font-semibold text-[#ff5a36]">
-                        {item.categoria}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (item.real) {
+                        navigate(`/poi/${item.id}`);
+                      }
+                    }}
+                    className="block w-full text-left"
+                  >
+                    <div className="flex h-[440px] flex-col">
+                      <div className="h-[220px] w-full overflow-hidden bg-[#f3f4f6]">
+                        <img
+                          src={item.imagen}
+                          alt={item.titulo}
+                          loading="lazy"
+                          className="block h-full w-full object-cover object-center"
+                        />
                       </div>
-                      <h4 className="mt-3 text-[20px] font-semibold text-black">
-                        {item.titulo}
-                      </h4>
-                      <p className="mt-2 text-[14px] leading-[24px] text-[#7c6b69]">
-                        {item.descripcion}
-                      </p>
+
+                      <div className="flex min-h-0 flex-1 flex-col border-t border-[#eef0f3] p-5">
+                        <div className="w-fit rounded-full bg-[#fff4ef] px-3 py-1 text-[11px] font-semibold text-[#ff5a36]">
+                          {item.categoria}
+                        </div>
+
+                        <h4 className="mt-3 line-clamp-2 min-h-[56px] text-[18px] font-semibold leading-[28px] text-black">
+                          {item.titulo}
+                        </h4>
+
+                        <p className="mt-3 line-clamp-4 text-[14px] leading-[26px] text-[#667085]">
+                          {item.descripcion}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="rounded-[22px] bg-white p-5 shadow-sm">
-                <p className="text-[14px] text-[#7c6b69]">
-                  No hay lugares destacados disponibles todavía para este destino.
-                </p>
-              </div>
-            )}
-          </div>
+                  </button>
+
+                  {item.enlaceGoogle && (
+                    <div className="px-5 pb-5">
+                      <a
+                        href={item.enlaceGoogle}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => event.stopPropagation()}
+                        className="inline-flex rounded-full bg-[#fff4ef] px-4 py-2 text-[13px] font-semibold text-[#ff5a36] transition hover:bg-[#ffe6dc]"
+                      >
+                        Ver en Google
+                      </a>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[22px] bg-white p-5 shadow-sm">
+              <p className="text-[14px] text-[#7c6b69]">
+                No hay lugares destacados disponibles todavía para este destino.
+              </p>
+            </div>
+          )}
         </section>
       </ContenedorPantallaPrincipal>
     </div>

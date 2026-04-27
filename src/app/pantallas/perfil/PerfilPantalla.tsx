@@ -183,13 +183,22 @@ export default function PerfilPantalla() {
         const data = await me(token);
         setPerfil(data);
 
-        const [favoritos, itinerarios] = await Promise.all([
+        const [favoritosResult, itinerariosResult] = await Promise.allSettled([
           getFavoritos(data.id_usuario),
           getItinerarios(data.id_usuario),
         ]);
 
-        setTotalFavoritos(Array.isArray(favoritos) ? favoritos.length : 0);
-        setTotalItinerarios(Array.isArray(itinerarios) ? itinerarios.length : 0);
+        if (favoritosResult.status === "fulfilled" && Array.isArray(favoritosResult.value)) {
+          setTotalFavoritos(favoritosResult.value.length);
+        } else {
+          setTotalFavoritos(0);
+        }
+
+        if (itinerariosResult.status === "fulfilled" && Array.isArray(itinerariosResult.value)) {
+          setTotalItinerarios(itinerariosResult.value.length);
+        } else {
+          setTotalItinerarios(0);
+        }
       } catch (err) {
         console.error(err);
         setError("No se pudo cargar el perfil.");

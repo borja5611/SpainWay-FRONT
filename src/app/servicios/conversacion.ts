@@ -1,9 +1,10 @@
-// src/app/servicios/conversacion.ts
 import { apiDelete, apiGet, apiPost } from "./api";
+
+export type RolMensaje = "user" | "assistant" | "system";
 
 export interface Mensaje {
   id_mensaje: number;
-  rol: string | null;
+  rol: RolMensaje | string | null;
   contenido: string | null;
   creado: string | null;
   id_conversacion: number;
@@ -15,6 +16,8 @@ export interface Conversacion {
   creado: string | null;
   id_usuario: number;
   mensajes?: Mensaje[];
+  ultimo_mensaje?: string | null;
+  total_mensajes?: number;
 }
 
 export interface CrearConversacionPayload {
@@ -24,7 +27,7 @@ export interface CrearConversacionPayload {
 
 export interface CrearMensajePayload {
   id_conversacion: number;
-  rol: string;
+  rol: RolMensaje | string;
   contenido: string;
 }
 
@@ -40,10 +43,7 @@ export const getConversacionDetalle = (idConversacion: number) =>
   apiGet<Conversacion>(`/api/conversaciones/detalle/${idConversacion}`);
 
 export const crearConversacion = (payload: CrearConversacionPayload) =>
-  apiPost<Conversacion, CrearConversacionPayload>(
-    "/api/conversaciones",
-    payload
-  );
+  apiPost<Conversacion, CrearConversacionPayload>("/api/conversaciones", payload);
 
 export const eliminarConversacion = (idConversacion: number) =>
   apiDelete<DeleteResponse>(`/api/conversaciones/${idConversacion}`);

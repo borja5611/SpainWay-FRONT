@@ -24,12 +24,14 @@ function formatDate(value?: string | null): string {
 
 function getInitials(name?: string | null): string {
   if (!name) return "SW";
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "SW";
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "SW"
+  );
 }
 
 export default function ChatPantalla() {
@@ -41,6 +43,8 @@ export default function ChatPantalla() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [chatPendienteEliminar, setChatPendienteEliminar] =
+    useState<Conversacion | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const totalChats = useMemo(() => chats.length, [chats.length]);
@@ -68,6 +72,7 @@ export default function ChatPantalla() {
     try {
       setCreating(true);
       setError(null);
+
       const nuevo = await crearConversacion({
         id_usuario: idUsuario,
         titulo: "Nuevo viaje con SpainWay",
@@ -82,17 +87,31 @@ export default function ChatPantalla() {
     }
   }
 
-  async function borrarChat(event: MouseEvent<HTMLButtonElement>, idConversacion: number) {
+  function abrirModalEliminar(
+    event: MouseEvent<HTMLButtonElement>,
+    chat: Conversacion
+  ) {
     event.stopPropagation();
+    setChatPendienteEliminar(chat);
+  }
 
-    const ok = window.confirm("¿Eliminar esta conversación? Esta acción no se puede deshacer.");
-    if (!ok) return;
+  async function confirmarEliminar() {
+    if (!chatPendienteEliminar) return;
 
     try {
-      setDeletingId(idConversacion);
+      setDeletingId(chatPendienteEliminar.id_conversacion);
       setError(null);
-      await eliminarConversacion(idConversacion);
-      setChats((prev) => prev.filter((chat) => chat.id_conversacion !== idConversacion));
+
+      await eliminarConversacion(chatPendienteEliminar.id_conversacion);
+
+      setChats((prev) =>
+        prev.filter(
+          (chat) =>
+            chat.id_conversacion !== chatPendienteEliminar.id_conversacion
+        )
+      );
+
+      setChatPendienteEliminar(null);
     } catch (err) {
       console.error(err);
       setError("No se pudo eliminar la conversación.");
@@ -107,12 +126,17 @@ export default function ChatPantalla() {
         <section className="overflow-hidden rounded-[34px] bg-gradient-to-br from-[#fff8f4] via-white to-[#f4f1ff] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[#94a3b8]">Chat</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-[#94a3b8]">
+                Chat
+              </p>
+
               <h1 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
                 Conversaciones del usuario
               </h1>
+
               <p className="mt-2 max-w-[560px] text-sm leading-6 text-[#667085]">
-                Abre una conversación guardada, continúa hablando con el asistente o crea un nuevo chat para preparar otro viaje.
+                Abre una conversación guardada, continúa hablando con el asistente
+                o crea un nuevo chat para preparar otro viaje.
               </p>
             </div>
 
@@ -136,11 +160,16 @@ export default function ChatPantalla() {
         <section className="mt-5">
           {loading ? (
             <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_35px_rgba(15,23,42,0.07)]">
-              <p className="text-sm font-semibold text-[#667085]">Cargando conversaciones...</p>
+              <p className="text-sm font-semibold text-[#667085]">
+                Cargando conversaciones...
+              </p>
             </div>
           ) : chats.length === 0 ? (
             <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_35px_rgba(15,23,42,0.07)]">
-              <p className="text-lg font-black text-[#111827]">No tienes chats guardados</p>
+              <p className="text-lg font-black text-[#111827]">
+                No tienes chats guardados
+              </p>
+
               <p className="mt-2 text-sm leading-6 text-[#667085]">
                 Crea una conversación nueva y empieza a preparar tu ruta con SpainWay.
               </p>
@@ -158,21 +187,25 @@ export default function ChatPantalla() {
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
                 <p className="text-sm font-bold text-[#667085]">
-                  {totalChats} {totalChats === 1 ? "conversación" : "conversaciones"}
+                  {totalChats}{" "}
+                  {totalChats === 1 ? "conversación" : "conversaciones"}
                 </p>
               </div>
 
               {chats.map((chat) => {
                 const titulo = chat.titulo || "Nuevo viaje con SpainWay";
                 const ultimoMensaje =
-                  chat.ultimo_mensaje || "Pulsa para abrir esta conversación y seguir hablando.";
+                  chat.ultimo_mensaje ||
+                  "Pulsa para abrir esta conversación y seguir hablando.";
 
                 return (
                   <article
                     key={chat.id_conversacion}
                     role="button"
                     tabIndex={0}
-                    onClick={() => navigate(`/chat/conversacion/${chat.id_conversacion}`)}
+                    onClick={() =>
+                      navigate(`/chat/conversacion/${chat.id_conversacion}`)
+                    }
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         navigate(`/chat/conversacion/${chat.id_conversacion}`);
@@ -191,6 +224,7 @@ export default function ChatPantalla() {
                             <h3 className="truncate text-[18px] font-black text-[#111827]">
                               {titulo}
                             </h3>
+
                             <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#667085]">
                               {ultimoMensaje}
                             </p>
@@ -208,11 +242,13 @@ export default function ChatPantalla() {
 
                           <button
                             type="button"
-                            onClick={(event) => borrarChat(event, chat.id_conversacion)}
+                            onClick={(event) => abrirModalEliminar(event, chat)}
                             disabled={deletingId === chat.id_conversacion}
                             className="rounded-full bg-red-50 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-60"
                           >
-                            {deletingId === chat.id_conversacion ? "Eliminando..." : "Eliminar"}
+                            {deletingId === chat.id_conversacion
+                              ? "Eliminando..."
+                              : "Eliminar"}
                           </button>
                         </div>
                       </div>
@@ -224,6 +260,54 @@ export default function ChatPantalla() {
           )}
         </section>
       </div>
+
+      {chatPendienteEliminar && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/45 px-5 backdrop-blur-sm"
+          onClick={() => setChatPendienteEliminar(null)}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-[32px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.30)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">
+              🗑️
+            </div>
+
+            <h2 className="mt-5 text-center text-[22px] font-black tracking-[-0.03em] text-[#111827]">
+              Eliminar conversación
+            </h2>
+
+            <p className="mt-3 text-center text-sm leading-6 text-[#667085]">
+              Vas a eliminar{" "}
+              <strong className="text-[#111827]">
+                {chatPendienteEliminar.titulo || "Nuevo viaje con SpainWay"}
+              </strong>
+              . Esta acción no se puede deshacer.
+            </p>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setChatPendienteEliminar(null)}
+                disabled={deletingId !== null}
+                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-bold text-[#344054] transition hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={confirmarEliminar}
+                disabled={deletingId !== null}
+                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(220,38,38,0.25)] transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {deletingId !== null ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,7 +14,6 @@ export const RUTAS_APP = {
 
   mapa: "/mapa",
   detallePoi: "/poi/:poiId",
-  
 
   itinerarios: "/itinerarios",
   calendario: "/calendario",
@@ -23,6 +22,7 @@ export const RUTAS_APP = {
 
   chat: "/chat",
   chatDestino: "/chat/destino",
+  chatDetalle: "/chat/conversacion/:idConversacion",
   chatPreferencias: "/chat/preferencias",
   chatPresupuesto: "/chat/presupuesto",
   chatIntereses: "/chat/intereses",

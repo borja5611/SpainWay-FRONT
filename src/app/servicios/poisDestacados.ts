@@ -10,16 +10,27 @@ export interface PoiApi {
   nombre?: string;
   tipo?: string;
   categoria?: string;
-  descripcion_snippet?: string;
-  descripcion?: string | null;
   subcategoria?: string | null;
   direccion?: string | null;
-  temporada?: string | null;
   latitud?: number | string | null;
   longitud?: number | string | null;
+  descripcion?: string | null;
+  temporada?: string | null;
+  puntuacion?: number | string | null;
+  popularidad?: number | string | null;
+  id_cluster?: string | null;
+  origen?: string | null;
+  valido?: boolean;
+  creado?: string | null;
+  actualizado?: string | null;
+  id_municipio?: number | null;
+  id_categoria_poi?: number | null;
+  google_search_url?: string | null;
+  descripcion_snippet?: string;
   lat?: number | string | null;
   lon?: number | string | null;
   image_url?: string | null;
+
   municipio?: {
     nombre?: string;
     provincia?: {
@@ -29,6 +40,7 @@ export interface PoiApi {
       };
     };
   } | null;
+
   categoria_poi?: {
     nombre?: string;
   } | null;

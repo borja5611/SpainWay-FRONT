@@ -27,6 +27,7 @@ import CrearItinerarioPantalla from "@/app/pantallas/itinerarios/CreaItinerarioP
 import DetalleItinerarioPantalla from "@/app/pantallas/itinerarios/DetalleItinerarioPantalla";
 
 import ChatPantalla from "@/app/pantallas/chat/ChatPantalla";
+import ChatDetallePantalla from "@/app/pantallas/chat/ChatDetallePantalla";
 import InicioItinerarioPantalla from "@/app/pantallas/chat/InicioItinerarioPantalla";
 import ChatPreferenciasPantalla from "@/app/pantallas/chat/ChatPreferenciasPantalla";
 import ChatPresupuestoPantalla from "@/app/pantallas/chat/ChatPresupuestoPantalla";
@@ -78,6 +79,7 @@ export const router = createBrowserRouter([
 
       { path: RUTAS_APP.chat, element: <InicioItinerarioPantalla /> },
       { path: RUTAS_APP.chatDestino, element: <ChatPantalla /> },
+      { path: RUTAS_APP.chatDetalle, element: <ChatDetallePantalla /> },
       { path: RUTAS_APP.chatPreferencias, element: <ChatPreferenciasPantalla /> },
       { path: RUTAS_APP.chatPresupuesto, element: <ChatPresupuestoPantalla /> },
       { path: RUTAS_APP.chatIntereses, element: <ChatInteresesPantalla /> },
