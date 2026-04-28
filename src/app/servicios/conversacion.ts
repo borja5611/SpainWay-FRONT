@@ -18,6 +18,7 @@ export interface Conversacion {
   mensajes?: Mensaje[];
   ultimo_mensaje?: string | null;
   total_mensajes?: number;
+  id_itinerario_relacionado?: number | null;
 }
 
 export interface CrearConversacionPayload {

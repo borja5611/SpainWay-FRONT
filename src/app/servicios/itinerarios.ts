@@ -1,5 +1,34 @@
-// src/app/servicios/itinerarios.ts
 import { apiDelete, apiGet, apiPatch, apiPost } from "./api";
+
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export interface PoiItinerario {
+  id_poi: number;
+  nombre: string;
+  id_global: string;
+  tipo?: string | null;
+  subcategoria?: string | null;
+  direccion?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  descripcion?: string | null;
+  google_search_url?: string | null;
+  categoria_poi?: {
+    id_categoria_poi: number;
+    nombre: string;
+    slug?: string;
+  } | null;
+  municipio?: {
+    id_municipio: number;
+    nombre: string;
+  } | null;
+  destacados_ccaa?: Array<{
+    id_poi_destacado_ccaa: number;
+    imagen_url?: string | null;
+    motivo?: string | null;
+    comunidad?: string | null;
+  }>;
+}
 
 export interface ElementoItinerario {
   id_elemento_itinerario: number;
@@ -10,11 +39,7 @@ export interface ElementoItinerario {
   tiempo_transporte: number | null;
   id_dia_itinerario: number;
   id_poi: number;
-  poi?: {
-    id_poi: number;
-    nombre: string;
-    id_global: string;
-  };
+  poi?: PoiItinerario;
 }
 
 export interface DiaItinerario {
@@ -24,6 +49,43 @@ export interface DiaItinerario {
   notas: string | null;
   id_itinerario: number;
   elementos?: ElementoItinerario[];
+}
+
+export interface IaPoiPlan {
+  global_id?: string;
+  id_global?: string;
+  name?: string;
+  nombre?: string;
+  reason?: string;
+  motivo?: string;
+  image_url?: string;
+  imagen_url?: string;
+  google_search_url?: string;
+}
+
+export interface IaDayPlan {
+  day_number?: number;
+  dia?: number;
+  theme?: string;
+  titulo?: string;
+  total_minutes?: number | null;
+  minutos?: number | null;
+  pois?: IaPoiPlan[];
+  items?: IaPoiPlan[];
+  local_tips?: string[];
+  consejos?: string[];
+}
+
+export interface IaJsonItinerario {
+  destination?: string;
+  days?: number;
+  summary?: string;
+  resumen?: string;
+  anchors_used?: string[];
+  day_plans?: IaDayPlan[];
+  dias?: IaDayPlan[];
+  generated_at?: string;
+  [key: string]: unknown;
 }
 
 export interface Itinerario {
@@ -39,6 +101,15 @@ export interface Itinerario {
   creado: string | null;
   actualizado: string | null;
   id_usuario: number;
+  base_nombre?: string | null;
+  base_direccion?: string | null;
+  base_latitud?: number | null;
+  base_longitud?: number | null;
+  permite_excursiones?: boolean;
+  radio_max_km?: number | null;
+  ia_json?: IaJsonItinerario | null;
+  ia_resumen?: string | null;
+  preferencias_json?: JsonValue | null;
   dias?: DiaItinerario[];
 }
 
@@ -63,29 +134,6 @@ export interface ActualizarItinerarioPayload {
   transporte?: string;
   accesibilidad?: string;
   estado?: string;
-}
-
-export interface CrearDiaItinerarioPayload {
-  id_itinerario: number;
-  fecha: string;
-  minutos?: number;
-  notas?: string;
-}
-
-export interface ActualizarDiaItinerarioPayload {
-  fecha?: string;
-  minutos?: number;
-  notas?: string;
-}
-
-export interface CrearElementoItinerarioPayload {
-  id_dia_itinerario: number;
-  id_poi: number;
-  inicio?: string;
-  fin?: string;
-  orden?: number;
-  transporte?: string;
-  tiempo_transporte?: number;
 }
 
 export interface DeleteResponse {
@@ -116,33 +164,3 @@ export const actualizarItinerario = (
 
 export const eliminarItinerario = (idItinerario: number) =>
   apiDelete<DeleteResponse>(`/api/itinerarios/${idItinerario}`);
-
-export const getDiasItinerario = (idItinerario: number) =>
-  apiGet<DiaItinerario[]>(`/api/dias-itinerario/${idItinerario}`);
-
-export const crearDiaItinerario = (payload: CrearDiaItinerarioPayload) =>
-  apiPost<DiaItinerario, CrearDiaItinerarioPayload>(
-    "/api/dias-itinerario",
-    payload
-  );
-
-export const actualizarDiaItinerario = (
-  idDiaItinerario: number,
-  payload: ActualizarDiaItinerarioPayload
-) =>
-  apiPatch<DiaItinerario, ActualizarDiaItinerarioPayload>(
-    `/api/dias-itinerario/${idDiaItinerario}`,
-    payload
-  );
-
-export const eliminarDiaItinerario = (idDiaItinerario: number) =>
-  apiDelete<DeleteResponse>(`/api/dias-itinerario/${idDiaItinerario}`);
-
-export const getElementosDia = (idDiaItinerario: number) =>
-  apiGet<ElementoItinerario[]>(`/api/elementos-itinerario/${idDiaItinerario}`);
-
-export const crearElementoDia = (payload: CrearElementoItinerarioPayload) =>
-  apiPost<ElementoItinerario, CrearElementoItinerarioPayload>(
-    "/api/elementos-itinerario",
-    payload
-  );

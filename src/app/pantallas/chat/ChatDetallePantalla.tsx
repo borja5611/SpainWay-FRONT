@@ -1,313 +1,274 @@
-import { useEffect, useMemo, useState } from "react";
-import type { MouseEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "@/app/store/useAuthStore";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
-  crearConversacion,
-  eliminarConversacion,
-  getConversaciones,
+  crearMensaje,
+  getConversacionDetalle,
   type Conversacion,
+  type Mensaje,
 } from "@/app/servicios/conversacion";
 
-function formatDate(value?: string | null): string {
-  if (!value) return "Sin fecha";
+const SUGERENCIAS = [
+  "No quiero caminar mucho",
+  "Evita repetir POIs",
+  "Dame opciones de comida local",
+  "Hazlo más relajado",
+];
+
+function formatHora(value?: string | null): string {
+  if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Sin fecha";
-
-  return date.toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
-function getInitials(name?: string | null): string {
-  if (!name) return "SW";
-  return (
-    name
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("") || "SW"
-  );
+function respuestaLocal(texto: string): string {
+  const t = texto.toLowerCase();
+  if (t.includes("caminar") || t.includes("andar")) {
+    return "Perfecto. Lo guardaré como ajuste: menos caminatas, más agrupación por zonas y trayectos cortos.";
+  }
+  if (t.includes("repetir") || t.includes("pois")) {
+    return "Entendido. Evitaré repetir POIs ya usados y priorizaré alternativas cercanas.";
+  }
+  if (t.includes("comida") || t.includes("gastronom")) {
+    return "Genial. Daré más peso a gastronomía local, mercados, tapeo y restaurantes próximos a la ruta.";
+  }
+  return "Perfecto, lo añado como preferencia para ajustar el itinerario.";
 }
 
-export default function ChatPantalla() {
+export default function ChatDetallePantalla() {
   const navigate = useNavigate();
-  const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const { idConversacion } = useParams();
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const id = useMemo(() => Number(idConversacion), [idConversacion]);
 
-  const [chats, setChats] = useState<Conversacion[]>([]);
+  const [conversacion, setConversacion] = useState<Conversacion | null>(null);
+  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [chatPendienteEliminar, setChatPendienteEliminar] =
-    useState<Conversacion | null>(null);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalChats = useMemo(() => chats.length, [chats.length]);
-
-  async function cargarConversaciones() {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getConversaciones(idUsuario);
-      setChats(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error(err);
-      setError("No se pudieron cargar las conversaciones.");
-      setChats([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const idItinerarioRelacionado = conversacion?.id_itinerario_relacionado ?? null;
 
   useEffect(() => {
-    void cargarConversaciones();
-  }, [idUsuario]);
+    async function cargar() {
+      if (!Number.isInteger(id)) {
+        setError("Conversación inválida.");
+        setLoading(false);
+        return;
+      }
 
-  async function crearNuevoChat() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getConversacionDetalle(id);
+        setConversacion(data);
+        setMensajes(Array.isArray(data.mensajes) ? data.mensajes : []);
+      } catch (err) {
+        console.error(err);
+        setError("No se pudo cargar esta conversación.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void cargar();
+  }, [id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [mensajes.length, sending]);
+
+  async function enviarMensaje(textoForzado?: string) {
+    const texto = (textoForzado ?? input).trim();
+    if (!texto || sending || !Number.isInteger(id)) return;
+
     try {
-      setCreating(true);
+      setSending(true);
       setError(null);
+      setInput("");
 
-      const nuevo = await crearConversacion({
-        id_usuario: idUsuario,
-        titulo: "Nuevo viaje con SpainWay",
+      const user = await crearMensaje({ id_conversacion: id, rol: "user", contenido: texto });
+      setMensajes((prev) => [...prev, user]);
+
+      const assistant = await crearMensaje({
+        id_conversacion: id,
+        rol: "assistant",
+        contenido: respuestaLocal(texto),
       });
-
-      navigate(`/chat/conversacion/${nuevo.id_conversacion}`);
+      setMensajes((prev) => [...prev, assistant]);
     } catch (err) {
       console.error(err);
-      setError("No se pudo crear la conversación.");
+      setError("No se pudo enviar el mensaje.");
+      setInput(texto);
     } finally {
-      setCreating(false);
+      setSending(false);
     }
   }
 
-  function abrirModalEliminar(
-    event: MouseEvent<HTMLButtonElement>,
-    chat: Conversacion
-  ) {
-    event.stopPropagation();
-    setChatPendienteEliminar(chat);
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void enviarMensaje();
   }
 
-  async function confirmarEliminar() {
-    if (!chatPendienteEliminar) return;
-
-    try {
-      setDeletingId(chatPendienteEliminar.id_conversacion);
-      setError(null);
-
-      await eliminarConversacion(chatPendienteEliminar.id_conversacion);
-
-      setChats((prev) =>
-        prev.filter(
-          (chat) =>
-            chat.id_conversacion !== chatPendienteEliminar.id_conversacion
-        )
-      );
-
-      setChatPendienteEliminar(null);
-    } catch (err) {
-      console.error(err);
-      setError("No se pudo eliminar la conversación.");
-    } finally {
-      setDeletingId(null);
-    }
-  }
+  const titulo = conversacion?.titulo || "Chat SpainWay";
 
   return (
     <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
-      <div className="mx-auto w-full max-w-[900px] px-5 pb-28 pt-5">
-        <section className="overflow-hidden rounded-[34px] bg-gradient-to-br from-[#fff8f4] via-white to-[#f4f1ff] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[#94a3b8]">
-                Chat
-              </p>
-
-              <h1 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">
-                Conversaciones del usuario
-              </h1>
-
-              <p className="mt-2 max-w-[560px] text-sm leading-6 text-[#667085]">
-                Abre una conversación guardada, continúa hablando con el asistente
-                o crea un nuevo chat para preparar otro viaje.
-              </p>
-            </div>
-
+      <div className="mx-auto flex min-h-[calc(100vh-86px)] w-full max-w-[920px] flex-col px-4 pb-24 pt-4">
+        <header className="rounded-[30px] bg-white px-4 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={crearNuevoChat}
-              disabled={creating}
-              className="rounded-2xl bg-[#ff5a36] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(255,90,54,0.30)] transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => navigate("/chat/destino")}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f8fafc] text-lg font-black text-[#111827] transition hover:bg-[#eef2f7]"
             >
-              {creating ? "Creando..." : "Crear nuevo chat"}
+              ←
             </button>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff4ef] text-sm font-black text-[#ff5a36]">
+              SW
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#94a3b8]">
+                SpainWay Assistant
+              </p>
+              <h1 className="truncate text-lg font-black text-[#0f172a]">{titulo}</h1>
+            </div>
+            {idItinerarioRelacionado && (
+              <button
+                type="button"
+                onClick={() => navigate(`/itinerarios/${idItinerarioRelacionado}`)}
+                className="hidden rounded-2xl bg-[#ff5a36] px-4 py-3 text-xs font-black text-white shadow-[0_10px_24px_rgba(255,90,54,0.24)] sm:block"
+              >
+                Ver itinerario
+              </button>
+            )}
           </div>
-        </section>
+        </header>
 
         {error && (
-          <div className="mt-5 rounded-[22px] bg-red-50 px-5 py-4 text-sm font-semibold text-red-600">
+          <div className="mt-4 rounded-[20px] bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
             {error}
           </div>
         )}
 
-        <section className="mt-5">
-          {loading ? (
-            <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_35px_rgba(15,23,42,0.07)]">
-              <p className="text-sm font-semibold text-[#667085]">
-                Cargando conversaciones...
-              </p>
-            </div>
-          ) : chats.length === 0 ? (
-            <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_35px_rgba(15,23,42,0.07)]">
-              <p className="text-lg font-black text-[#111827]">
-                No tienes chats guardados
-              </p>
-
-              <p className="mt-2 text-sm leading-6 text-[#667085]">
-                Crea una conversación nueva y empieza a preparar tu ruta con SpainWay.
-              </p>
-
-              <button
-                type="button"
-                onClick={crearNuevoChat}
-                disabled={creating}
-                className="mt-5 rounded-2xl bg-[#ff5a36] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:opacity-60"
-              >
-                Crear primer chat
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-1">
-                <p className="text-sm font-bold text-[#667085]">
-                  {totalChats}{" "}
-                  {totalChats === 1 ? "conversación" : "conversaciones"}
-                </p>
+        <main className="mt-4 flex min-h-[620px] flex-1 flex-col overflow-hidden rounded-[34px] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
+          <section className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-[#f8fafc] p-5">
+            {loading ? (
+              <div className="rounded-[24px] bg-white p-4 text-sm font-semibold text-[#667085] shadow-sm">
+                Cargando conversación...
               </div>
+            ) : mensajes.length === 0 ? (
+              <div className="rounded-[28px] bg-white p-5 shadow-sm">
+                <p className="text-lg font-black text-[#111827]">Empieza la conversación</p>
+                <p className="mt-2 text-sm leading-6 text-[#667085]">
+                  Puedes pedir cambios sobre el itinerario, añadir restricciones o mejorar la ruta.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {SUGERENCIAS.map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => void enviarMensaje(item)}
+                      className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36] transition hover:bg-[#ffe7dc]"
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {mensajes.map((mensaje, index) => {
+                  const esUsuario = mensaje.rol === "user" || mensaje.rol === "usuario";
+                  const esUltimoMensaje = index === mensajes.length - 1;
 
-              {chats.map((chat) => {
-                const titulo = chat.titulo || "Nuevo viaje con SpainWay";
-                const ultimoMensaje =
-                  chat.ultimo_mensaje ||
-                  "Pulsa para abrir esta conversación y seguir hablando.";
+                  return (
+                    <div
+                      key={mensaje.id_mensaje}
+                      className={`flex ${esUsuario ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[92%] rounded-[28px] px-5 py-4 text-[14px] leading-7 shadow-sm md:max-w-[78%] ${
+                          esUsuario
+                            ? "rounded-br-md bg-[#ff5a36] text-white"
+                            : "rounded-bl-md bg-white text-[#344054]"
+                        }`}
+                      >
+                        <div className="whitespace-pre-wrap break-words">{mensaje.contenido}</div>
 
-                return (
-                  <article
-                    key={chat.id_conversacion}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() =>
-                      navigate(`/chat/conversacion/${chat.id_conversacion}`)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        navigate(`/chat/conversacion/${chat.id_conversacion}`);
-                      }
-                    }}
-                    className="group cursor-pointer rounded-[30px] bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.07)] transition hover:translate-y-[-2px] hover:shadow-[0_18px_45px_rgba(15,23,42,0.10)]"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fff4ef] text-sm font-black text-[#ff5a36]">
-                        {getInitials(titulo)}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <h3 className="truncate text-[18px] font-black text-[#111827]">
-                              {titulo}
-                            </h3>
-
-                            <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#667085]">
-                              {ultimoMensaje}
-                            </p>
-                          </div>
-
-                          <span className="shrink-0 rounded-full bg-[#f8fafc] px-3 py-1 text-xs font-bold text-[#667085]">
-                            {formatDate(chat.creado)}
-                          </span>
-                        </div>
-
-                        <div className="mt-5 flex items-center justify-between gap-3">
-                          <span className="text-xs font-bold text-[#ff5a36] opacity-0 transition group-hover:opacity-100">
-                            Abrir conversación →
-                          </span>
-
+                        {!esUsuario && idItinerarioRelacionado && esUltimoMensaje && (
                           <button
                             type="button"
-                            onClick={(event) => abrirModalEliminar(event, chat)}
-                            disabled={deletingId === chat.id_conversacion}
-                            className="rounded-full bg-red-50 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                            onClick={() => navigate(`/itinerarios/${idItinerarioRelacionado}`)}
+                            className="mt-4 w-full rounded-2xl bg-[#111827] px-4 py-3 text-sm font-black text-white transition hover:bg-[#0b1220]"
                           >
-                            {deletingId === chat.id_conversacion
-                              ? "Eliminando..."
-                              : "Eliminar"}
+                            Ver detalle del itinerario →
                           </button>
-                        </div>
+                        )}
+
+                        <p
+                          className={`mt-2 text-right text-[10px] font-bold ${
+                            esUsuario ? "text-white/75" : "text-[#98a2b3]"
+                          }`}
+                        >
+                          {formatHora(mensaje.creado)}
+                        </p>
                       </div>
                     </div>
-                  </article>
-                );
-              })}
+                  );
+                })}
+              </div>
+            )}
+            {sending && (
+              <div className="mt-4 flex justify-start">
+                <div className="rounded-[24px] rounded-bl-md bg-white px-4 py-3 text-sm font-semibold text-[#667085] shadow-sm">
+                  SpainWay está escribiendo...
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </section>
+
+          {idItinerarioRelacionado && (
+            <div className="border-t border-[#eef2f7] bg-white px-4 py-3">
+              <button
+                type="button"
+                onClick={() => navigate(`/itinerarios/${idItinerarioRelacionado}`)}
+                className="w-full rounded-2xl bg-[#111827] px-5 py-4 text-sm font-black text-white shadow-[0_12px_28px_rgba(17,24,39,0.16)]"
+              >
+                Ver detalle del itinerario →
+              </button>
             </div>
           )}
-        </section>
+
+          <form onSubmit={handleSubmit} className="border-t border-[#eef2f7] bg-white p-4">
+            <div className="flex items-end gap-3">
+              <textarea
+                rows={1}
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void enviarMensaje();
+                  }
+                }}
+                placeholder="Escribe un cambio para tu itinerario..."
+                className="max-h-32 min-h-[48px] flex-1 resize-none rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || sending}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#ff5a36] text-lg font-black text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                ↑
+              </button>
+            </div>
+          </form>
+        </main>
       </div>
-
-      {chatPendienteEliminar && (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/45 px-5 backdrop-blur-sm"
-          onClick={() => setChatPendienteEliminar(null)}
-        >
-          <div
-            className="w-full max-w-[420px] rounded-[32px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.30)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">
-              🗑️
-            </div>
-
-            <h2 className="mt-5 text-center text-[22px] font-black tracking-[-0.03em] text-[#111827]">
-              Eliminar conversación
-            </h2>
-
-            <p className="mt-3 text-center text-sm leading-6 text-[#667085]">
-              Vas a eliminar{" "}
-              <strong className="text-[#111827]">
-                {chatPendienteEliminar.titulo || "Nuevo viaje con SpainWay"}
-              </strong>
-              . Esta acción no se puede deshacer.
-            </p>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setChatPendienteEliminar(null)}
-                disabled={deletingId !== null}
-                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-bold text-[#344054] transition hover:bg-[#f8fafc] disabled:opacity-60"
-              >
-                Cancelar
-              </button>
-
-              <button
-                type="button"
-                onClick={confirmarEliminar}
-                disabled={deletingId !== null}
-                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(220,38,38,0.25)] transition hover:bg-red-700 disabled:opacity-60"
-              >
-                {deletingId !== null ? "Eliminando..." : "Eliminar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
