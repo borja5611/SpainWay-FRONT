@@ -1,6 +1,7 @@
 import { apiDelete, apiGet, apiPost } from "@/app/servicios/api";
 
 export type MomentoRestauracion = "desayuno" | "comida" | "cena" | "cafe";
+
 export type TipoRestauracion =
   | "todos"
   | "restaurante"
@@ -9,6 +10,9 @@ export type TipoRestauracion =
   | "bar"
   | "fast_food"
   | "pasteleria";
+
+export type PresupuestoEstimado = "todos" | "bajo" | "medio" | "alto";
+export type OrdenRestauracion = "recomendado" | "cercania" | "contacto";
 
 export type LugarRestauracion = {
   id_lugar_restauracion: number;
@@ -25,6 +29,14 @@ export type LugarRestauracion = {
   url: string | null;
   telefono: string | null;
   score?: number;
+  website?: string | null;
+  googleUrl?: string | null;
+  presupuestoEstimado?: string | null;
+  fuenteDatos?: string;
+};
+
+export type DetalleRestaurante = LugarRestauracion & {
+  reviewExternalMessage?: string;
 };
 
 export type SeleccionRestauracion = {
@@ -44,6 +56,9 @@ export async function buscarRestauracionCercana(params: {
   radio: number;
   momento: MomentoRestauracion;
   tipo: TipoRestauracion;
+  presupuesto: PresupuestoEstimado;
+  orden: OrdenRestauracion;
+  soloConContacto: boolean;
 }) {
   const query = new URLSearchParams({
     lat: String(params.lat),
@@ -51,10 +66,17 @@ export async function buscarRestauracionCercana(params: {
     radio: String(params.radio),
     momento: params.momento,
     tipo: params.tipo,
+    presupuesto: params.presupuesto,
+    orden: params.orden,
+    soloConContacto: String(params.soloConContacto),
     limit: "16",
   });
 
   return apiGet<LugarRestauracion[]>(`/api/restauracion/buscar?${query.toString()}`);
+}
+
+export async function getDetalleRestauracion(idLugarRestauracion: number) {
+  return apiGet<DetalleRestaurante>(`/api/restauracion/detalle/${idLugarRestauracion}`);
 }
 
 export async function seleccionarRestauracion(body: {

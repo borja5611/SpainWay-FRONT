@@ -2,9 +2,13 @@ import { useMemo, useState } from "react";
 import {
   buscarRestauracionCercana,
   eliminarSeleccionRestauracion,
+  getDetalleRestauracion,
   seleccionarRestauracion,
+  type DetalleRestaurante,
   type LugarRestauracion,
   type MomentoRestauracion,
+  type OrdenRestauracion,
+  type PresupuestoEstimado,
   type SeleccionRestauracion,
   type TipoRestauracion,
 } from "@/app/servicios/restauracion";
@@ -42,10 +46,36 @@ const TIPOS: { id: TipoRestauracion; label: string }[] = [
   { id: "pasteleria", label: "Pastelería" },
 ];
 
+const PRESUPUESTOS: { id: PresupuestoEstimado; label: string }[] = [
+  { id: "todos", label: "Todos" },
+  { id: "bajo", label: "Bajo" },
+  { id: "medio", label: "Medio" },
+  { id: "alto", label: "Alto" },
+];
+
+const ORDENES: { id: OrdenRestauracion; label: string }[] = [
+  { id: "recomendado", label: "Recomendado" },
+  { id: "cercania", label: "Más cercano" },
+  { id: "contacto", label: "Con contacto" },
+];
+
 function metrosLabel(value?: number | null) {
   if (!value) return "distancia no disponible";
   if (value < 1000) return `${value} m`;
   return `${(value / 1000).toFixed(1)} km`;
+}
+
+function proveedorLabel(value?: string | null) {
+  if (value === "foursquare") return "Foursquare";
+  if (value === "openstreetmap") return "OpenStreetMap";
+  return value ?? "Fuente externa";
+}
+
+function presupuestoLabel(value?: string | null) {
+  if (value === "bajo") return "Bajo";
+  if (value === "medio") return "Medio";
+  if (value === "alto") return "Alto";
+  return "Estimado";
 }
 
 export default function BloqueRestauracionDia({
@@ -59,10 +89,16 @@ export default function BloqueRestauracionDia({
   const [abierto, setAbierto] = useState(false);
   const [momento, setMomento] = useState<MomentoRestauracion>("comida");
   const [tipo, setTipo] = useState<TipoRestauracion>("todos");
+  const [presupuesto, setPresupuesto] = useState<PresupuestoEstimado>("todos");
+  const [orden, setOrden] = useState<OrdenRestauracion>("recomendado");
+  const [soloConContacto, setSoloConContacto] = useState(false);
   const [radio, setRadio] = useState(1200);
   const [poiIndex, setPoiIndex] = useState(0);
   const [resultados, setResultados] = useState<LugarRestauracion[]>([]);
+  const [detalle, setDetalle] = useState<DetalleRestaurante | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [guardandoId, setGuardandoId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const poisConCoords = useMemo(
@@ -78,7 +114,7 @@ export default function BloqueRestauracionDia({
 
   async function buscar() {
     if (!idDiaItinerario) {
-      setError("Este día no tiene id de base de datos.");
+      setError("Este día todavía no tiene id de base de datos.");
       return;
     }
 
@@ -90,6 +126,7 @@ export default function BloqueRestauracionDia({
     try {
       setCargando(true);
       setError(null);
+      setResultados([]);
 
       const data = await buscarRestauracionCercana({
         lat: poiReferencia.latitud,
@@ -97,6 +134,9 @@ export default function BloqueRestauracionDia({
         radio,
         momento,
         tipo,
+        presupuesto,
+        orden,
+        soloConContacto,
       });
 
       setResultados(data);
@@ -111,20 +151,40 @@ export default function BloqueRestauracionDia({
   async function seleccionar(lugar: LugarRestauracion) {
     if (!idDiaItinerario) return;
 
-    await seleccionarRestauracion({
-      id_itinerario: idItinerario,
-      id_dia_itinerario: idDiaItinerario,
-      momento,
-      id_lugar_restauracion: lugar.id_lugar_restauracion,
-      id_poi_referencia: poiReferencia?.idPoi ?? null,
-    });
+    try {
+      setGuardandoId(lugar.id_lugar_restauracion);
 
-    await onChange();
+      await seleccionarRestauracion({
+        id_itinerario: idItinerario,
+        id_dia_itinerario: idDiaItinerario,
+        momento,
+        id_lugar_restauracion: lugar.id_lugar_restauracion,
+        id_poi_referencia: poiReferencia?.idPoi ?? null,
+      });
+
+      await onChange();
+    } finally {
+      setGuardandoId(null);
+    }
   }
 
   async function quitar(idSeleccion: number) {
     await eliminarSeleccionRestauracion(idSeleccion);
     await onChange();
+  }
+
+  async function abrirDetalle(lugar: LugarRestauracion) {
+    try {
+      setCargandoDetalle(true);
+      setDetalle(null);
+      const data = await getDetalleRestauracion(lugar.id_lugar_restauracion);
+      setDetalle(data);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo cargar la ficha del restaurante.");
+    } finally {
+      setCargandoDetalle(false);
+    }
   }
 
   return (
@@ -142,7 +202,7 @@ export default function BloqueRestauracionDia({
             Añadir desayuno, comida o cena al día {diaNumero}
           </h3>
           <p className="mt-1 text-sm leading-6 text-[#667085]">
-            Busca locales cerca del POI que elijas y guarda el recomendado en tu itinerario.
+            Busca locales cerca de tus POIs usando Foursquare Pro sin gastar campos Premium.
           </p>
         </div>
 
@@ -176,6 +236,7 @@ export default function BloqueRestauracionDia({
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#16a34a]">
                 Seleccionado para {momento}
               </p>
+
               <div className="mt-2 flex flex-col justify-between gap-3 md:flex-row md:items-center">
                 <div>
                   <h4 className="text-lg font-black text-[#111827]">
@@ -187,15 +248,23 @@ export default function BloqueRestauracionDia({
                   </p>
                 </div>
 
-                <div className="flex gap-2">
-                  {seleccionMomento.lugar.url && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => abrirDetalle(seleccionMomento.lugar)}
+                    className="rounded-full bg-white px-4 py-2 text-xs font-black text-[#111827]"
+                  >
+                    Info
+                  </button>
+
+                  {(seleccionMomento.lugar.googleUrl || seleccionMomento.lugar.url) && (
                     <a
-                      href={seleccionMomento.lugar.url}
+                      href={seleccionMomento.lugar.googleUrl ?? seleccionMomento.lugar.url ?? "#"}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-full bg-white px-4 py-2 text-xs font-black text-[#111827]"
+                      className="rounded-full bg-white px-4 py-2 text-xs font-black text-[#ff5a36]"
                     >
-                      Ver en Maps
+                      Google
                     </a>
                   )}
 
@@ -211,7 +280,7 @@ export default function BloqueRestauracionDia({
             </div>
           )}
 
-          <div className="grid gap-3 md:grid-cols-[1.3fr_1fr_0.8fr]">
+          <div className="grid gap-3 md:grid-cols-3">
             <label className="block">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-[#94a3b8]">
                 Buscar cerca de
@@ -231,7 +300,7 @@ export default function BloqueRestauracionDia({
 
             <label className="block">
               <span className="text-xs font-black uppercase tracking-[0.14em] text-[#94a3b8]">
-                Tipo de local
+                Tipo
               </span>
               <select
                 value={tipo}
@@ -261,6 +330,54 @@ export default function BloqueRestauracionDia({
                 <option value={2000}>2 km</option>
               </select>
             </label>
+
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#94a3b8]">
+                Presupuesto estimado
+              </span>
+              <select
+                value={presupuesto}
+                onChange={(event) => setPresupuesto(event.target.value as PresupuestoEstimado)}
+                className="mt-2 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-bold text-[#111827] outline-none"
+              >
+                {PRESUPUESTOS.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.14em] text-[#94a3b8]">
+                Orden
+              </span>
+              <select
+                value={orden}
+                onChange={(event) => setOrden(event.target.value as OrdenRestauracion)}
+                className="mt-2 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-bold text-[#111827] outline-none"
+              >
+                {ORDENES.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-end">
+              <button
+                type="button"
+                onClick={() => setSoloConContacto((value) => !value)}
+                className={`w-full rounded-2xl px-4 py-3 text-sm font-black transition ${
+                  soloConContacto
+                    ? "bg-[#111827] text-white"
+                    : "bg-[#f8fafc] text-[#344054]"
+                }`}
+              >
+                {soloConContacto ? "Solo con contacto ✓" : "Permitir sin contacto"}
+              </button>
+            </label>
           </div>
 
           <button
@@ -278,14 +395,24 @@ export default function BloqueRestauracionDia({
             </div>
           )}
 
+          {cargandoDetalle && (
+            <div className="rounded-2xl bg-[#f8fafc] p-4 text-sm font-bold text-[#344054]">
+              Cargando ficha del restaurante...
+            </div>
+          )}
+
           {resultados.length > 0 && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {resultados.map((lugar, index) => (
                 <article
                   key={lugar.id_lugar_restauracion}
-                  className="overflow-hidden rounded-[26px] border border-[#eef2f7] bg-[#fcfcfd]"
+                  className="overflow-hidden rounded-[26px] border border-[#eef2f7] bg-[#fcfcfd] shadow-[0_10px_26px_rgba(15,23,42,0.05)]"
                 >
-                  <div className="bg-gradient-to-br from-[#fff7ed] to-[#f8fafc] p-4">
+                  <div className="flex h-[110px] items-center justify-center bg-gradient-to-br from-[#fff7ed] to-[#f8fafc] text-4xl">
+                    🍽️
+                  </div>
+
+                  <div className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.16em] text-[#ff5a36]">
@@ -302,34 +429,59 @@ export default function BloqueRestauracionDia({
                       </div>
                     </div>
 
-                    <p className="mt-3 text-sm font-semibold text-[#667085]">
-                      {lugar.categoria ?? "Restauración"} · {metrosLabel(lugar.distancia)}
-                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-xs font-black text-[#344054]">
+                        {lugar.categoria ?? "Restauración"}
+                      </span>
+                      <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-xs font-black text-[#344054]">
+                        {metrosLabel(lugar.distancia)}
+                      </span>
+                      <span className="rounded-full bg-[#ecfdf3] px-3 py-1 text-xs font-black text-[#16a34a]">
+                        Presupuesto {presupuestoLabel(lugar.presupuestoEstimado ?? lugar.precio)}
+                      </span>
+                    </div>
 
                     {lugar.direccion && (
-                      <p className="mt-2 text-sm leading-6 text-[#667085]">
+                      <p className="mt-3 text-sm leading-6 text-[#667085]">
                         {lugar.direccion}
                       </p>
                     )}
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-[#667085]">
+                      {lugar.telefono && <span>☎ Tiene teléfono</span>}
+                      {lugar.website && <span>🌐 Tiene web</span>}
+                      <span>Fuente: {proveedorLabel(lugar.proveedor)}</span>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 p-4">
+                  <div className="flex flex-wrap gap-2 border-t border-[#eef2f7] p-4">
                     <button
                       type="button"
                       onClick={() => seleccionar(lugar)}
-                      className="rounded-full bg-[#111827] px-4 py-2 text-xs font-black text-white"
+                      disabled={guardandoId === lugar.id_lugar_restauracion}
+                      className="rounded-full bg-[#111827] px-4 py-2 text-xs font-black text-white disabled:opacity-60"
                     >
-                      Guardar en {momento}
+                      {guardandoId === lugar.id_lugar_restauracion
+                        ? "Guardando..."
+                        : `Guardar en ${momento}`}
                     </button>
 
-                    {lugar.url && (
+                    <button
+                      type="button"
+                      onClick={() => abrirDetalle(lugar)}
+                      className="rounded-full bg-[#f8fafc] px-4 py-2 text-xs font-black text-[#111827]"
+                    >
+                      Ver info
+                    </button>
+
+                    {(lugar.googleUrl || lugar.url) && (
                       <a
-                        href={lugar.url}
+                        href={lugar.googleUrl ?? lugar.url ?? "#"}
                         target="_blank"
                         rel="noreferrer"
                         className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-black text-[#ff5a36]"
                       >
-                        Ver en Maps
+                        Google
                       </a>
                     )}
                   </div>
@@ -337,6 +489,111 @@ export default function BloqueRestauracionDia({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {detalle && (
+        <div className="fixed inset-0 z-[999] flex items-end justify-center bg-black/45 px-4 py-5 backdrop-blur-sm md:items-center">
+          <div className="max-h-[88vh] w-full max-w-[620px] overflow-y-auto rounded-[30px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.25)]">
+            <div className="flex h-[140px] items-center justify-center rounded-t-[30px] bg-gradient-to-br from-[#fff7ed] to-[#eef2ff] text-5xl">
+              🍽️
+            </div>
+
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">
+                    Ficha del restaurante
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[#111827]">
+                    {detalle.nombre}
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setDetalle(null)}
+                  className="rounded-full bg-[#f8fafc] px-4 py-2 text-xs font-black text-[#111827]"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="rounded-full bg-[#f8fafc] px-3 py-2 text-xs font-black text-[#344054]">
+                  {detalle.categoria ?? "Restauración"}
+                </span>
+                <span className="rounded-full bg-[#ecfdf3] px-3 py-2 text-xs font-black text-[#16a34a]">
+                  Presupuesto {presupuestoLabel(detalle.presupuestoEstimado ?? detalle.precio)}
+                </span>
+                <span className="rounded-full bg-[#eef2ff] px-3 py-2 text-xs font-black text-[#4f46e5]">
+                  {proveedorLabel(detalle.proveedor)}
+                </span>
+              </div>
+
+              <div className="mt-5 rounded-[22px] bg-[#f8fafc] p-4">
+                {detalle.direccion && (
+                  <p className="text-sm leading-6 text-[#344054]">
+                    <strong>Dirección:</strong> {detalle.direccion}
+                  </p>
+                )}
+
+                {detalle.telefono && (
+                  <p className="mt-2 text-sm leading-6 text-[#344054]">
+                    <strong>Teléfono:</strong> {detalle.telefono}
+                  </p>
+                )}
+
+                {detalle.website && (
+                  <p className="mt-2 text-sm leading-6 text-[#344054]">
+                    <strong>Web:</strong>{" "}
+                    <a
+                      href={detalle.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-black text-[#ff5a36]"
+                    >
+                      Abrir web
+                    </a>
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-5 rounded-[20px] bg-[#fff7ed] p-4 text-sm font-bold leading-6 text-[#9a3412]">
+                {detalle.reviewExternalMessage ??
+                  "Para ver reseñas, fotos, menú y horarios se abre Google, evitando usar campos Premium de Foursquare."}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => seleccionar(detalle)}
+                  className="rounded-full bg-[#111827] px-5 py-3 text-xs font-black text-white"
+                >
+                  Guardar en {momento}
+                </button>
+
+                {(detalle.googleUrl || detalle.url) && (
+                  <a
+                    href={detalle.googleUrl ?? detalle.url ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full bg-[#ff5a36] px-5 py-3 text-xs font-black text-white"
+                  >
+                    Ver reseñas en Google
+                  </a>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setDetalle(null)}
+                  className="rounded-full bg-[#f8fafc] px-5 py-3 text-xs font-black text-[#111827]"
+                >
+                  Volver
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </section>
