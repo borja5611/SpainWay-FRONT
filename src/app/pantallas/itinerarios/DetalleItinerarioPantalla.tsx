@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import BloqueRestauracionDia from "@/app/componentes/itinerarios/BloqueRestauracionDia";
+import {
+  getSeleccionesRestauracion,
+  type SeleccionRestauracion,
+} from "@/app/servicios/restauracion";
 import {
   getItinerarioDetalle,
   type DiaItinerario,
@@ -13,6 +18,7 @@ import { itinerariosMock } from "@/app/datos/mock/itinerariosMock";
 
 type DiaUi = {
   numero: number;
+  idDiaItinerario: number | null;
   titulo: string;
   minutos: number | null;
   fecha: string | null;
@@ -87,33 +93,78 @@ function normalizarTexto(value: string): string {
     .trim();
 }
 
-
 function getCategoriaVisual(categoria?: string | null, titulo?: string | null) {
   const raw = normalizarTexto([categoria, titulo].filter(Boolean).join(" "));
 
   if (raw.includes("museo") || raw.includes("cultura") || raw.includes("patrimonio")) {
-    return { icono: "🏛️", label: "Cultura", fondo: "from-[#eef2ff] to-[#fff7ed]", texto: "text-[#4f46e5]" };
-  }
-  if (raw.includes("playa") || raw.includes("costa") || raw.includes("mar")) {
-    return { icono: "🌊", label: "Costa", fondo: "from-[#ecfeff] to-[#eff6ff]", texto: "text-[#0891b2]" };
-  }
-  if (raw.includes("naturaleza") || raw.includes("parque") || raw.includes("jardin")) {
-    return { icono: "🌿", label: "Naturaleza", fondo: "from-[#ecfdf5] to-[#f0fdf4]", texto: "text-[#059669]" };
-  }
-  if (raw.includes("gastr") || raw.includes("mercado") || raw.includes("comida")) {
-    return { icono: "🍽️", label: "Gastronomía", fondo: "from-[#fff7ed] to-[#fef2f2]", texto: "text-[#ea580c]" };
-  }
-  if (raw.includes("mirador") || raw.includes("vista")) {
-    return { icono: "🌄", label: "Mirador", fondo: "from-[#fefce8] to-[#fff7ed]", texto: "text-[#ca8a04]" };
-  }
-  if (raw.includes("ruta") || raw.includes("sender")) {
-    return { icono: "🥾", label: "Ruta", fondo: "from-[#f0fdf4] to-[#f8fafc]", texto: "text-[#16a34a]" };
-  }
-  if (raw.includes("ocio") || raw.includes("teatro") || raw.includes("noche")) {
-    return { icono: "✨", label: "Ocio", fondo: "from-[#faf5ff] to-[#fff7ed]", texto: "text-[#9333ea]" };
+    return {
+      icono: "🏛️",
+      label: "Cultura",
+      fondo: "from-[#eef2ff] to-[#fff7ed]",
+      texto: "text-[#4f46e5]",
+    };
   }
 
-  return { icono: "📍", label: "Lugar", fondo: "from-[#fff4ef] to-[#eef2ff]", texto: "text-[#ff5a36]" };
+  if (raw.includes("playa") || raw.includes("costa") || raw.includes("mar")) {
+    return {
+      icono: "🌊",
+      label: "Costa",
+      fondo: "from-[#ecfeff] to-[#eff6ff]",
+      texto: "text-[#0891b2]",
+    };
+  }
+
+  if (raw.includes("naturaleza") || raw.includes("parque") || raw.includes("jardin")) {
+    return {
+      icono: "🌿",
+      label: "Naturaleza",
+      fondo: "from-[#ecfdf5] to-[#f0fdf4]",
+      texto: "text-[#059669]",
+    };
+  }
+
+  if (raw.includes("gastr") || raw.includes("mercado") || raw.includes("comida")) {
+    return {
+      icono: "🍽️",
+      label: "Gastronomía",
+      fondo: "from-[#fff7ed] to-[#fef2f2]",
+      texto: "text-[#ea580c]",
+    };
+  }
+
+  if (raw.includes("mirador") || raw.includes("vista")) {
+    return {
+      icono: "🌄",
+      label: "Mirador",
+      fondo: "from-[#fefce8] to-[#fff7ed]",
+      texto: "text-[#ca8a04]",
+    };
+  }
+
+  if (raw.includes("ruta") || raw.includes("sender")) {
+    return {
+      icono: "🥾",
+      label: "Ruta",
+      fondo: "from-[#f0fdf4] to-[#f8fafc]",
+      texto: "text-[#16a34a]",
+    };
+  }
+
+  if (raw.includes("ocio") || raw.includes("teatro") || raw.includes("noche")) {
+    return {
+      icono: "✨",
+      label: "Ocio",
+      fondo: "from-[#faf5ff] to-[#fff7ed]",
+      texto: "text-[#9333ea]",
+    };
+  }
+
+  return {
+    icono: "📍",
+    label: "Lugar",
+    fondo: "from-[#fff4ef] to-[#eef2ff]",
+    texto: "text-[#ff5a36]",
+  };
 }
 
 function findElementoForIaPoi(
@@ -143,6 +194,7 @@ function findElementoForIaPoi(
 
 function buildPoiFromElemento(elemento: ElementoItinerario, index: number): PoiUi {
   const poi = elemento.poi;
+
   return {
     key: `db-${elemento.id_elemento_itinerario}-${index}`,
     nombre: poi?.nombre ?? "POI",
@@ -190,6 +242,7 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
 
       return {
         numero,
+        idDiaItinerario: dbDay?.id_dia_itinerario ?? null,
         titulo: day.theme ?? day.titulo ?? dbDay?.notas?.split("|")[0]?.trim() ?? `Día ${numero}`,
         minutos: day.total_minutes ?? day.minutos ?? dbDay?.minutos ?? null,
         fecha: dbDay?.fecha ?? null,
@@ -201,6 +254,7 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
 
   return dbDays.map((dia: DiaItinerario, index) => ({
     numero: index + 1,
+    idDiaItinerario: dia.id_dia_itinerario,
     titulo: dia.notas?.split("|")[0]?.trim() || `Día ${index + 1}`,
     minutos: dia.minutos,
     fecha: dia.fecha,
@@ -236,15 +290,29 @@ export default function DetalleItinerarioPantalla() {
 
   const idParam = itinerarioId ?? "";
   const id = Number(idParam);
+
   const ejemplo = useMemo(
     () => itinerariosMock.find((item) => String(item.id) === String(idParam)) ?? null,
     [idParam]
   );
 
   const [itinerario, setItinerario] = useState<Itinerario | null>(null);
+  const [seleccionesRestauracion, setSeleccionesRestauracion] = useState<SeleccionRestauracion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [diaAbierto, setDiaAbierto] = useState<number | null>(1);
+
+  async function recargarSeleccionesRestauracion() {
+  if (!Number.isInteger(id)) return;
+
+  try {
+    const data = await getSeleccionesRestauracion(id);
+    setSeleccionesRestauracion(data);
+  } catch (err) {
+    console.error("No se pudieron recargar selecciones de restauración:", err);
+    setSeleccionesRestauracion([]);
+  }
+}
 
   useEffect(() => {
     async function cargar() {
@@ -262,8 +330,17 @@ export default function DetalleItinerarioPantalla() {
       try {
         setLoading(true);
         setError(null);
+
         const data = await getItinerarioDetalle(id);
         setItinerario(data);
+
+        try {
+          const selecciones = await getSeleccionesRestauracion(id);
+          setSeleccionesRestauracion(selecciones);
+        } catch (err) {
+          console.error("No se pudieron cargar selecciones de restauración:", err);
+          setSeleccionesRestauracion([]);
+        }
       } catch (err) {
         console.error(err);
         setError("No se pudo cargar el itinerario estructurado.");
@@ -318,6 +395,7 @@ export default function DetalleItinerarioPantalla() {
             <div className="relative h-[260px] overflow-hidden">
               <img src={ejemplo.imagen} alt={ejemplo.titulo} className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+
               <button
                 type="button"
                 onClick={() => navigate("/itinerarios")}
@@ -325,14 +403,21 @@ export default function DetalleItinerarioPantalla() {
               >
                 ← Volver
               </button>
+
               <div className="absolute bottom-5 left-5 right-5 text-white">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">Itinerario de ejemplo</p>
-                <h1 className="mt-2 text-[32px] font-black tracking-[-0.04em]">{ejemplo.titulo}</h1>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
+                  Itinerario de ejemplo
+                </p>
+                <h1 className="mt-2 text-[32px] font-black tracking-[-0.04em]">
+                  {ejemplo.titulo}
+                </h1>
                 <p className="mt-2 text-sm font-semibold text-white/85">{ejemplo.destino}</p>
               </div>
             </div>
+
             <div className="p-6">
               <p className="text-sm leading-7 text-[#667085]">{ejemplo.subtitulo}</p>
+
               <div className="mt-5 grid grid-cols-3 gap-3">
                 <div className="rounded-2xl bg-[#f8fafc] p-4">
                   <p className="text-xs text-[#94a3b8]">Categoría</p>
@@ -347,6 +432,7 @@ export default function DetalleItinerarioPantalla() {
                   <p className="mt-1 text-sm font-black">{ejemplo.presupuesto}</p>
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => navigate("/itinerarios/crear")}
@@ -397,9 +483,11 @@ export default function DetalleItinerarioPantalla() {
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff5a36]">
               Itinerario estructurado
             </p>
+
             <h1 className="mt-2 text-[32px] font-black tracking-[-0.04em] text-[#111827]">
               {itinerario.titulo ?? `Itinerario ${itinerario.destino ?? ""}`}
             </h1>
+
             <p className="mt-3 max-w-[760px] text-sm leading-6 text-[#667085]">
               {getResumen(itinerario)}
             </p>
@@ -409,14 +497,17 @@ export default function DetalleItinerarioPantalla() {
                 <p className="text-xs text-[#94a3b8]">Destino</p>
                 <p className="mt-1 text-sm font-black">{itinerario.destino ?? "-"}</p>
               </div>
+
               <div className="rounded-2xl bg-white p-4">
                 <p className="text-xs text-[#94a3b8]">Días</p>
                 <p className="mt-1 text-sm font-black">{diasUi.length}</p>
               </div>
+
               <div className="rounded-2xl bg-white p-4">
                 <p className="text-xs text-[#94a3b8]">POIs</p>
                 <p className="mt-1 text-sm font-black">{totalPois}</p>
               </div>
+
               <div className="rounded-2xl bg-white p-4">
                 <p className="text-xs text-[#94a3b8]">Presupuesto</p>
                 <p className="mt-1 text-sm font-black">{presupuestoLabel(itinerario.presupuesto)}</p>
@@ -439,6 +530,7 @@ export default function DetalleItinerarioPantalla() {
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#94a3b8]">
               Anclas usadas por el modelo
             </p>
+
             <div className="mt-3 flex flex-wrap gap-2">
               {anchors.map((anchor) => (
                 <span
@@ -455,29 +547,40 @@ export default function DetalleItinerarioPantalla() {
         <section className="mt-5 space-y-5">
           {diasUi.map((dia) => {
             const abierto = diaAbierto === dia.numero;
+            const visualDia = getCategoriaVisual(null, dia.titulo);
+
             return (
-              <article key={dia.numero} className="overflow-hidden rounded-[32px] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
+              <article
+                key={dia.numero}
+                className="overflow-hidden rounded-[32px] bg-white shadow-[0_14px_34px_rgba(15,23,42,0.08)]"
+              >
                 <button
                   type="button"
                   onClick={() => setDiaAbierto(abierto ? null : dia.numero)}
                   className="flex w-full items-center justify-between gap-4 p-5 text-left"
                 >
                   <div className="flex items-start gap-4">
-                    <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br ${getCategoriaVisual(null, dia.titulo).fondo} text-2xl`}>
-                      {getCategoriaVisual(null, dia.titulo).icono}
+                    <div
+                      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[22px] bg-gradient-to-br ${visualDia.fondo} text-2xl`}
+                    >
+                      {visualDia.icono}
                     </div>
+
                     <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff5a36]">
-                      Día {dia.numero} · {formatFecha(dia.fecha)}
-                    </p>
-                    <h2 className="mt-2 text-[22px] font-black tracking-[-0.03em] text-[#111827]">
-                      {dia.titulo}
-                    </h2>
-                    <p className="mt-1 text-sm text-[#667085]">
-                      {dia.pois.length} lugares{dia.minutos ? ` · ${dia.minutos} min estimados` : ""}
-                    </p>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#ff5a36]">
+                        Día {dia.numero} · {formatFecha(dia.fecha)}
+                      </p>
+
+                      <h2 className="mt-2 text-[22px] font-black tracking-[-0.03em] text-[#111827]">
+                        {dia.titulo}
+                      </h2>
+
+                      <p className="mt-1 text-sm text-[#667085]">
+                        {dia.pois.length} lugares{dia.minutos ? ` · ${dia.minutos} min estimados` : ""}
+                      </p>
                     </div>
                   </div>
+
                   <span className="rounded-full bg-[#f8fafc] px-4 py-2 text-sm font-black text-[#111827]">
                     {abierto ? "Ocultar" : "Ver"}
                   </span>
@@ -488,6 +591,7 @@ export default function DetalleItinerarioPantalla() {
                     {dia.tips.length > 0 && (
                       <div className="mb-5 rounded-2xl bg-[#fff7f3] p-4">
                         <p className="text-sm font-black text-[#7a271a]">Consejos del día</p>
+
                         <ul className="mt-2 space-y-1 text-sm leading-6 text-[#9a3412]">
                           {dia.tips.map((tip) => (
                             <li key={tip}>• {tip}</li>
@@ -502,71 +606,93 @@ export default function DetalleItinerarioPantalla() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        {dia.pois.map((poi, index) => (
-                          <article
-                            key={poi.key}
-                            className="overflow-hidden rounded-[24px] border border-[#eef2f7] bg-[#fcfcfd]"
-                          >
-                            <div className={`flex h-[130px] flex-col items-center justify-center bg-gradient-to-br ${getCategoriaVisual(poi.categoria, poi.nombre).fondo}`}>
-                              <div className="text-[40px]">{getCategoriaVisual(poi.categoria, poi.nombre).icono}</div>
-                              <div className={`mt-2 text-xs font-black uppercase tracking-[0.16em] ${getCategoriaVisual(poi.categoria, poi.nombre).texto}`}>
-                                {getCategoriaVisual(poi.categoria, poi.nombre).label}
-                              </div>
-                            </div>
+                        {dia.pois.map((poi, index) => {
+                          const visualPoi = getCategoriaVisual(poi.categoria, poi.nombre);
 
-                            <div className="p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#94a3b8]">
-                                    Parada {index + 1}
-                                  </p>
-                                  <h3 className="mt-1 text-lg font-black text-[#111827]">
-                                    {poi.nombre}
-                                  </h3>
-                                </div>
-                                {poi.categoria && (
-                                  <span className="rounded-full bg-[#fff4ef] px-3 py-1 text-xs font-bold text-[#ff5a36]">
-                                    {poi.categoria}
-                                  </span>
-                                )}
-                              </div>
-
-                              {poi.motivo && (
-                                <p className="mt-3 text-sm leading-6 text-[#667085]">
-                                  {poi.motivo}
-                                </p>
-                              )}
-
-                              {poi.direccion && (
-                                <p className="mt-3 text-xs font-semibold leading-5 text-[#98a2b3]">
-                                  {poi.direccion}
-                                </p>
-                              )}
-
-                              <div className="mt-4 flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => abrirPoiEnMapa(poi)}
-                                  className="rounded-full bg-[#111827] px-4 py-2 text-xs font-bold text-white"
+                          return (
+                            <article
+                              key={poi.key}
+                              className="overflow-hidden rounded-[24px] border border-[#eef2f7] bg-[#fcfcfd]"
+                            >
+                              <div
+                                className={`flex h-[130px] flex-col items-center justify-center bg-gradient-to-br ${visualPoi.fondo}`}
+                              >
+                                <div className="text-[40px]">{visualPoi.icono}</div>
+                                <div
+                                  className={`mt-2 text-xs font-black uppercase tracking-[0.16em] ${visualPoi.texto}`}
                                 >
-                                  Ver en mapa
-                                </button>
-                                {poi.googleUrl && (
-                                  <a
-                                    href={poi.googleUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36]"
-                                  >
-                                    Buscar en Google
-                                  </a>
-                                )}
+                                  {visualPoi.label}
+                                </div>
                               </div>
-                            </div>
-                          </article>
-                        ))}
+
+                              <div className="p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#94a3b8]">
+                                      Parada {index + 1}
+                                    </p>
+
+                                    <h3 className="mt-1 text-lg font-black text-[#111827]">
+                                      {poi.nombre}
+                                    </h3>
+                                  </div>
+
+                                  {poi.categoria && (
+                                    <span className="rounded-full bg-[#fff4ef] px-3 py-1 text-xs font-bold text-[#ff5a36]">
+                                      {poi.categoria}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {poi.motivo && (
+                                  <p className="mt-3 text-sm leading-6 text-[#667085]">
+                                    {poi.motivo}
+                                  </p>
+                                )}
+
+                                {poi.direccion && (
+                                  <p className="mt-3 text-xs font-semibold leading-5 text-[#98a2b3]">
+                                    {poi.direccion}
+                                  </p>
+                                )}
+
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirPoiEnMapa(poi)}
+                                    className="rounded-full bg-[#111827] px-4 py-2 text-xs font-bold text-white"
+                                  >
+                                    Ver en mapa
+                                  </button>
+
+                                  {poi.googleUrl && (
+                                    <a
+                                      href={poi.googleUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36]"
+                                    >
+                                      Buscar en Google
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })}
                       </div>
                     )}
+
+                    {itinerario.id_itinerario ? (
+                      <BloqueRestauracionDia
+                        idItinerario={itinerario.id_itinerario}
+                        idDiaItinerario={dia.idDiaItinerario}
+                        diaNumero={dia.numero}
+                        pois={dia.pois}
+                        selecciones={seleccionesRestauracion}
+                        onChange={recargarSeleccionesRestauracion}
+                      />
+                    ) : null}
                   </div>
                 )}
               </article>
