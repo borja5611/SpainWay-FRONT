@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import BloqueRestauracionDia from "@/app/componentes/itinerarios/BloqueRestauracionDia";
+import BloqueEventosDia from "@/app/componentes/itinerarios/BloqueEventosDia";
+import BloqueEventosRangoItinerario from "@/app/componentes/itinerarios/BloqueEventosRangoItinerario";
 import {
   getSeleccionesRestauracion,
   type SeleccionRestauracion,
 } from "@/app/servicios/restauracion";
+import {
+  getSeleccionesEventosLive,
+  eliminarSeleccionEventoLive,
+  type SeleccionEventoLive,
+} from "@/app/servicios/eventosLive";
 import {
   getItinerarioDetalle,
   type DiaItinerario,
@@ -51,6 +58,17 @@ function formatFecha(value?: string | null): string {
   });
 }
 
+function formatHora(value?: string | null): string {
+  if (!value) return "Sin hora";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin hora";
+  return date.toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function presupuestoLabel(value: number | null): string {
   if (value === 1) return "Bajo";
   if (value === 2) return "Medio";
@@ -91,6 +109,19 @@ function normalizarTexto(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function categoriaEventoLabel(value?: string | null) {
+  const c = normalizarTexto(value ?? "");
+
+  if (c.includes("music") || c.includes("concert")) return "Música";
+  if (c.includes("arts")) return "Artes";
+  if (c.includes("theatre") || c.includes("performing")) return "Teatro";
+  if (c.includes("festival")) return "Festival";
+  if (c.includes("sport")) return "Deporte";
+  if (c.includes("community")) return "Local";
+  if (c.includes("expo")) return "Exposición";
+  return value || "Evento";
 }
 
 function getCategoriaVisual(categoria?: string | null, titulo?: string | null) {
@@ -298,21 +329,34 @@ export default function DetalleItinerarioPantalla() {
 
   const [itinerario, setItinerario] = useState<Itinerario | null>(null);
   const [seleccionesRestauracion, setSeleccionesRestauracion] = useState<SeleccionRestauracion[]>([]);
+  const [seleccionesEventosLive, setSeleccionesEventosLive] = useState<SeleccionEventoLive[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [diaAbierto, setDiaAbierto] = useState<number | null>(1);
 
   async function recargarSeleccionesRestauracion() {
-  if (!Number.isInteger(id)) return;
+    if (!Number.isInteger(id)) return;
 
-  try {
-    const data = await getSeleccionesRestauracion(id);
-    setSeleccionesRestauracion(data);
-  } catch (err) {
-    console.error("No se pudieron recargar selecciones de restauración:", err);
-    setSeleccionesRestauracion([]);
+    try {
+      const data = await getSeleccionesRestauracion(id);
+      setSeleccionesRestauracion(data);
+    } catch (err) {
+      console.error("No se pudieron recargar selecciones de restauración:", err);
+      setSeleccionesRestauracion([]);
+    }
   }
-}
+
+  async function recargarSeleccionesEventosLive() {
+    if (!Number.isInteger(id)) return;
+
+    try {
+      const data = await getSeleccionesEventosLive(id);
+      setSeleccionesEventosLive(data);
+    } catch (err) {
+      console.error("No se pudieron recargar selecciones de eventos live:", err);
+      setSeleccionesEventosLive([]);
+    }
+  }
 
   useEffect(() => {
     async function cargar() {
@@ -340,6 +384,14 @@ export default function DetalleItinerarioPantalla() {
         } catch (err) {
           console.error("No se pudieron cargar selecciones de restauración:", err);
           setSeleccionesRestauracion([]);
+        }
+
+        try {
+          const seleccionesEventos = await getSeleccionesEventosLive(id);
+          setSeleccionesEventosLive(seleccionesEventos);
+        } catch (err) {
+          console.error("No se pudieron cargar selecciones de eventos live:", err);
+          setSeleccionesEventosLive([]);
         }
       } catch (err) {
         console.error(err);
@@ -522,6 +574,23 @@ export default function DetalleItinerarioPantalla() {
                 </span>
               ) : null}
             </div>
+
+            <BloqueEventosRangoItinerario
+              idItinerario={itinerario.id_itinerario}
+              destino={itinerario.destino ?? ""}
+              rangoDesde={itinerario.inicio ?? null}
+              rangoHasta={itinerario.fin ?? null}
+              baseLat={itinerario.base_latitud ?? null}
+              baseLng={itinerario.base_longitud ?? null}
+              dias={diasUi.map((dia) => ({
+                numero: dia.numero,
+                idDiaItinerario: dia.idDiaItinerario,
+                fecha: dia.fecha,
+                titulo: dia.titulo,
+              }))}
+              selecciones={seleccionesEventosLive}
+              onChange={recargarSeleccionesEventosLive}
+            />
           </div>
         </section>
 
@@ -548,6 +617,9 @@ export default function DetalleItinerarioPantalla() {
           {diasUi.map((dia) => {
             const abierto = diaAbierto === dia.numero;
             const visualDia = getCategoriaVisual(null, dia.titulo);
+            const eventosDelDia = seleccionesEventosLive.filter(
+              (item) => item.id_dia_itinerario === dia.idDiaItinerario
+            );
 
             return (
               <article
@@ -577,6 +649,7 @@ export default function DetalleItinerarioPantalla() {
 
                       <p className="mt-1 text-sm text-[#667085]">
                         {dia.pois.length} lugares{dia.minutos ? ` · ${dia.minutos} min estimados` : ""}
+                        {eventosDelDia.length > 0 ? ` · ${eventosDelDia.length} eventos live` : ""}
                       </p>
                     </div>
                   </div>
@@ -597,6 +670,134 @@ export default function DetalleItinerarioPantalla() {
                             <li key={tip}>• {tip}</li>
                           ))}
                         </ul>
+                      </div>
+                    )}
+
+                    {eventosDelDia.length > 0 && (
+                      <div className="mb-5 rounded-[24px] border border-[#dbeafe] bg-[#eff6ff] p-4">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#2563eb]">
+                              Eventos live añadidos al día
+                            </p>
+                            <h3 className="mt-1 text-lg font-black text-[#111827]">
+                              Planes en directo para este día
+                            </h3>
+                          </div>
+
+                          <span className="rounded-full bg-white px-3 py-2 text-xs font-black text-[#2563eb]">
+                            {eventosDelDia.length} eventos
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4">
+                          {eventosDelDia.map((item) => (
+                            <article
+                              key={item.id_itinerario_evento}
+                              className="overflow-hidden rounded-[24px] border border-[#bfdbfe] bg-white"
+                            >
+                              <div className="grid grid-cols-1 md:grid-cols-[180px_1fr]">
+                                <div className="h-[170px] bg-gradient-to-br from-[#eef6ff] to-[#f8fafc] md:h-full">
+                                  {item.evento_turistico.imagen_url ? (
+                                    <img
+                                      src={item.evento_turistico.imagen_url}
+                                      alt={item.evento_turistico.nombre}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full items-center justify-center text-5xl">
+                                      🎟️
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="p-4">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2563eb]">
+                                        {categoriaEventoLabel(item.evento_turistico.categoria)}
+                                      </p>
+                                      <h4 className="mt-1 text-lg font-black text-[#111827]">
+                                        {item.evento_turistico.nombre}
+                                      </h4>
+                                    </div>
+
+                                    <span className="rounded-full bg-[#eef2ff] px-3 py-1 text-xs font-black text-[#3730a3]">
+                                      {item.evento_turistico.source ?? "live"}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <span className="rounded-full bg-[#f8fafc] px-3 py-2 text-xs font-bold text-[#344054]">
+                                      {formatFecha(item.evento_turistico.inicio)}
+                                    </span>
+
+                                    <span className="rounded-full bg-[#f8fafc] px-3 py-2 text-xs font-bold text-[#344054]">
+                                      {formatHora(item.evento_turistico.inicio)}
+                                    </span>
+
+                                    {item.evento_turistico.venue_nombre && (
+                                      <span className="rounded-full bg-[#fff7ed] px-3 py-2 text-xs font-bold text-[#c2410c]">
+                                        {item.evento_turistico.venue_nombre}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {(item.evento_turistico.venue_nombre || item.evento_turistico.direccion) && (
+                                    <p className="mt-3 text-sm leading-6 text-[#667085]">
+                                      {item.evento_turistico.venue_nombre ?? "Sin recinto"}
+                                      {item.evento_turistico.direccion
+                                        ? ` · ${item.evento_turistico.direccion}`
+                                        : ""}
+                                    </p>
+                                  )}
+
+                                  {item.evento_turistico.descripcion && (
+                                    <p className="mt-3 text-sm leading-6 text-[#667085]">
+                                      {item.evento_turistico.descripcion}
+                                    </p>
+                                  )}
+
+                                  <div className="mt-4 flex flex-wrap gap-2">
+  {item.evento_turistico.url && (
+    <a
+      href={item.evento_turistico.url}
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-full bg-[#111827] px-4 py-2 text-xs font-black text-white"
+    >
+      Ver evento
+    </a>
+  )}
+
+  <button
+    type="button"
+    onClick={() => {
+      void (async () => {
+        try {
+          await eliminarSeleccionEventoLive(item.id_itinerario_evento);
+          await recargarSeleccionesEventosLive();
+        } catch (error) {
+          console.error(error);
+        }
+      })();
+    }}
+    className="rounded-full bg-[#dc2626] px-4 py-2 text-xs font-black text-white"
+  >
+    Quitar
+  </button>
+
+  {item.motivo && (
+    <span className="rounded-full bg-[#ecfdf3] px-4 py-2 text-xs font-bold text-[#027a48]">
+      Añadido al itinerario
+    </span>
+  )}
+</div>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
                       </div>
                     )}
 
@@ -684,14 +885,30 @@ export default function DetalleItinerarioPantalla() {
                     )}
 
                     {itinerario.id_itinerario ? (
-                      <BloqueRestauracionDia
-                        idItinerario={itinerario.id_itinerario}
-                        idDiaItinerario={dia.idDiaItinerario}
-                        diaNumero={dia.numero}
-                        pois={dia.pois}
-                        selecciones={seleccionesRestauracion}
-                        onChange={recargarSeleccionesRestauracion}
-                      />
+                      <>
+                        <BloqueRestauracionDia
+                          idItinerario={itinerario.id_itinerario}
+                          idDiaItinerario={dia.idDiaItinerario}
+                          diaNumero={dia.numero}
+                          pois={dia.pois}
+                          selecciones={seleccionesRestauracion}
+                          onChange={recargarSeleccionesRestauracion}
+                        />
+
+                        <BloqueEventosDia
+                          idItinerario={itinerario.id_itinerario}
+                          idDiaItinerario={dia.idDiaItinerario}
+                          diaNumero={dia.numero}
+                          destino={itinerario.destino ?? ""}
+                          fecha={dia.fecha}
+                          rangoDesde={itinerario.inicio ?? null}
+                          rangoHasta={itinerario.fin ?? null}
+                          baseLat={itinerario.base_latitud ?? null}
+                          baseLng={itinerario.base_longitud ?? null}
+                          selecciones={seleccionesEventosLive}
+                          onChange={recargarSeleccionesEventosLive}
+                        />
+                      </>
                     ) : null}
                   </div>
                 )}

@@ -42,6 +42,36 @@ export interface ElementoItinerario {
   poi?: PoiItinerario;
 }
 
+export interface EventoTuristicoItinerario {
+  id_evento_turistico: number;
+  external_id: string;
+  source?: string | null;
+  nombre: string;
+  descripcion?: string | null;
+  categoria?: string | null;
+  venue_nombre?: string | null;
+  direccion?: string | null;
+  ciudad?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  inicio?: string | null;
+  fin?: string | null;
+  imagen_url?: string | null;
+  url?: string | null;
+}
+
+export interface ItinerarioEvento {
+  id_itinerario_evento: number;
+  id_itinerario: number;
+  id_dia_itinerario: number;
+  orden: number | null;
+  inicio_sugerido: string | null;
+  fin_sugerido: string | null;
+  score_recomendacion: number | null;
+  motivo: string | null;
+  evento_turistico?: EventoTuristicoItinerario;
+}
+
 export interface DiaItinerario {
   id_dia_itinerario: number;
   fecha: string | null;
@@ -49,6 +79,7 @@ export interface DiaItinerario {
   notas: string | null;
   id_itinerario: number;
   elementos?: ElementoItinerario[];
+  eventos?: ItinerarioEvento[];
 }
 
 export interface IaPoiPlan {
@@ -85,6 +116,8 @@ export interface IaJsonItinerario {
   day_plans?: IaDayPlan[];
   dias?: IaDayPlan[];
   generated_at?: string;
+  live_events?: unknown[];
+  live_events_by_day?: unknown[];
   [key: string]: unknown;
 }
 

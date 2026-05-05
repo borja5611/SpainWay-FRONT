@@ -22,6 +22,7 @@ export type PayloadRecomendador = {
   visited_global_ids: string[];
   visited_poi_names?: string[];
   negative_preferences?: string[];
+  include_live_events?: boolean;
 };
 
 export type RespuestaRecomendador = {
