@@ -245,6 +245,32 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
   const iaDays = getIaDayPlans(itinerario);
   const dbDays = itinerario.dias ?? [];
 
+  // IMPORTANTE: para que los cambios hechos desde el chat se vean siempre,
+  // priorizamos los elementos reales guardados en BD.
+  // El ia_json se mantiene como apoyo, pero la fuente de verdad son Dia_Itinerario + Elemento_Itinerario.
+  if (dbDays.length > 0) {
+    return dbDays.map((dia: DiaItinerario, index) => {
+      const iaDay = iaDays[index];
+      const numero = iaDay?.day_number ?? iaDay?.dia ?? index + 1;
+
+      return {
+        numero,
+        idDiaItinerario: dia.id_dia_itinerario,
+        titulo: iaDay?.theme ?? iaDay?.titulo ?? dia.notas?.split("|")[0]?.trim() ?? `Día ${numero}`,
+        minutos: dia.minutos ?? iaDay?.total_minutes ?? iaDay?.minutos ?? null,
+        fecha: dia.fecha,
+        tips: iaDay ? getIaTips(iaDay) : dia.notas
+          ? dia.notas
+              .split("|")
+              .slice(1)
+              .map((item) => item.trim())
+              .filter(Boolean)
+          : [],
+        pois: (dia.elementos ?? []).map(buildPoiFromElemento),
+      };
+    });
+  }
+
   if (iaDays.length > 0) {
     return iaDays.map((day, index) => {
       const numero = day.day_number ?? day.dia ?? index + 1;

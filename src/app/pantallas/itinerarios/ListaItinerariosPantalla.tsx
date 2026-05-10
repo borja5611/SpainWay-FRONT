@@ -21,7 +21,6 @@ type UserItinerary = {
   lugares: string;
   presupuesto: string;
   progreso: number;
-  siguientePaso: string;
   imagen: string;
   destacado?: boolean;
   etiquetas?: string[];
@@ -41,14 +40,14 @@ const filtros: Array<"Todos" | CategoriaItinerario | "Personalizado"> = [
 ];
 
 const imagenesDestino: Record<string, string> = {
-  madrid:
-    "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=1200&q=80",
-  malaga:
-    "https://images.unsplash.com/photo-1589123053646-4e8c3266f071?auto=format&fit=crop&w=1200&q=80",
-  barcelona:
-    "https://images.unsplash.com/photo-1583422409516-2895a77efded?auto=format&fit=crop&w=1200&q=80",
-  valencia:
-    "https://images.unsplash.com/photo-1523204689348-397c1d0d1789?auto=format&fit=crop&w=1200&q=80",
+  andalucia: "/pois-destacados/andalucia/alhambra.webp",
+  asturias: "/pois-destacados/asturias/covadonga.webp",
+  baleares: "/pois-destacados/baleares/ses-illetes.webp",
+  canarias: "/pois-destacados/canarias/playa-cofete.webp",
+  cantabria: "/pois-destacados/cantabria/sant-vicente.webp",
+  cataluna: "/pois-destacados/cataluña/sagrada-familia.webp",
+  madrid: "/pois-destacados/madrid/museo-prado.webp",
+  valencia: "/pois-destacados/valencia/artes-ciencias.webp",
 };
 
 function IconoBusqueda() {
@@ -182,13 +181,24 @@ function getResumen(item: Itinerario): string {
   );
 }
 
+function normalizarTexto(texto?: string | null): string {
+  return (texto ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
 function getImagenDestino(destino?: string | null): string {
-  const key = (destino ?? "").toLowerCase();
+  const key = normalizarTexto(destino);
+  if (key.includes("andalucia") || key.includes("malaga") || key.includes("sevilla") || key.includes("granada") || key.includes("cordoba") || key.includes("cadiz") || key.includes("huelva") || key.includes("jaen") || key.includes("almeria")) return imagenesDestino.andalucia;
+  if (key.includes("asturias") || key.includes("oviedo") || key.includes("gijon")) return imagenesDestino.asturias;
+  if (key.includes("baleares") || key.includes("mallorca") || key.includes("menorca") || key.includes("ibiza") || key.includes("formentera")) return imagenesDestino.baleares;
+  if (key.includes("canarias") || key.includes("tenerife") || key.includes("gran canaria") || key.includes("lanzarote") || key.includes("fuerteventura") || key.includes("la palma")) return imagenesDestino.canarias;
+  if (key.includes("cantabria") || key.includes("santander")) return imagenesDestino.cantabria;
+  if (key.includes("cataluna") || key.includes("catalunya") || key.includes("barcelona") || key.includes("girona") || key.includes("tarragona") || key.includes("lleida")) return imagenesDestino.cataluna;
   if (key.includes("madrid")) return imagenesDestino.madrid;
-  if (key.includes("malaga") || key.includes("málaga")) return imagenesDestino.malaga;
-  if (key.includes("barcelona")) return imagenesDestino.barcelona;
-  if (key.includes("valencia")) return imagenesDestino.valencia;
-  return "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80";
+  if (key.includes("valencia") || key.includes("alicante") || key.includes("castellon")) return imagenesDestino.valencia;
+  return imagenesDestino.andalucia;
 }
 
 function mapItinerarioReal(item: Itinerario): UserItinerary {
@@ -208,10 +218,6 @@ function mapItinerarioReal(item: Itinerario): UserItinerary {
     lugares: String(totalPois),
     presupuesto: presupuestoLabel(item.presupuesto),
     progreso: item.estado?.includes("borrador") ? 60 : 100,
-    siguientePaso:
-      totalPois > 0
-        ? "Consulta el flow por días y ajusta el viaje desde el chat."
-        : "Revisa el JSON generado y completa los POIs enlazados.",
     imagen: getImagenDestino(item.destino),
     etiquetas: [
       item.estado ?? "",
@@ -237,6 +243,7 @@ export default function ListaItinerariosPantalla() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<number | null>(null);
+  const [confirmacionEliminar, setConfirmacionEliminar] = useState<UserItinerary | null>(null);
   const [ejemplosAbiertos, setEjemplosAbiertos] = useState(false);
 
   async function cargarItinerarios() {
@@ -303,6 +310,7 @@ export default function ListaItinerariosPantalla() {
       setError(null);
       await eliminarItinerario(idReal);
       setUserItineraries((prev) => prev.filter((item) => item.idReal !== idReal));
+      setConfirmacionEliminar(null);
     } catch (err) {
       console.error(err);
       setError("No se pudo eliminar el itinerario.");
@@ -493,7 +501,7 @@ export default function ListaItinerariosPantalla() {
                         <IconoCalendario />
                         Siguiente paso
                       </div>
-                      <p className="mt-2 text-sm leading-5 text-[#6b7280]">{item.siguientePaso}</p>
+                      <p className="mt-2 text-sm leading-5 text-[#6b7280]"></p>
                     </div>
 
                     {item.base && (
@@ -514,7 +522,7 @@ export default function ListaItinerariosPantalla() {
                       <button
                         type="button"
                         disabled={borrandoId === item.idReal}
-                        onClick={() => void borrarItinerario(item.idReal)}
+                        onClick={() => setConfirmacionEliminar(item)}
                         className="mt-3 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 disabled:opacity-60"
                       >
                         {borrandoId === item.idReal ? "Borrando..." : "Eliminar itinerario"}
@@ -583,6 +591,38 @@ export default function ListaItinerariosPantalla() {
           )}
         </section>
       </div>
+
+      {confirmacionEliminar && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[30px] bg-white p-6 text-center shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl font-black text-red-600">
+              !
+            </div>
+            <h2 className="mt-5 text-xl font-bold text-[#111827]">Eliminar itinerario</h2>
+            <p className="mt-3 text-sm leading-6 text-[#667085]">
+              Vas a eliminar <strong>{confirmacionEliminar.titulo}</strong>. Esta acción no se puede deshacer.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmacionEliminar(null)}
+                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={borrandoId === confirmacionEliminar.idReal}
+                onClick={() => void borrarItinerario(confirmacionEliminar.idReal)}
+                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {borrandoId === confirmacionEliminar.idReal ? "Eliminando..." : "Sí, eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

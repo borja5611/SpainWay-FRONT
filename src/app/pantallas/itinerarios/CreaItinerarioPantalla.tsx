@@ -8,6 +8,8 @@ import {
   type PayloadRecomendador,
 } from "@/app/servicios/recomendador";
 import { useAuthStore } from "@/app/store/useAuthStore";
+import { useDestinoStore } from "@/app/store/useDestinoStore";
+import type { DestinoId } from "@/app/datos/mock/destinos";
 
 type PreguntaIa = {
   id: string;
@@ -66,7 +68,6 @@ type FormularioItinerario = {
   transporte: string;
   restricciones: string;
   zonaBase: string;
-  preferenciasNegativas: string;
   visitedGlobalIds: string;
   cargarEventosLiveLuego: boolean;
 };
@@ -76,8 +77,186 @@ const STORAGE_KEY_RECOMMENDER_DRAFT = "spainway_recommender_draft";
 const STORAGE_KEY_FORM_DRAFT = "spainway_crear_itinerario_form_v1";
 const STORAGE_KEY_BASE_COORDS = "spainway_crear_itinerario_base_coords_v1";
 
+function toIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function getTomorrowIso(): string {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(0, 0, 0, 0);
+  return toIsoDate(date);
+}
+
+function isBeforeIsoDate(value: string | null, min: string): boolean {
+  if (!value) return false;
+  return value < min;
+}
+
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 const API_URL = import.meta.env.VITE_API_URL as string | undefined;
+
+const DESTINOS_DISPONIBLES: Array<{
+  id: DestinoId;
+  nombre: string;
+  centro: [number, number];
+  bbox: [number, number, number, number];
+}> = [
+  {
+    id: "andalucia",
+    nombre: "Andalucía",
+    centro: [-4.4214, 36.7213],
+    bbox: [-7.6, 35.8, -1.6, 38.8],
+  },
+  {
+    id: "asturias",
+    nombre: "Asturias",
+    centro: [-5.8448, 43.3614],
+    bbox: [-7.2, 42.8, -4.4, 43.8],
+  },
+  {
+    id: "baleares",
+    nombre: "Baleares",
+    centro: [2.6502, 39.5696],
+    bbox: [1.1, 38.5, 4.7, 40.2],
+  },
+  {
+    id: "canarias",
+    nombre: "Canarias",
+    centro: [-15.4363, 28.1235],
+    bbox: [-18.3, 27.5, -13.2, 29.5],
+  },
+  {
+    id: "cantabria",
+    nombre: "Cantabria",
+    centro: [-3.8044, 43.4623],
+    bbox: [-4.9, 42.7, -3.1, 43.7],
+  },
+  {
+    id: "cataluna",
+    nombre: "Cataluña",
+    centro: [2.1734, 41.3851],
+    bbox: [0.1, 40.4, 3.4, 42.9],
+  },
+  {
+    id: "madrid",
+    nombre: "Madrid",
+    centro: [-3.7038, 40.4168],
+    bbox: [-3.95, 40.3, -3.5, 40.55],
+  },
+  {
+    id: "cv",
+    nombre: "Comunidad Valenciana",
+    centro: [-0.3763, 39.4699],
+    bbox: [-1.7, 37.8, 0.6, 40.8],
+  },
+];
+
+function normalizarDestinoTexto(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getDestinoPermitido(value?: string | null) {
+  const key = normalizarDestinoTexto(value ?? "");
+
+  if (!key) return null;
+
+  if (
+    key.includes("andalucia") ||
+    key.includes("malaga") ||
+    key.includes("sevilla") ||
+    key.includes("granada") ||
+    key.includes("cordoba") ||
+    key.includes("cadiz") ||
+    key.includes("huelva") ||
+    key.includes("jaen") ||
+    key.includes("almeria")
+  ) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "andalucia") ?? null;
+  }
+
+  if (key.includes("asturias") || key.includes("oviedo") || key.includes("gijon")) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "asturias") ?? null;
+  }
+
+  if (
+    key.includes("baleares") ||
+    key.includes("mallorca") ||
+    key.includes("menorca") ||
+    key.includes("ibiza") ||
+    key.includes("formentera")
+  ) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "baleares") ?? null;
+  }
+
+  if (
+    key.includes("canarias") ||
+    key.includes("tenerife") ||
+    key.includes("gran canaria") ||
+    key.includes("lanzarote") ||
+    key.includes("fuerteventura") ||
+    key.includes("la palma")
+  ) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "canarias") ?? null;
+  }
+
+  if (key.includes("cantabria") || key.includes("santander")) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "cantabria") ?? null;
+  }
+
+  if (
+    key.includes("cataluna") ||
+    key.includes("catalunya") ||
+    key.includes("barcelona") ||
+    key.includes("girona") ||
+    key.includes("tarragona") ||
+    key.includes("lleida")
+  ) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "cataluna") ?? null;
+  }
+
+  if (key.includes("madrid")) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "madrid") ?? null;
+  }
+
+  if (
+    key.includes("comunidad valenciana") ||
+    key.includes("valencia") ||
+    key.includes("alicante") ||
+    key.includes("castellon")
+  ) {
+    return DESTINOS_DISPONIBLES.find((item) => item.id === "cv") ?? null;
+  }
+
+  return DESTINOS_DISPONIBLES.find((item) => normalizarDestinoTexto(item.nombre) === key) ?? null;
+}
+
+function getDestinoConfig(value?: string | null) {
+  const destino = getDestinoPermitido(value);
+  if (!destino) return null;
+  return DESTINOS_DISPONIBLES.find((item) => item.id === destino.id) ?? null;
+}
+
+function bboxToMapboxParam(bbox: [number, number, number, number]): string {
+  return bbox.join(",");
+}
+
+function coordsDentroDeDestino(
+  lon: number,
+  lat: number,
+  destino?: string | null,
+): boolean {
+  const config = getDestinoConfig(destino);
+  if (!config) return false;
+
+  const [minLon, minLat, maxLon, maxLat] = config.bbox;
+
+  return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
+}
 
 const FORM_INICIAL: FormularioItinerario = {
   destino: "",
@@ -91,7 +270,6 @@ const FORM_INICIAL: FormularioItinerario = {
   transporte: "Transporte público",
   restricciones: "",
   zonaBase: "",
-  preferenciasNegativas: "",
   visitedGlobalIds: "",
   cargarEventosLiveLuego: true,
 };
@@ -136,9 +314,22 @@ function readStoredRange(): { start: string | null; end: string | null } {
     localStorage.getItem(STORAGE_KEY_RANGE),
   );
 
+  const minDate = getTomorrowIso();
+  const start = parsed?.start ?? null;
+  const end = parsed?.end ?? null;
+
+  if (!start || isBeforeIsoDate(start, minDate)) {
+    localStorage.removeItem(STORAGE_KEY_RANGE);
+    return { start: null, end: null };
+  }
+
+  if (end && end < start) {
+    return { start, end: start };
+  }
+
   return {
-    start: parsed?.start ?? null,
-    end: parsed?.end ?? null,
+    start,
+    end: end ?? null,
   };
 }
 
@@ -147,9 +338,12 @@ function readStoredForm(): FormularioItinerario {
     localStorage.getItem(STORAGE_KEY_FORM_DRAFT),
   );
 
+  const destinoPermitido = getDestinoPermitido(parsed?.destino ?? "");
+
   return {
     ...FORM_INICIAL,
     ...parsed,
+    destino: destinoPermitido?.nombre ?? "",
   };
 }
 
@@ -262,14 +456,29 @@ function IconoChevron({ open }: { open: boolean }) {
   );
 }
 
+function IconoCalendarioMini() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M8 3V6M16 3V6M4 9H20M6 5H18C19.1046 5 20 5.89543 20 7V19C20 20.1046 19.1046 21 18 21H6C4.89543 21 4 20.1046 4 19V7C4 5.89543 4.89543 5 6 5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export default function CrearItinerarioPantalla() {
   const navigate = useNavigate();
   const usuario = useAuthStore((state) => state.usuario);
+  const setDestinoSeleccionado = useDestinoStore((state) => state.setDestinoSeleccionado);
   const idUsuario = usuario?.id_usuario ?? 1;
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const destinoActualRef = useRef<string>("");
 
   const [mostrarRecomendaciones, setMostrarRecomendaciones] = useState(false);
   const [buscandoBase, setBuscandoBase] = useState(false);
@@ -290,7 +499,59 @@ export default function CrearItinerarioPantalla() {
     readStoredForm(),
   );
 
-  const range = useMemo(() => readStoredRange(), []);
+  useEffect(() => {
+    destinoActualRef.current = form.destino;
+  }, [form.destino]);
+
+  useEffect(() => {
+    const destinoPermitido = getDestinoPermitido(form.destino);
+    if (destinoPermitido) {
+      setDestinoSeleccionado(destinoPermitido.id);
+    }
+  }, [form.destino, setDestinoSeleccionado]);
+
+  const [range, setRange] = useState(() => readStoredRange());
+  const [calendarioAbierto, setCalendarioAbierto] = useState(false);
+  const [fechaInicioTemp, setFechaInicioTemp] = useState(
+    range.start ?? getTomorrowIso(),
+  );
+  const [fechaFinTemp, setFechaFinTemp] = useState(
+    range.end ?? range.start ?? getTomorrowIso(),
+  );
+  const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
+  const [avisoValidacion, setAvisoValidacion] = useState<string | null>(null);
+  const [progresoGeneracion, setProgresoGeneracion] = useState(0);
+
+  useEffect(() => {
+    const actualizarRango = () => {
+      setRange(readStoredRange());
+    };
+
+    actualizarRango();
+    window.addEventListener("focus", actualizarRango);
+
+    return () => {
+      window.removeEventListener("focus", actualizarRango);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!generando) {
+      setProgresoGeneracion(0);
+      return;
+    }
+
+    setProgresoGeneracion(8);
+
+    const intervalId = window.setInterval(() => {
+      setProgresoGeneracion((prev) => {
+        if (prev >= 92) return prev;
+        return prev + Math.max(1, Math.round((92 - prev) / 8));
+      });
+    }, 650);
+
+    return () => window.clearInterval(intervalId);
+  }, [generando]);
 
   const daysPlaceholder = useMemo(
     () => getDaysPlaceholder(range.start, range.end),
@@ -316,13 +577,15 @@ export default function CrearItinerarioPantalla() {
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
+    const destinoInicial = getDestinoConfig(destinoActualRef.current);
+
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/streets-v12",
       center: baseCoords
         ? [baseCoords.lon, baseCoords.lat]
-        : [-3.7038, 40.4168],
-      zoom: baseCoords ? 14 : 11,
+        : destinoInicial?.centro ?? [-3.7038, 40.4168],
+      zoom: baseCoords ? 14 : destinoInicial?.id === "madrid" ? 11 : 8,
     });
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -336,6 +599,19 @@ export default function CrearItinerarioPantalla() {
     map.on("click", async (event) => {
       const lon = event.lngLat.lng;
       const lat = event.lngLat.lat;
+      const destinoActual = destinoActualRef.current;
+      const destinoConfig = getDestinoConfig(destinoActual);
+
+      if (!destinoConfig) {
+        setErrorBase("Selecciona primero un destino.");
+        return;
+      }
+
+      if (!coordsDentroDeDestino(lon, lat, destinoActual)) {
+        setErrorBase(`La zona seleccionada está fuera de ${destinoConfig.nombre}.`);
+        return;
+      }
+
       const label = await reverseGeocode(lat, lon);
 
       aplicarUbicacion({
@@ -400,6 +676,135 @@ export default function CrearItinerarioPantalla() {
     }));
   }
 
+  function updateDestino(nombreDestino: string) {
+    const destinoPermitido = getDestinoPermitido(nombreDestino);
+
+    setForm((prev) => ({
+      ...prev,
+      destino: destinoPermitido?.nombre ?? "",
+      zonaBase: "",
+    }));
+
+    setBaseCoords(null);
+    setSugerencias([]);
+    setMostrandoSugerencias(false);
+    setErrorBase(null);
+
+    markerRef.current?.remove();
+    markerRef.current = null;
+
+    if (destinoPermitido) {
+      setDestinoSeleccionado(destinoPermitido.id);
+
+      const config = getDestinoConfig(destinoPermitido.nombre);
+
+      if (config && mapRef.current) {
+        mapRef.current.flyTo({
+          center: config.centro,
+          zoom: config.id === "madrid" ? 11 : 8,
+          essential: true,
+        });
+      }
+    }
+  }
+
+  function abrirCalendarioPopup() {
+    const minDate = getTomorrowIso();
+    const start =
+      range.start && !isBeforeIsoDate(range.start, minDate)
+        ? range.start
+        : minDate;
+    const end = range.end && range.end >= start ? range.end : start;
+
+    setFechaInicioTemp(start);
+    setFechaFinTemp(end);
+    setCalendarioAbierto(true);
+  }
+
+  function guardarRangoFechas() {
+    const minDate = getTomorrowIso();
+
+    if (fechaInicioTemp < minDate) {
+      setErrorFormulario("La fecha de inicio debe ser como mínimo mañana.");
+      return;
+    }
+
+    if (fechaFinTemp < fechaInicioTemp) {
+      setErrorFormulario(
+        "La fecha final no puede ser anterior a la fecha de inicio.",
+      );
+      return;
+    }
+
+    const nextRange = { start: fechaInicioTemp, end: fechaFinTemp };
+    setRange(nextRange);
+    localStorage.setItem(STORAGE_KEY_RANGE, JSON.stringify(nextRange));
+    setErrorFormulario(null);
+    setCalendarioAbierto(false);
+  }
+
+  function limpiarRangoFechas() {
+    const emptyRange = { start: null, end: null };
+    setRange(emptyRange);
+    localStorage.removeItem(STORAGE_KEY_RANGE);
+    setErrorFormulario(null);
+    setCalendarioAbierto(false);
+  }
+
+  function getErroresValidacion(): string[] {
+    const errores: string[] = [];
+    const destino = form.destino.trim();
+    const dias = Number(form.dias);
+    const daysFromDates = Number(getDaysPlaceholder(range.start, range.end));
+
+    if (!destino) {
+      errores.push("Destino principal");
+    } else if (!getDestinoPermitido(destino)) {
+      errores.push("Destino válido de la lista disponible");
+    }
+
+    if (!form.presupuesto.trim()) {
+      errores.push("Presupuesto");
+    }
+
+    if (!form.ritmo.trim()) {
+      errores.push("Ritmo del viaje");
+    }
+
+    if (!form.tipoViaje.trim()) {
+      errores.push("Tipo de viaje");
+    }
+
+    if (!form.transporte.trim()) {
+      errores.push("Transporte principal");
+    }
+
+    if (!baseCoords || !form.zonaBase.trim()) {
+      errores.push("Zona base válida seleccionada en el mapa o buscador");
+    }
+
+    if (
+      (!Number.isFinite(dias) || dias <= 0) &&
+      (!Number.isFinite(daysFromDates) || daysFromDates <= 0)
+    ) {
+      errores.push("Número de días o rango de fechas");
+    }
+
+    if (form.dias && (dias < 1 || dias > 14)) {
+      errores.push("Número de días entre 1 y 14");
+    }
+
+    if (range.start && isBeforeIsoDate(range.start, getTomorrowIso())) {
+      errores.push("Fecha de inicio como mínimo mañana");
+    }
+
+    if (range.start && range.end && range.end < range.start) {
+      errores.push("Fecha final posterior o igual a la fecha de inicio");
+    }
+
+    return uniqueText(errores);
+  }
+
   function updateZonaBase(value: string) {
     setForm((prev) => ({
       ...prev,
@@ -429,6 +834,20 @@ export default function CrearItinerarioPantalla() {
       const lngLat = markerRef.current?.getLngLat();
       if (!lngLat) return;
 
+      const destinoActual = destinoActualRef.current;
+      const destinoConfig = getDestinoConfig(destinoActual);
+
+      if (!destinoConfig) {
+        setErrorBase("Selecciona primero un destino.");
+        return;
+      }
+
+      if (!coordsDentroDeDestino(lngLat.lng, lngLat.lat, destinoActual)) {
+        setErrorBase(`La zona seleccionada está fuera de ${destinoConfig.nombre}.`);
+        markerRef.current?.setLngLat([lon, lat]);
+        return;
+      }
+
       const label = await reverseGeocode(lngLat.lat, lngLat.lng);
 
       aplicarUbicacion({
@@ -453,9 +872,15 @@ export default function CrearItinerarioPantalla() {
       return `Zona seleccionada (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
 
     try {
+      const destinoConfig = getDestinoConfig(destinoActualRef.current);
+
       const url =
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json` +
-        `?access_token=${MAPBOX_TOKEN}&language=es&limit=1`;
+        `?access_token=${MAPBOX_TOKEN}` +
+        `&language=es` +
+        `&limit=1` +
+        `&country=es` +
+        `${destinoConfig ? `&bbox=${bboxToMapboxParam(destinoConfig.bbox)}` : ""}`;
 
       const response = await fetch(url);
       const data = (await response.json()) as MapboxResponse;
@@ -472,13 +897,25 @@ export default function CrearItinerarioPantalla() {
   async function cargarSugerencias(query: string) {
     if (!MAPBOX_TOKEN) return;
 
+    const destinoConfig = getDestinoConfig(form.destino);
+
+    if (!destinoConfig) {
+      setSugerencias([]);
+      setErrorBase("Selecciona primero un destino para buscar zonas.");
+      return;
+    }
+
     try {
-      const busqueda = form.destino.trim()
-        ? `${query}, ${form.destino}`
-        : query;
       const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(busqueda)}.json` +
-        `?access_token=${MAPBOX_TOKEN}&language=es&country=es&autocomplete=true&limit=6&types=address,place,postcode,poi,neighborhood,locality`;
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+        `?access_token=${MAPBOX_TOKEN}` +
+        `&language=es` +
+        `&country=es` +
+        `&autocomplete=true` +
+        `&limit=6` +
+        `&types=address,place,postcode,poi,neighborhood,locality` +
+        `&bbox=${bboxToMapboxParam(destinoConfig.bbox)}` +
+        `&proximity=${destinoConfig.centro[0]},${destinoConfig.centro[1]}`;
 
       const response = await fetch(url);
       if (!response.ok) return;
@@ -486,7 +923,10 @@ export default function CrearItinerarioPantalla() {
       const data = (await response.json()) as MapboxResponse;
       const next = (data.features ?? [])
         .map(featureToSuggestion)
-        .filter((item): item is SugerenciaBase => item !== null);
+        .filter((item): item is SugerenciaBase => item !== null)
+        .filter((item) =>
+          coordsDentroDeDestino(item.lon, item.lat, form.destino),
+        );
 
       setSugerencias(next);
     } catch (error) {
@@ -496,6 +936,19 @@ export default function CrearItinerarioPantalla() {
   }
 
   function aplicarUbicacion(sugerencia: SugerenciaBase) {
+    const destinoActual = destinoActualRef.current || form.destino;
+    const destinoConfig = getDestinoConfig(destinoActual);
+
+    if (!destinoConfig) {
+      setErrorBase("Selecciona primero un destino.");
+      return;
+    }
+
+    if (!coordsDentroDeDestino(sugerencia.lon, sugerencia.lat, destinoActual)) {
+      setErrorBase(`La zona seleccionada está fuera de ${destinoConfig.nombre}.`);
+      return;
+    }
+
     const coords = {
       lat: sugerencia.lat,
       lon: sugerencia.lon,
@@ -507,12 +960,15 @@ export default function CrearItinerarioPantalla() {
     setMostrandoSugerencias(false);
     setSugerencias([]);
 
-    setForm((prev) => ({
-      ...prev,
-      zonaBase: sugerencia.nombre,
-      destino:
-        prev.destino.trim() || inferDestinationFromBase(sugerencia.nombre),
-    }));
+    setForm((prev) => {
+      const destinoInferido = getDestinoPermitido(inferDestinationFromBase(sugerencia.nombre));
+
+      return {
+        ...prev,
+        zonaBase: sugerencia.nombre,
+        destino: prev.destino.trim() || destinoInferido?.nombre || "",
+      };
+    });
 
     colocarMarker(sugerencia.lon, sugerencia.lat);
   }
@@ -568,6 +1024,12 @@ export default function CrearItinerarioPantalla() {
     }
 
     const query = form.zonaBase.trim();
+    const destinoConfig = getDestinoConfig(form.destino);
+
+    if (!destinoConfig) {
+      setErrorBase("Selecciona primero un destino.");
+      return;
+    }
 
     if (!query) {
       setErrorBase("Escribe una zona, hotel, barrio, calle o código postal.");
@@ -580,12 +1042,15 @@ export default function CrearItinerarioPantalla() {
 
       await cargarSugerencias(query);
 
-      const busqueda = form.destino.trim()
-        ? `${query}, ${form.destino}`
-        : query;
       const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(busqueda)}.json` +
-        `?access_token=${MAPBOX_TOKEN}&language=es&country=es&limit=1&types=address,place,postcode,poi,neighborhood,locality`;
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
+        `?access_token=${MAPBOX_TOKEN}` +
+        `&language=es` +
+        `&country=es` +
+        `&limit=1` +
+        `&types=address,place,postcode,poi,neighborhood,locality` +
+        `&bbox=${bboxToMapboxParam(destinoConfig.bbox)}` +
+        `&proximity=${destinoConfig.centro[0]},${destinoConfig.centro[1]}`;
 
       const response = await fetch(url);
 
@@ -597,7 +1062,12 @@ export default function CrearItinerarioPantalla() {
       const sugerencia = featureToSuggestion(data.features?.[0] ?? {});
 
       if (!sugerencia) {
-        setErrorBase("No se ha encontrado esa zona. Prueba con otra búsqueda.");
+        setErrorBase(`No se ha encontrado esa zona dentro de ${destinoConfig.nombre}.`);
+        return;
+      }
+
+      if (!coordsDentroDeDestino(sugerencia.lon, sugerencia.lat, form.destino)) {
+        setErrorBase(`La zona encontrada está fuera de ${destinoConfig.nombre}.`);
         return;
       }
 
@@ -617,21 +1087,13 @@ export default function CrearItinerarioPantalla() {
       );
     }
 
-    const negativePreferences = parseNegativePreferences(
-      form.preferenciasNegativas,
-    );
-    const destination =
-      form.destino.trim() || inferDestinationFromBase(form.zonaBase);
-    const days = Number(form.dias || daysPlaceholder || 1);
+    const negativePreferences = parseNegativePreferences(form.restricciones);
+    const destinoPermitido = getDestinoPermitido(form.destino);
+    const destination = destinoPermitido?.nombre ?? form.destino.trim();
+    const daysFromDates = Number(getDaysPlaceholder(range.start, range.end));
+    const days = Number(form.dias) || daysFromDates || 1;
 
-    const notes = [
-      form.restricciones.trim(),
-      negativePreferences.length > 0
-        ? `Preferencias negativas: ${negativePreferences.join(", ")}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n");
+    const notes = form.restricciones.trim();
 
     return {
       id_usuario: idUsuario,
@@ -660,19 +1122,39 @@ export default function CrearItinerarioPantalla() {
     };
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function generarItinerarioAhora() {
+    if (generando) return;
 
-    if (!baseCoords) {
+    const erroresValidacion = getErroresValidacion();
+
+    if (erroresValidacion.length > 0) {
+      const mensaje = `Te faltan estos datos para generar el itinerario:\n\n${erroresValidacion
+        .map((campo) => `• ${campo}`)
+        .join("\n")}`;
+
+      setAvisoValidacion(mensaje);
+      setErrorFormulario(null);
       setErrorBase(
-        "Selecciona una zona base con el buscador o haciendo click en el mapa.",
+        erroresValidacion.some((campo) =>
+          campo.toLowerCase().includes("zona base"),
+        )
+          ? "Selecciona una zona base válida con el buscador o haciendo click en el mapa."
+          : null,
       );
       return;
     }
 
     try {
       setGenerando(true);
+      setProgresoGeneracion(8);
+      setAvisoValidacion(null);
       setErrorBase(null);
+      setErrorFormulario(null);
+
+      const destinoPermitido = getDestinoPermitido(form.destino);
+      if (destinoPermitido) {
+        setDestinoSeleccionado(destinoPermitido.id);
+      }
 
       const payload = generarPayloadRecomendador();
       localStorage.setItem(
@@ -685,515 +1167,692 @@ export default function CrearItinerarioPantalla() {
       localStorage.removeItem(STORAGE_KEY_FORM_DRAFT);
       localStorage.removeItem(STORAGE_KEY_BASE_COORDS);
 
-      navigate(`/chat/conversacion/${resultado.id_conversacion}`);
+      setProgresoGeneracion(100);
+
+      window.setTimeout(() => {
+        navigate(`/chat/conversacion/${resultado.id_conversacion}`);
+      }, 350);
     } catch (error) {
       console.error(error);
-      setErrorBase(
+      setErrorFormulario(
         error instanceof Error
           ? error.message
           : "No se pudo generar el itinerario. Revisa que el backend y la IA estén arrancados.",
       );
     } finally {
-      setGenerando(false);
+      window.setTimeout(() => {
+        setGenerando(false);
+      }, 350);
     }
   }
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void generarItinerarioAhora();
+  }
+
   return (
-  <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
-    <div className="mx-auto w-full max-w-[860px] px-5 pb-28 pt-5">
-      <section className="rounded-[30px] bg-gradient-to-br from-[#fff8f4] via-[#ffffff] to-[#f4f1ff] p-5 shadow-[0_12px_30px_rgba(15,23,42,0.07)]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
-              Itinerarios
-            </p>
-
-            <h1 className="mt-2 text-[24px] font-bold tracking-[-0.03em]">
-              Crear itinerario
-            </h1>
-
-            <p className="mt-2 text-sm leading-6 text-[#667085]">
-              Rellena el destino, la zona base y tus preferencias. Al generar
-              se abrirá automáticamente el chat con la propuesta guardada.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate("/itinerarios")}
-            className="shrink-0 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-[#111827] shadow-sm"
-          >
-            Cerrar
-          </button>
-        </div>
-
-        <div className="mt-5 rounded-[22px] bg-[#fff7f1] p-4">
-          <div className="flex items-center justify-between gap-3">
+    <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
+      <div className="mx-auto w-full max-w-[860px] px-5 pb-28 pt-5">
+        <section className="rounded-[30px] bg-gradient-to-br from-[#fff8f4] via-[#ffffff] to-[#f4f1ff] p-5 shadow-[0_12px_30px_rgba(15,23,42,0.07)]">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-semibold text-[#8c2d12]">
-                Preguntas clave para el motor de IA
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
+                Itinerarios
               </p>
 
-              <p className="mt-1 text-xs leading-5 text-[#b54708]">
-                Pulsa para ver u ocultar las recomendaciones.
+              <h1 className="mt-2 text-[24px] font-bold tracking-[-0.03em]">
+                Crear itinerario
+              </h1>
+
+              <p className="mt-2 text-sm leading-6 text-[#667085]">
+                Rellena el destino, la zona base y tus preferencias. Al generar
+                se abrirá automáticamente el chat con la propuesta guardada.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => setMostrarRecomendaciones((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#ff5a36]"
+              onClick={() => navigate("/itinerarios")}
+              className="shrink-0 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-[#111827] shadow-sm"
             >
-              <span>{mostrarRecomendaciones ? "Ocultar" : "Ver guía"}</span>
-              <IconoChevron open={mostrarRecomendaciones} />
+              Cerrar
             </button>
           </div>
 
-          {mostrarRecomendaciones && (
-            <div className="mt-4 rounded-[18px] border border-[#f2d7ca] bg-white px-4 py-4">
-              <ul className="space-y-2 text-[12px] leading-5 text-[#8c2d12]">
-                {preguntasIa.map((pregunta) => (
-                  <li key={pregunta.id}>
-                    <strong>{pregunta.titulo}</strong>
-                    <br />
-                    <span>{pregunta.ayuda}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </section>
+          <div className="mt-5 rounded-[22px] bg-[#fff7f1] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[#8c2d12]">
+                  Preguntas clave para el motor de IA
+                </p>
 
-      <form
-        onSubmit={handleSubmit}
-        className="mt-5 rounded-[30px] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
-      >
-        <div className="grid grid-cols-1 gap-4">
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              Destino
-            </label>
-
-            <input
-              type="text"
-              value={form.destino}
-              onChange={(event) => updateForm("destino", event.target.value)}
-              placeholder="Ej. Madrid, Málaga, Valencia..."
-              className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
-          </div>
-
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
-            <div className="mb-3">
-              <p className="text-sm font-bold text-[#111827]">
-                Zona base del viaje
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-[#667085]">
-                Escribe al menos 3 letras. Por ejemplo, si escribes{" "}
-                <strong>serr</strong>, aparecerán opciones como Calle de
-                Serrano. También puedes hacer click directamente en el mapa.
-              </p>
-            </div>
-
-            <div className="relative grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={form.zonaBase}
-                  onChange={(event) => updateZonaBase(event.target.value)}
-                  onFocus={() => setMostrandoSugerencias(true)}
-                  placeholder="Ej. Serrano, Bernabéu, Gran Vía, 28013..."
-                  className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-                />
-
-                {mostrandoSugerencias && sugerencias.length > 0 && (
-                  <div className="absolute left-0 right-0 top-[54px] z-30 overflow-hidden rounded-[18px] border border-[#e5e7eb] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
-                    {sugerencias.map((sugerencia) => (
-                      <button
-                        key={sugerencia.id}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => aplicarUbicacion(sugerencia)}
-                        className="block w-full border-b border-[#f1f5f9] px-4 py-3 text-left text-sm text-[#344054] transition last:border-b-0 hover:bg-[#fff7f3] hover:text-[#ff5a36]"
-                      >
-                        {sugerencia.nombre}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <p className="mt-1 text-xs leading-5 text-[#b54708]">
+                  Pulsa para ver u ocultar las recomendaciones.
+                </p>
               </div>
 
               <button
                 type="button"
-                onClick={buscarZonaBase}
-                disabled={buscandoBase}
-                className="rounded-[18px] bg-[#111827] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                onClick={() => setMostrarRecomendaciones((prev) => !prev)}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#ff5a36]"
               >
-                {buscandoBase ? "Buscando..." : "Buscar zona"}
+                <span>{mostrarRecomendaciones ? "Ocultar" : "Ver guía"}</span>
+                <IconoChevron open={mostrarRecomendaciones} />
               </button>
             </div>
 
-            {errorBase && (
-              <p className="mt-3 rounded-[14px] bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
-                {errorBase}
-              </p>
-            )}
-
-            {baseCoords && (
-              <div className="mt-3 rounded-[16px] bg-[#ecfdf3] px-4 py-3 text-xs leading-5 text-[#027a48]">
-                <p className="font-semibold">Base seleccionada:</p>
-                <p>{baseCoords.label}</p>
-                <p className="mt-1">
-                  base_lat: <strong>{baseCoords.lat.toFixed(6)}</strong> ·
-                  base_lon: <strong>{baseCoords.lon.toFixed(6)}</strong>
-                </p>
+            {mostrarRecomendaciones && (
+              <div className="mt-4 rounded-[18px] border border-[#f2d7ca] bg-white px-4 py-4">
+                <ul className="space-y-2 text-[12px] leading-5 text-[#8c2d12]">
+                  {preguntasIa.map((pregunta) => (
+                    <li key={pregunta.id}>
+                      <strong>{pregunta.titulo}</strong>
+                      <br />
+                      <span>{pregunta.ayuda}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
-
-            <div className="mt-4 h-[280px] overflow-hidden rounded-[22px] border border-[#e5e7eb] bg-[#eef2f7]">
-              {MAPBOX_TOKEN ? (
-                <div ref={mapContainerRef} className="h-full w-full" />
-              ) : (
-                <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#667085]">
-                  Falta configurar VITE_MAPBOX_TOKEN en el .env del frontend.
-                </div>
-              )}
-            </div>
           </div>
+        </section>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <form
+          noValidate
+          onSubmit={handleSubmit}
+          className="mt-5 rounded-[30px] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
+        >
+          {errorFormulario && (
+            <div className="mb-4 rounded-[18px] bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+              {errorFormulario}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Días
+                Destino
+              </label>
+
+              <select
+                value={form.destino}
+                onChange={(event) => updateDestino(event.target.value)}
+                required
+                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none text-[#111827]"
+              >
+                <option value="">Selecciona un destino disponible</option>
+                {DESTINOS_DISPONIBLES.map((destino) => (
+                  <option key={destino.id} value={destino.nombre}>
+                    {destino.nombre}
+                  </option>
+                ))}
+              </select>
+
+              <p className="mt-2 text-xs leading-5 text-[#667085]">
+                Solo se muestran los destinos que ya tenemos resueltos con imágenes, POIs y mapa.
+              </p>
+            </div>
+
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
+              <div className="mb-3">
+                <p className="text-sm font-bold text-[#111827]">
+                  Zona base del viaje
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-[#667085]">
+                  Escribe al menos 3 letras. Las sugerencias se limitarán al destino seleccionado.
+                  También puedes hacer click directamente en el mapa.
+                </p>
+              </div>
+
+              <div className="relative grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={form.zonaBase}
+                    onChange={(event) => updateZonaBase(event.target.value)}
+                    onFocus={() => setMostrandoSugerencias(true)}
+                    placeholder="Ej. Serrano, Bernabéu, Gran Vía, 28013..."
+                    className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+                  />
+
+                  {mostrandoSugerencias && sugerencias.length > 0 && (
+                    <div className="absolute left-0 right-0 top-[54px] z-30 overflow-hidden rounded-[18px] border border-[#e5e7eb] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+                      {sugerencias.map((sugerencia) => (
+                        <button
+                          key={sugerencia.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => aplicarUbicacion(sugerencia)}
+                          className="block w-full border-b border-[#f1f5f9] px-4 py-3 text-left text-sm text-[#344054] transition last:border-b-0 hover:bg-[#fff7f3] hover:text-[#ff5a36]"
+                        >
+                          {sugerencia.nombre}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={buscarZonaBase}
+                  disabled={buscandoBase}
+                  className="rounded-[18px] bg-[#111827] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {buscandoBase ? "Buscando..." : "Buscar zona"}
+                </button>
+              </div>
+
+              {errorBase && (
+                <p className="mt-3 rounded-[14px] bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
+                  {errorBase}
+                </p>
+              )}
+
+              {baseCoords && (
+                <div className="mt-3 rounded-[16px] bg-[#ecfdf3] px-4 py-3 text-xs leading-5 text-[#027a48]">
+                  <p className="font-semibold">Base seleccionada:</p>
+                  <p>{baseCoords.label}</p>
+                  <p className="mt-1">
+                    base_lat: <strong>{baseCoords.lat.toFixed(6)}</strong> ·
+                    base_lon: <strong>{baseCoords.lon.toFixed(6)}</strong>
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-4 h-[280px] overflow-hidden rounded-[22px] border border-[#e5e7eb] bg-[#eef2f7]">
+                {MAPBOX_TOKEN ? (
+                  <div ref={mapContainerRef} className="h-full w-full" />
+                ) : (
+                  <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#667085]">
+                    Falta configurar VITE_MAPBOX_TOKEN en el .env del frontend.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                  Días
+                </label>
+
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="14"
+                    value={form.dias}
+                    onChange={(event) => updateForm("dias", event.target.value)}
+                    placeholder={daysPlaceholder}
+                    className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={abrirCalendarioPopup}
+                    className="flex h-[46px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-[#ff5a36] text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)]"
+                    title="Seleccionar fechas"
+                  >
+                    <IconoCalendarioMini />
+                  </button>
+                </div>
+
+                <p className="mt-2 text-xs leading-5 text-[#667085]">
+                  Puedes escribir solo los días o seleccionar un rango de
+                  fechas.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                  Presupuesto
+                </label>
+
+                <select
+                  value={form.presupuesto}
+                  onChange={(event) =>
+                    updateForm("presupuesto", event.target.value)
+                  }
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
+                >
+                  <option>Bajo</option>
+                  <option>Medio</option>
+                  <option>Alto</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="rounded-[18px] bg-[#fff7f4] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#ff5a36]">
+                Fechas seleccionadas
+              </p>
+
+              <p className="mt-2 text-sm font-medium text-[#7a271a]">
+                {formatRangeText(range.start, range.end)}
+              </p>
+
+              <button
+                type="button"
+                onClick={abrirCalendarioPopup}
+                className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+              >
+                Abrir calendario
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                  Ritmo del viaje
+                </label>
+
+                <select
+                  value={form.ritmo}
+                  onChange={(event) => updateForm("ritmo", event.target.value)}
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
+                >
+                  <option>Equilibrado</option>
+                  <option>Relajado</option>
+                  <option>Intenso</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                  Tipo de viaje
+                </label>
+
+                <select
+                  value={form.tipoViaje}
+                  onChange={(event) =>
+                    updateForm("tipoViaje", event.target.value)
+                  }
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
+                >
+                  <option>Mixto</option>
+                  <option>Cultural</option>
+                  <option>Naturaleza</option>
+                  <option>Gastronomía</option>
+                  <option>Costa</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                Compañía
               </label>
 
               <input
-                type="number"
-                min="1"
-                max="14"
-                value={form.dias}
-                onChange={(event) => updateForm("dias", event.target.value)}
-                placeholder={daysPlaceholder}
+                type="text"
+                value={form.compania}
+                onChange={(event) => updateForm("compania", event.target.value)}
+                placeholder="Solo, pareja, amigos, familia..."
                 className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
               />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Presupuesto
+                Imprescindibles
               </label>
 
-              <select
-                value={form.presupuesto}
+              <textarea
+                rows={3}
+                value={form.imprescindibles}
                 onChange={(event) =>
-                  updateForm("presupuesto", event.target.value)
+                  updateForm("imprescindibles", event.target.value)
                 }
-                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
-              >
-                <option>Bajo</option>
-                <option>Medio</option>
-                <option>Alto</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="rounded-[18px] bg-[#fff7f4] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#ff5a36]">
-              Fechas seleccionadas
-            </p>
-
-            <p className="mt-2 text-sm font-medium text-[#7a271a]">
-              {formatRangeText(range.start, range.end)}
-            </p>
-
-            <button
-              type="button"
-              onClick={() => navigate("/calendario")}
-              className="mt-3 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
-            >
-              Abrir calendario
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Ritmo del viaje
-              </label>
-
-              <select
-                value={form.ritmo}
-                onChange={(event) => updateForm("ritmo", event.target.value)}
-                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
-              >
-                <option>Equilibrado</option>
-                <option>Relajado</option>
-                <option>Intenso</option>
-              </select>
+                placeholder="Lugares o actividades que deben aparecer sí o sí"
+                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+              />
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Tipo de viaje
+                Extras deseados
               </label>
 
-              <select
-                value={form.tipoViaje}
-                onChange={(event) =>
-                  updateForm("tipoViaje", event.target.value)
-                }
-                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
-              >
-                <option>Mixto</option>
-                <option>Cultural</option>
-                <option>Naturaleza</option>
-                <option>Gastronomía</option>
-                <option>Costa</option>
-              </select>
+              <textarea
+                rows={3}
+                value={form.extras}
+                onChange={(event) => updateForm("extras", event.target.value)}
+                placeholder="Restaurantes, miradores, compras, playas, ocio nocturno..."
+                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+              />
             </div>
-          </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              Compañía
-            </label>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                Transporte
+              </label>
 
-            <input
-              type="text"
-              value={form.compania}
-              onChange={(event) => updateForm("compania", event.target.value)}
-              placeholder="Solo, pareja, amigos, familia..."
-              className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              Imprescindibles
-            </label>
-
-            <textarea
-              rows={3}
-              value={form.imprescindibles}
-              onChange={(event) =>
-                updateForm("imprescindibles", event.target.value)
-              }
-              placeholder="Lugares o actividades que deben aparecer sí o sí"
-              className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              Extras deseados
-            </label>
-
-            <textarea
-              rows={3}
-              value={form.extras}
-              onChange={(event) => updateForm("extras", event.target.value)}
-              placeholder="Restaurantes, miradores, compras, playas, ocio nocturno..."
-              className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              Transporte
-            </label>
-
-            <input
-              type="text"
-              value={form.transporte}
-              onChange={(event) =>
-                updateForm("transporte", event.target.value)
-              }
-              placeholder="Coche, tren, transporte público, a pie..."
-              className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              Restricciones o notas
-            </label>
-
-            <textarea
-              rows={3}
-              value={form.restricciones}
-              onChange={(event) =>
-                updateForm("restricciones", event.target.value)
-              }
-              placeholder="Niños, movilidad, horarios, preferencias alimentarias..."
-              className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
-          </div>
-
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              Preferencias negativas
-            </label>
-
-            <textarea
-              rows={3}
-              value={form.preferenciasNegativas}
-              onChange={(event) =>
-                updateForm("preferenciasNegativas", event.target.value)
-              }
-              placeholder="Ej. No quiero museos, no quiero caminar mucho, evitar playas..."
-              className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
-
-            <p className="mt-2 text-xs leading-5 text-[#667085]">
-              Puedes separarlas por comas o escribir una por línea. Se
-              enviarán como negative_preferences.
-            </p>
-          </div>
-
-          <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
-            <label className="mb-2 block text-sm font-semibold text-[#111827]">
-              POIs que NO quieres que salgan
-            </label>
-
-            <p className="mb-3 text-xs leading-5 text-[#667085]">
-              Escribe parte del nombre y selecciona el POI real. Por ejemplo,
-              si escribes <strong>plaza</strong>, aparecerán lugares como
-              Plaza de España, Puerta del Sol o plazas similares guardadas en
-              tu base de datos.
-            </p>
-
-            <div className="relative">
               <input
                 type="text"
-                value={busquedaPoiExcluido}
+                value={form.transporte}
                 onChange={(event) =>
-                  setBusquedaPoiExcluido(event.target.value)
+                  updateForm("transporte", event.target.value)
                 }
-                placeholder="Ej. Plaza España, Bernabéu, Museo del Prado..."
+                placeholder="Coche, tren, transporte público, a pie..."
+                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+              />
+            </div>
+
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
+              <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                Restricciones y preferencias negativas
+              </label>
+
+              <textarea
+                rows={4}
+                value={form.restricciones}
+                onChange={(event) =>
+                  updateForm("restricciones", event.target.value)
+                }
+                placeholder="Ej. No quiero museos, no caminar mucho, evitar playas, movilidad reducida, horarios concretos..."
                 className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
               />
 
-              {busquedaPoiExcluido.trim().length >= 3 && (
-                <div className="absolute left-0 right-0 top-[54px] z-40 overflow-hidden rounded-[18px] border border-[#e5e7eb] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
-                  {buscandoPoiExcluido ? (
-                    <div className="px-4 py-3 text-sm text-[#667085]">
-                      Buscando POIs...
-                    </div>
-                  ) : sugerenciasPoisExcluidos.length > 0 ? (
-                    sugerenciasPoisExcluidos.map((poi) => (
-                      <button
-                        key={poi.id_poi}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => seleccionarPoiExcluido(poi)}
-                        className="block w-full border-b border-[#f1f5f9] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#fff7f3]"
-                      >
-                        <p className="text-sm font-semibold text-[#111827]">
-                          {poi.nombre}
-                        </p>
-                        <p className="mt-1 text-xs text-[#667085]">
-                          {[
-                            poi.categoria_poi?.nombre,
-                            poi.municipio?.nombre,
-                            poi.direccion,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ") || "POI de la base de datos"}
-                        </p>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-[#667085]">
-                      No hay coincidencias. Prueba con otro nombre.
-                    </div>
-                  )}
-                </div>
-              )}
+              <p className="mt-2 text-xs leading-5 text-[#667085]">
+                Aquí unificamos restricciones y cosas que quieres evitar. Puedes
+                separarlas por comas o escribir una por línea.
+              </p>
             </div>
 
-            {parseVisitedNames(form.visitedGlobalIds).length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {parseVisitedNames(form.visitedGlobalIds).map((nombre) => (
-                  <button
-                    key={nombre}
-                    type="button"
-                    onClick={() => eliminarPoiExcluido(nombre)}
-                    className="rounded-full bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
-                  >
-                    {nombre} ×
-                  </button>
-                ))}
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
+              <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                POIs que NO quieres que salgan
+              </label>
+
+              <p className="mb-3 text-xs leading-5 text-[#667085]">
+                Escribe parte del nombre y selecciona el POI real. Por ejemplo,
+                si escribes <strong>plaza</strong>, aparecerán lugares como
+                Plaza de España, Puerta del Sol o plazas similares guardadas en
+                tu base de datos.
+              </p>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  value={busquedaPoiExcluido}
+                  onChange={(event) =>
+                    setBusquedaPoiExcluido(event.target.value)
+                  }
+                  placeholder="Ej. Plaza España, Bernabéu, Museo del Prado..."
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+                />
+
+                {busquedaPoiExcluido.trim().length >= 3 && (
+                  <div className="absolute left-0 right-0 top-[54px] z-40 overflow-hidden rounded-[18px] border border-[#e5e7eb] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
+                    {buscandoPoiExcluido ? (
+                      <div className="px-4 py-3 text-sm text-[#667085]">
+                        Buscando POIs...
+                      </div>
+                    ) : sugerenciasPoisExcluidos.length > 0 ? (
+                      sugerenciasPoisExcluidos.map((poi) => (
+                        <button
+                          key={poi.id_poi}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => seleccionarPoiExcluido(poi)}
+                          className="block w-full border-b border-[#f1f5f9] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#fff7f3]"
+                        >
+                          <p className="text-sm font-semibold text-[#111827]">
+                            {poi.nombre}
+                          </p>
+                          <p className="mt-1 text-xs text-[#667085]">
+                            {[
+                              poi.categoria_poi?.nombre,
+                              poi.municipio?.nombre,
+                              poi.direccion,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || "POI de la base de datos"}
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-[#667085]">
+                        No hay coincidencias. Prueba con otro nombre.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {parseVisitedNames(form.visitedGlobalIds).length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {parseVisitedNames(form.visitedGlobalIds).map((nombre) => (
+                    <button
+                      key={nombre}
+                      type="button"
+                      onClick={() => eliminarPoiExcluido(nombre)}
+                      className="rounded-full bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
+                    >
+                      {nombre} ×
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <textarea
+                rows={2}
+                value={form.visitedGlobalIds}
+                onChange={(event) =>
+                  updateForm("visitedGlobalIds", event.target.value)
+                }
+                placeholder="También puedes escribir nombres separados por comas: Bernabéu, Puerta del Sol..."
+                className="mt-4 w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+              />
+
+              <p className="mt-2 text-xs leading-5 text-[#667085]">
+                El backend comparará estos nombres con la tabla Poi y los
+                convertirá a global_id para que el recomendador no los elija.
+              </p>
+            </div>
+
+            <div className="rounded-[24px] border border-[#dbeafe] bg-[#eff6ff] p-4">
+              <p className="text-sm font-black text-[#1d4ed8]">
+                Eventos en vivo bajo demanda
+              </p>
+
+              <p className="mt-2 text-sm leading-6 text-[#1e3a8a]">
+                El itinerario se generará sin cargar conciertos, teatro o
+                eventos live automáticamente. Después, dentro de cada día del
+                itinerario, podrás buscar eventos en vivo y añadir solo los que
+                realmente te interesen.
+              </p>
+
+              <label className="mt-4 flex items-center gap-3 text-sm font-semibold text-[#1e3a8a]">
+                <input
+                  type="checkbox"
+                  checked={form.cargarEventosLiveLuego}
+                  onChange={(event) =>
+                    updateForm("cargarEventosLiveLuego", event.target.checked)
+                  }
+                />
+                Gestionar eventos live manualmente después
+              </label>
+
+              <div className="mt-4 rounded-[18px] bg-white/70 px-4 py-3 text-xs leading-5 text-[#1e3a8a]">
+                Esta opción evita cargar eventos de pago o demasiadas propuestas
+                desde el principio. Así mantienes el itinerario limpio y luego
+                decides qué conciertos, teatro o planes en vivo quieres
+                incorporar.
+              </div>
+            </div>
+
+            {errorFormulario && (
+              <div className="rounded-[18px] bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+                {errorFormulario}
               </div>
             )}
 
-            <textarea
-              rows={2}
-              value={form.visitedGlobalIds}
-              onChange={(event) =>
-                updateForm("visitedGlobalIds", event.target.value)
-              }
-              placeholder="También puedes escribir nombres separados por comas: Bernabéu, Puerta del Sol..."
-              className="mt-4 w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-            />
+            <div className="mt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/itinerarios")}
+                className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+              >
+                Cancelar
+              </button>
 
-            <p className="mt-2 text-xs leading-5 text-[#667085]">
-              El backend comparará estos nombres con la tabla Poi y los
-              convertirá a global_id para que el recomendador no los elija.
-            </p>
-          </div>
-
-          <div className="rounded-[24px] border border-[#dbeafe] bg-[#eff6ff] p-4">
-            <p className="text-sm font-black text-[#1d4ed8]">
-              Eventos en vivo bajo demanda
-            </p>
-
-            <p className="mt-2 text-sm leading-6 text-[#1e3a8a]">
-              El itinerario se generará sin cargar conciertos, teatro o eventos
-              live automáticamente. Después, dentro de cada día del itinerario,
-              podrás buscar eventos en vivo y añadir solo los que realmente te
-              interesen.
-            </p>
-
-            <label className="mt-4 flex items-center gap-3 text-sm font-semibold text-[#1e3a8a]">
-              <input
-                type="checkbox"
-                checked={form.cargarEventosLiveLuego}
-                onChange={(event) =>
-                  updateForm("cargarEventosLiveLuego", event.target.checked)
-                }
-              />
-              Gestionar eventos live manualmente después
-            </label>
-
-            <div className="mt-4 rounded-[18px] bg-white/70 px-4 py-3 text-xs leading-5 text-[#1e3a8a]">
-              Esta opción evita cargar eventos de pago o demasiadas propuestas
-              desde el principio. Así mantienes el itinerario limpio y luego
-              decides qué conciertos, teatro o planes en vivo quieres incorporar.
+              <button
+                type="button"
+                disabled={generando}
+                onClick={() => void generarItinerarioAhora()}
+                className="flex-1 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {generando ? "Generando..." : "Generar itinerario"}
+              </button>
             </div>
           </div>
+        </form>
+      </div>
 
-          <div className="mt-2 flex gap-3">
+      {calendarioAbierto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-[430px] rounded-[30px] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-[#ff5a36]">
+                  Calendario
+                </p>
+                <h2 className="mt-2 text-[22px] font-bold tracking-[-0.03em] text-[#111827]">
+                  Seleccionar fechas
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#667085]">
+                  El inicio mínimo es mañana. También puedes cerrar esto y
+                  escribir solo los días.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCalendarioAbierto(false)}
+                className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-bold text-[#111827]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                  Fecha de inicio
+                </label>
+                <input
+                  type="date"
+                  min={getTomorrowIso()}
+                  value={fechaInicioTemp}
+                  onChange={(event) => {
+                    const nextStart = event.target.value;
+                    setFechaInicioTemp(nextStart);
+                    if (fechaFinTemp < nextStart) setFechaFinTemp(nextStart);
+                  }}
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                  Fecha final
+                </label>
+                <input
+                  type="date"
+                  min={fechaInicioTemp || getTomorrowIso()}
+                  value={fechaFinTemp}
+                  onChange={(event) => setFechaFinTemp(event.target.value)}
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
+                />
+              </div>
+
+              <div className="rounded-[18px] bg-[#fff7f4] px-4 py-3 text-sm font-semibold text-[#9a3412]">
+                Duración calculada:{" "}
+                {getDaysPlaceholder(fechaInicioTemp, fechaFinTemp)} días
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <button
+                type="button"
+                onClick={limpiarRangoFechas}
+                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+              >
+                Sin fecha
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCalendarioAbierto(false)}
+                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={guardarRangoFechas}
+                className="rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)]"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {avisoValidacion && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[30px] bg-white p-6 text-center shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff4ef] text-xl font-black text-[#ff5a36]">
+              !
+            </div>
+
+            <h2 className="mt-5 text-xl font-bold text-[#111827]">
+              Faltan datos
+            </h2>
+
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#667085]">
+              {avisoValidacion}
+            </p>
+
             <button
               type="button"
-              onClick={() => navigate("/itinerarios")}
-              className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+              onClick={() => setAvisoValidacion(null)}
+              className="mt-5 w-full rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)]"
             >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={generando}
-              className="flex-1 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {generando ? "Generando..." : "Generar itinerario"}
+              Entendido
             </button>
           </div>
         </div>
-      </form>
+      )}
+
+      {generando && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 px-5 backdrop-blur-sm">
+          <div className="w-full max-w-[360px] rounded-[30px] bg-white p-6 text-center shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#ffe0d6] border-t-[#ff5a36]" />
+            <h2 className="mt-5 text-xl font-bold text-[#111827]">
+              Generando itinerario
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#667085]">
+              Estamos preparando la ruta con tus preferencias. No cierres esta
+              pantalla.
+            </p>
+            <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#f3f4f6]">
+              <div
+                className="h-full rounded-full bg-[#ff5a36] transition-all duration-500"
+                style={{ width: `${progresoGeneracion}%` }}
+              />
+            </div>
+            <p className="mt-3 text-sm font-black text-[#ff5a36]">
+              {progresoGeneracion}%
+            </p>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
 }

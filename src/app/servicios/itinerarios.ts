@@ -197,3 +197,40 @@ export const actualizarItinerario = (
 
 export const eliminarItinerario = (idItinerario: number) =>
   apiDelete<DeleteResponse>(`/api/itinerarios/${idItinerario}`);
+
+
+export type AccionManualItinerario =
+  | { action: "remove"; dayNumber: number; poiId?: number; poiName?: string }
+  | { action: "insert"; dayNumber: number; index?: number; poiId?: number; poiGlobalId?: string; poiName?: string; query?: string }
+  | { action: "swap"; dayNumber: number; fromIndex: number; toIndex: number }
+  | { action: "move"; fromDayNumber: number; toDayNumber: number; poiId?: number; poiName?: string; index?: number }
+  | { action: "replace"; dayNumber: number; oldPoiId?: number; oldPoiName?: string; newPoiId?: number; newPoiGlobalId?: string; newPoiName?: string; query?: string };
+
+export interface RespuestaAccionManualItinerario {
+  ok: boolean;
+  resultado: unknown;
+}
+
+export interface RespuestaRegenerarDia {
+  ok: boolean;
+  itinerario: Itinerario;
+  resumen: string;
+}
+
+export const aplicarAccionManualItinerario = (
+  idItinerario: number,
+  payload: AccionManualItinerario
+) =>
+  apiPost<RespuestaAccionManualItinerario, AccionManualItinerario>(
+    `/api/itinerarios/${idItinerario}/acciones/manual`,
+    payload
+  );
+
+export const regenerarDiaItinerario = (
+  idItinerario: number,
+  payload: { dayNumber: number; mensaje?: string; message?: string }
+) =>
+  apiPost<RespuestaRegenerarDia, { dayNumber: number; mensaje?: string; message?: string }>(
+    `/api/itinerarios/${idItinerario}/regenerar-dia`,
+    payload
+  );

@@ -2,18 +2,48 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  crearMensaje,
   getConversacionDetalle,
+  procesarMensajeChat,
   type Conversacion,
   type Mensaje,
 } from "@/app/servicios/conversacion";
 
-const SUGERENCIAS = [
-  "No quiero caminar mucho",
-  "Evita repetir POIs",
-  "Dame opciones de comida local",
-  "Hazlo más relajado",
-];
+function normalizarTexto(value?: string | null): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getDestinoDesdeConversacion(conversacion?: Conversacion | null): string {
+  const titulo = conversacion?.titulo ?? "";
+  const key = normalizarTexto(titulo);
+
+  if (key.includes("madrid")) return "Madrid";
+  if (key.includes("baleares") || key.includes("mallorca")) return "Baleares";
+  if (key.includes("canarias")) return "Canarias";
+  if (key.includes("valencia") || key.includes("valenciana")) return "Valencia";
+  if (key.includes("andalucia")) return "Andalucía";
+  if (key.includes("asturias")) return "Asturias";
+  if (key.includes("cantabria")) return "Cantabria";
+  if (key.includes("cataluna") || key.includes("cataluña") || key.includes("barcelona")) return "Cataluña";
+
+  return "este destino";
+}
+
+function getSugerenciasChat(conversacion?: Conversacion | null): string[] {
+  const destino = getDestinoDesdeConversacion(conversacion);
+  const key = normalizarTexto(destino);
+  const tieneCosta = ["baleares", "canarias", "valencia", "andalucia", "cataluna", "cantabria", "asturias"].some((item) => key.includes(item));
+
+  return [
+    "Quita el POI que menos encaje del día 1",
+    `Añade un POI destacado de ${destino} al día 3`,
+    tieneCosta ? "Añade una playa o cala al día 2" : "Añade un mirador o parque al día 2",
+    "Regenera el día 3 con un enfoque más gastronómico",
+  ];
+}
 
 function formatHora(value?: string | null): string {
   if (!value) return "";
@@ -22,18 +52,29 @@ function formatHora(value?: string | null): string {
   return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
 }
 
-function respuestaLocal(texto: string): string {
-  const t = texto.toLowerCase();
-  if (t.includes("caminar") || t.includes("andar")) {
-    return "Perfecto. Lo guardaré como ajuste: menos caminatas, más agrupación por zonas y trayectos cortos.";
-  }
-  if (t.includes("repetir") || t.includes("pois")) {
-    return "Entendido. Evitaré repetir POIs ya usados y priorizaré alternativas cercanas.";
-  }
-  if (t.includes("comida") || t.includes("gastronom")) {
-    return "Genial. Daré más peso a gastronomía local, mercados, tapeo y restaurantes próximos a la ruta.";
-  }
-  return "Perfecto, lo añado como preferencia para ajustar el itinerario.";
+function esMensajeTecnicoInicial(mensaje: Mensaje): boolean {
+  const contenido = (mensaje.contenido ?? "").toLowerCase();
+
+  return (
+    mensaje.rol === "user" &&
+    contenido.includes("quiero generar un itinerario") &&
+    contenido.includes("presupuesto") &&
+    contenido.includes("transporte")
+  );
+}
+
+function esRespuestaTecnicaLarga(mensaje: Mensaje): boolean {
+  const contenido = mensaje.contenido ?? "";
+  return (
+    mensaje.rol === "assistant" &&
+    contenido.length > 1200 &&
+    (contenido.includes("Día 1") || contenido.includes("Dia 1")) &&
+    (contenido.includes("Parada") || contenido.includes("POI") || contenido.includes("Consejo"))
+  );
+}
+
+function limpiarMensajes(mensajes: Mensaje[]): Mensaje[] {
+  return mensajes.filter((mensaje) => !esMensajeTecnicoInicial(mensaje) && !esRespuestaTecnicaLarga(mensaje));
 }
 
 export default function ChatDetallePantalla() {
@@ -49,7 +90,7 @@ export default function ChatDetallePantalla() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const idItinerarioRelacionado = conversacion?.id_itinerario_relacionado ?? null;
+  const idItinerarioRelacionado = conversacion?.id_itinerario_relacionado ?? conversacion?.id_itinerario ?? null;
 
   useEffect(() => {
     async function cargar() {
@@ -64,7 +105,7 @@ export default function ChatDetallePantalla() {
         setError(null);
         const data = await getConversacionDetalle(id);
         setConversacion(data);
-        setMensajes(Array.isArray(data.mensajes) ? data.mensajes : []);
+        setMensajes(limpiarMensajes(Array.isArray(data.mensajes) ? data.mensajes : []));
       } catch (err) {
         console.error(err);
         setError("No se pudo cargar esta conversación.");
@@ -89,18 +130,11 @@ export default function ChatDetallePantalla() {
       setError(null);
       setInput("");
 
-      const user = await crearMensaje({ id_conversacion: id, rol: "user", contenido: texto });
-      setMensajes((prev) => [...prev, user]);
-
-      const assistant = await crearMensaje({
-        id_conversacion: id,
-        rol: "assistant",
-        contenido: respuestaLocal(texto),
-      });
-      setMensajes((prev) => [...prev, assistant]);
+      const result = await procesarMensajeChat(id, { contenido: texto });
+      setMensajes((prev) => limpiarMensajes([...prev, result.user, result.assistant]));
     } catch (err) {
       console.error(err);
-      setError("No se pudo enviar el mensaje.");
+      setError("No se pudo procesar el mensaje. Revisa que el backend esté arrancado y que la ruta /api/chat-acciones esté registrada.");
       setInput(texto);
     } finally {
       setSending(false);
@@ -112,7 +146,13 @@ export default function ChatDetallePantalla() {
     void enviarMensaje();
   }
 
+  function abrirDetalleItinerario() {
+    if (!idItinerarioRelacionado) return;
+    navigate(`/itinerarios/${idItinerarioRelacionado}?refresh=${Date.now()}`);
+  }
+
   const titulo = conversacion?.titulo || "Chat SpainWay";
+  const sugerencias = useMemo(() => getSugerenciasChat(conversacion), [conversacion]);
 
   return (
     <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
@@ -138,7 +178,7 @@ export default function ChatDetallePantalla() {
             {idItinerarioRelacionado && (
               <button
                 type="button"
-                onClick={() => navigate(`/itinerarios/${idItinerarioRelacionado}`)}
+                onClick={abrirDetalleItinerario}
                 className="hidden rounded-2xl bg-[#ff5a36] px-4 py-3 text-xs font-black text-white shadow-[0_10px_24px_rgba(255,90,54,0.24)] sm:block"
               >
                 Ver itinerario
@@ -163,10 +203,10 @@ export default function ChatDetallePantalla() {
               <div className="rounded-[28px] bg-white p-5 shadow-sm">
                 <p className="text-lg font-black text-[#111827]">Empieza la conversación</p>
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Puedes pedir cambios sobre el itinerario, añadir restricciones o mejorar la ruta.
+                  Puedes pedir cambios concretos. Si el cambio se puede aplicar, se guardará en la base de datos y el detalle del itinerario se actualizará.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {SUGERENCIAS.map((item) => (
+                  {sugerencias.map((item) => (
                     <button
                       key={item}
                       type="button"
@@ -201,7 +241,7 @@ export default function ChatDetallePantalla() {
                         {!esUsuario && idItinerarioRelacionado && esUltimoMensaje && (
                           <button
                             type="button"
-                            onClick={() => navigate(`/itinerarios/${idItinerarioRelacionado}`)}
+                            onClick={abrirDetalleItinerario}
                             className="mt-4 w-full rounded-2xl bg-[#111827] px-4 py-3 text-sm font-black text-white transition hover:bg-[#0b1220]"
                           >
                             Ver detalle del itinerario →
@@ -224,7 +264,7 @@ export default function ChatDetallePantalla() {
             {sending && (
               <div className="mt-4 flex justify-start">
                 <div className="rounded-[24px] rounded-bl-md bg-white px-4 py-3 text-sm font-semibold text-[#667085] shadow-sm">
-                  SpainWay está escribiendo...
+                  SpainWay está comprobando y guardando el cambio...
                 </div>
               </div>
             )}
@@ -235,7 +275,7 @@ export default function ChatDetallePantalla() {
             <div className="border-t border-[#eef2f7] bg-white px-4 py-3">
               <button
                 type="button"
-                onClick={() => navigate(`/itinerarios/${idItinerarioRelacionado}`)}
+                onClick={abrirDetalleItinerario}
                 className="w-full rounded-2xl bg-[#111827] px-5 py-4 text-sm font-black text-white shadow-[0_12px_28px_rgba(17,24,39,0.16)]"
               >
                 Ver detalle del itinerario →
@@ -255,7 +295,7 @@ export default function ChatDetallePantalla() {
                     void enviarMensaje();
                   }
                 }}
-                placeholder="Escribe un cambio para tu itinerario..."
+                placeholder="Ej. Quita Plaza Mayor del día 2 y pon otro diferente..."
                 className="max-h-32 min-h-[48px] flex-1 resize-none rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
               />
               <button

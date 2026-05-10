@@ -18,12 +18,14 @@ export interface Conversacion {
   mensajes?: Mensaje[];
   ultimo_mensaje?: string | null;
   total_mensajes?: number;
+  id_itinerario?: number | null;
   id_itinerario_relacionado?: number | null;
 }
 
 export interface CrearConversacionPayload {
   id_usuario: number;
   titulo?: string;
+  id_itinerario?: number | null;
 }
 
 export interface CrearMensajePayload {
@@ -54,3 +56,26 @@ export const getMensajes = (idConversacion: number) =>
 
 export const crearMensaje = (payload: CrearMensajePayload) =>
   apiPost<Mensaje, CrearMensajePayload>("/api/mensajes", payload);
+
+
+export interface ProcesarMensajeChatPayload {
+  contenido: string;
+}
+
+export interface ProcesarMensajeChatResponse {
+  user: Mensaje;
+  assistant: Mensaje;
+  action: string;
+  error?: string;
+  itinerario?: unknown;
+  poi?: unknown;
+}
+
+export const procesarMensajeChat = (
+  idConversacion: number,
+  payload: ProcesarMensajeChatPayload
+) =>
+  apiPost<ProcesarMensajeChatResponse, ProcesarMensajeChatPayload>(
+    `/api/chat-acciones/${idConversacion}/procesar`,
+    payload
+  );
