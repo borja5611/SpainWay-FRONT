@@ -23,12 +23,14 @@ type CoordenadasBase = {
   label: string;
 };
 
+type SugerenciaKind = "lodging" | "address" | "area" | "poi";
+
 type SugerenciaBase = {
   id: string;
   nombre: string;
   lat: number;
   lon: number;
-  kind: "lodging" | "address" | "area" | "poi";
+  kind: SugerenciaKind;
   secondaryText?: string;
 };
 
@@ -324,7 +326,14 @@ function safeJsonParse<T>(raw: string | null): T | null {
 }
 
 function readStoredRange(): { start: string | null; end: string | null } {
-  return { start: null, end: null };
+  const parsed = safeJsonParse<{ start?: string | null; end?: string | null }>(
+    localStorage.getItem(STORAGE_KEY_RANGE),
+  );
+
+  return {
+    start: parsed?.start ?? null,
+    end: parsed?.end ?? null,
+  };
 }
 
 function readStoredForm(): FormularioItinerario {
@@ -414,6 +423,13 @@ function normalizarTextoBusqueda(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
+function getQueryTerms(value: string): string[] {
+  return normalizarTextoBusqueda(value)
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2);
+}
+
 function esBusquedaAlojamiento(query: string): boolean {
   const q = normalizarTextoBusqueda(query);
   return [
@@ -429,37 +445,119 @@ function esBusquedaAlojamiento(query: string): boolean {
     "pension",
     "pensión",
     "airbnb",
-  ].some((term) => q.includes(term));
+    "riu",
+    "nh",
+    "ibis",
+    "melia",
+    "melia",
+    "barcelo",
+    "barceló",
+    "room mate",
+    "vincci",
+  ].some((term) => q.includes(normalizarTextoBusqueda(term)));
 }
 
 function deduplicarSugerencias(items: SugerenciaBase[]): SugerenciaBase[] {
   const seen = new Set<string>();
 
   return items.filter((item) => {
-    const key = `${item.nombre.toLowerCase()}|${item.lat.toFixed(5)}|${item.lon.toFixed(5)}`;
+    const key = `${normalizarTextoBusqueda(item.nombre)}|${item.lat.toFixed(5)}|${item.lon.toFixed(5)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 }
 
-function ordenarSugerencias(items: SugerenciaBase[]): SugerenciaBase[] {
-  const prioridad: Record<SugerenciaBase["kind"], number> = {
+function inferKindFromMapbox(
+  placeType?: string,
+  query?: string,
+  category?: string,
+  text?: string,
+  placeName?: string,
+): SugerenciaKind {
+  const referencia = [category, text, placeName, query].filter(Boolean).join(" ");
+  if (esBusquedaAlojamiento(referencia)) return "lodging";
+  if (!placeType) return "address";
+  if (placeType === "poi") return "poi";
+  if (["neighborhood", "locality", "place", "district", "postcode"].includes(placeType)) {
+    return "area";
+  }
+  if (placeType === "address") return "address";
+  return "address";
+}
+
+function inferSecondaryTextFromMapbox(
+  kind: SugerenciaKind,
+  placeType?: string,
+  placeName?: string,
+  featureText?: string,
+): string {
+  const referencia = [featureText, placeName].filter(Boolean).join(" ");
+
+  if (kind === "lodging" || esBusquedaAlojamiento(referencia)) return "Hotel / alojamiento";
+  if (placeType === "postcode") return "Código postal";
+  if (["neighborhood", "locality", "place", "district"].includes(placeType ?? "")) {
+    return "Zona";
+  }
+  if (kind === "poi") return "Punto de interés";
+  return "Dirección";
+}
+
+function puntuarSugerencia(item: SugerenciaBase, query: string): number {
+  const q = normalizarTextoBusqueda(query);
+  const nombre = normalizarTextoBusqueda(item.nombre);
+  const secondary = normalizarTextoBusqueda(item.secondaryText ?? "");
+  const terminos = getQueryTerms(query);
+
+  let score = 0;
+
+  if (item.kind === "lodging") score += 170;
+  else if (item.kind === "poi") score += 90;
+  else if (item.kind === "address") score += 50;
+  else if (item.kind === "area") score += 30;
+
+  if (q.length > 0) {
+    if (nombre === q) score += 520;
+    else if (nombre.startsWith(q)) score += 320;
+    else if (nombre.includes(q)) score += 180;
+  }
+
+  for (const termino of terminos) {
+    if (nombre === termino) score += 170;
+    else if (nombre.startsWith(termino)) score += 95;
+    else if (nombre.includes(termino)) score += 45;
+
+    if (secondary.includes(termino)) score += 18;
+  }
+
+  if (secondary.includes("hotel")) score += 45;
+  if (secondary.includes("alojamiento")) score += 35;
+
+  return score;
+}
+
+function ordenarSugerencias(items: SugerenciaBase[], query?: string): SugerenciaBase[] {
+  const prioridad: Record<SugerenciaKind, number> = {
     lodging: 0,
-    address: 1,
-    area: 2,
-    poi: 3,
+    poi: 1,
+    address: 2,
+    area: 3,
   };
 
-  return [...items].sort((a, b) => prioridad[a.kind] - prioridad[b.kind]);
+  return [...items].sort((a, b) => {
+    const diferenciaScore = query ? puntuarSugerencia(b, query) - puntuarSugerencia(a, query) : 0;
+    if (diferenciaScore !== 0) return diferenciaScore;
+
+    return prioridad[a.kind] - prioridad[b.kind];
+  });
 }
 
 function getBadgeSugerencia(kind: SugerenciaBase["kind"], secondaryText?: string): string {
   if (secondaryText) return secondaryText;
-  if (kind === "lodging") return "Alojamiento";
+  if (kind === "lodging") return "Hotel / alojamiento";
   if (kind === "address") return "Dirección";
   if (kind === "area") return "Zona";
-  return "POI";
+  return "Punto de interés";
 }
 
 function IconoChevron({ open }: { open: boolean }) {
@@ -498,6 +596,9 @@ export default function CrearItinerarioPantalla() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const sugerenciasAbortRef = useRef<AbortController | null>(null);
+  const sugerenciasRequestIdRef = useRef(0);
+  const cacheSugerenciasRef = useRef<Map<string, SugerenciaBase[]>>(new Map());
 
   const [mostrarRecomendaciones, setMostrarRecomendaciones] = useState(false);
   const [buscandoBase, setBuscandoBase] = useState(false);
@@ -529,14 +630,6 @@ export default function CrearItinerarioPantalla() {
       setDestinoSeleccionado(destinoPermitido.id);
     }
   }, [form.destino, setDestinoSeleccionado]);
-
-  useEffect(() => {
-    const emptyRange = { start: null, end: null };
-    setRange(emptyRange);
-    setFechaInicioTemp(getTomorrowIso());
-    setFechaFinTemp(getTomorrowIso());
-    localStorage.removeItem(STORAGE_KEY_RANGE);
-  }, []);
 
   useEffect(() => {
     if (!generando) {
@@ -599,6 +692,7 @@ export default function CrearItinerarioPantalla() {
         lat,
         lon,
         kind: "address",
+        secondaryText: "Dirección",
       });
     });
 
@@ -613,14 +707,17 @@ export default function CrearItinerarioPantalla() {
 
   useEffect(() => {
     const query = form.zonaBase.trim();
+
     if (query.length < 3) {
+      sugerenciasAbortRef.current?.abort();
       setSugerencias([]);
+      setMostrandoSugerencias(false);
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
       void cargarSugerencias(query);
-    }, 300);
+    }, 70);
 
     return () => window.clearTimeout(timeoutId);
   }, [form.zonaBase, form.destino, form.subdestino]);
@@ -634,7 +731,7 @@ export default function CrearItinerarioPantalla() {
 
     const timeoutId = window.setTimeout(() => {
       void buscarPoisParaExcluir(query);
-    }, 280);
+    }, 220);
 
     return () => window.clearTimeout(timeoutId);
   }, [busquedaPoiExcluido]);
@@ -814,6 +911,7 @@ export default function CrearItinerarioPantalla() {
         lat: lngLat.lat,
         lon: lngLat.lng,
         kind: "address",
+        secondaryText: "Dirección",
       });
     });
 
@@ -893,16 +991,106 @@ export default function CrearItinerarioPantalla() {
     }
   }
 
-  async function cargarSugerenciasDireccion(query: string): Promise<SugerenciaBase[]> {
+  async function cargarSugerenciasMapbox(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SugerenciaBase[]> {
+    if (!MAPBOX_TOKEN) return [];
+
+    const limpio = query.trim();
+    if (limpio.length < 3) return [];
+
+    const { bbox, proximity } = getMapSearchContext();
+    const destinoBusqueda = construirDestinoFinal(form.destino, form.subdestino);
+    const busquedaAlojamiento = esBusquedaAlojamiento(limpio);
+    const busqueda = destinoBusqueda ? `${limpio}, ${destinoBusqueda}` : limpio;
+
+    const params = new URLSearchParams({
+      access_token: MAPBOX_TOKEN,
+      autocomplete: "true",
+      language: "es",
+      country: "es",
+      limit: busquedaAlojamiento ? "10" : "8",
+      types: busquedaAlojamiento
+        ? "poi,address,place,postcode,neighborhood,locality"
+        : "address,poi,place,postcode,neighborhood,locality",
+    });
+
+    if (bbox) {
+      params.set("bbox", `${bbox.west},${bbox.south},${bbox.east},${bbox.north}`);
+    }
+
+    if (proximity) {
+      params.set("proximity", `${proximity.lon},${proximity.lat}`);
+    }
+
+    const response = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(busqueda)}.json?${params.toString()}`,
+      { signal },
+    );
+
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as {
+      features?: Array<{
+        id?: string;
+        place_name?: string;
+        text?: string;
+        center?: [number, number];
+        place_type?: string[];
+        properties?: {
+          category?: string;
+          maki?: string;
+        };
+      }>;
+    };
+
+    const resultados: SugerenciaBase[] = [];
+
+    for (const feature of data.features ?? []) {
+      const center = Array.isArray(feature.center) ? feature.center : null;
+      const lon = center?.[0];
+      const lat = center?.[1];
+
+      if (typeof lat !== "number" || typeof lon !== "number") continue;
+
+      const placeType = feature.place_type?.[0];
+      const category = feature.properties?.category ?? "";
+      const placeName = feature.place_name ?? feature.text ?? limpio;
+      const text = feature.text ?? placeName;
+
+      const kind = inferKindFromMapbox(placeType, limpio, category, text, placeName);
+      const secondaryText = inferSecondaryTextFromMapbox(kind, placeType, placeName, text);
+
+      resultados.push({
+        id: String(feature.id ?? `${placeName}-${lat}-${lon}`),
+        nombre: placeName,
+        lat,
+        lon,
+        kind,
+        secondaryText,
+      });
+    }
+
+    return ordenarSugerencias(deduplicarSugerencias(resultados), limpio).slice(0, 8);
+  }
+
+  async function cargarSugerenciasDireccion(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<SugerenciaBase[]> {
+    const limpio = query.trim();
+    if (limpio.length < 3) return [];
+
     const { bbox } = getMapSearchContext();
     const destinoBusqueda = construirDestinoFinal(form.destino, form.subdestino);
-    const busqueda = destinoBusqueda ? `${query}, ${destinoBusqueda}` : query;
+    const busqueda = destinoBusqueda ? `${limpio}, ${destinoBusqueda}` : limpio;
 
     const params = new URLSearchParams({
       q: busqueda,
       format: "jsonv2",
       addressdetails: "1",
-      limit: "8",
+      limit: "6",
       countrycodes: "es",
       "accept-language": "es",
     });
@@ -918,6 +1106,7 @@ export default function CrearItinerarioPantalla() {
         headers: {
           "Accept-Language": "es",
         },
+        signal,
       },
     );
 
@@ -965,105 +1154,80 @@ export default function CrearItinerarioPantalla() {
       });
     }
 
-    return results;
+    return ordenarSugerencias(deduplicarSugerencias(results), limpio).slice(0, 6);
   }
-
-  async function cargarSugerenciasAlojamiento(query: string): Promise<SugerenciaBase[]> {
-  const { bbox } = getMapSearchContext();
-  if (!bbox) return [];
-
-  const q = normalizarTextoBusqueda(query);
-  const esGenerica = esBusquedaAlojamiento(query);
-
-  const overpassQuery = `
-    [out:json][timeout:20];
-    (
-      node["tourism"~"hotel|hostel|guest_house|apartment|motel"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-      way["tourism"~"hotel|hostel|guest_house|apartment|motel"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-      relation["tourism"~"hotel|hostel|guest_house|apartment|motel"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-    );
-    out center tags;
-  `;
-
-  const response = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=UTF-8",
-    },
-    body: overpassQuery,
-  });
-
-  if (!response.ok) return [];
-
-  const data = (await response.json()) as {
-    elements?: Array<{
-      id: number;
-      lat?: number;
-      lon?: number;
-      center?: { lat: number; lon: number };
-      tags?: Record<string, string>;
-    }>;
-  };
-
-  const results: SugerenciaBase[] = [];
-
-  for (const el of data.elements ?? []) {
-    const lat = el.lat ?? el.center?.lat;
-    const lon = el.lon ?? el.center?.lon;
-
-    if (typeof lat !== "number" || !Number.isFinite(lat)) {
-      continue;
-    }
-
-    if (typeof lon !== "number" || !Number.isFinite(lon)) {
-      continue;
-    }
-
-    const nombre = el.tags?.name ?? el.tags?.brand ?? el.tags?.operator ?? "Alojamiento";
-
-    const direccion = [
-      el.tags?.["addr:street"],
-      el.tags?.["addr:housenumber"],
-      el.tags?.["addr:postcode"],
-      el.tags?.["addr:city"],
-    ]
-      .filter(Boolean)
-      .join(", ");
-
-    const searchable = normalizarTextoBusqueda([nombre, direccion].filter(Boolean).join(" "));
-
-    if (!esGenerica && q && !searchable.includes(q)) {
-      continue;
-    }
-
-    results.push({
-      id: `osm-hotel-${el.id}`,
-      nombre: direccion ? `${nombre} · ${direccion}` : nombre,
-      lat,
-      lon,
-      kind: "lodging",
-      secondaryText: "Hotel / alojamiento",
-    });
-  }
-
-  return results.slice(0, 8);
-}
 
   async function cargarSugerencias(query: string) {
+    const limpio = query.trim();
+    if (limpio.length < 3) {
+      setSugerencias([]);
+      setMostrandoSugerencias(false);
+      return;
+    }
+
+    const queryNormalizada = normalizarTextoBusqueda(limpio);
+    const cacheKey = `${normalizarTextoBusqueda(form.destino)}|${normalizarTextoBusqueda(
+      form.subdestino,
+    )}|${queryNormalizada}`;
+
+    const cached = cacheSugerenciasRef.current.get(cacheKey);
+    if (cached) {
+      setSugerencias(cached);
+      setMostrandoSugerencias(cached.length > 0);
+    }
+
+    const requestId = ++sugerenciasRequestIdRef.current;
+
+    sugerenciasAbortRef.current?.abort();
+    const controller = new AbortController();
+    sugerenciasAbortRef.current = controller;
+
     try {
-      const [direcciones, alojamientos] = await Promise.all([
-        cargarSugerenciasDireccion(query),
-        query.trim().length >= 2 ? cargarSugerenciasAlojamiento(query) : Promise.resolve([]),
-      ]);
+      const mapboxResultados = await cargarSugerenciasMapbox(limpio, controller.signal);
+
+      if (controller.signal.aborted || requestId !== sugerenciasRequestIdRef.current) {
+        return;
+      }
+
+      let resultados = mapboxResultados;
+
+      if (resultados.length < 5) {
+        const direcciones = await cargarSugerenciasDireccion(limpio, controller.signal);
+
+        if (controller.signal.aborted || requestId !== sugerenciasRequestIdRef.current) {
+          return;
+        }
+
+        resultados = [...resultados, ...direcciones];
+      }
 
       const mezcladas = ordenarSugerencias(
-        deduplicarSugerencias([...alojamientos, ...direcciones]),
-      );
+        deduplicarSugerencias(resultados),
+        limpio,
+      ).slice(0, 8);
 
-      setSugerencias(mezcladas.slice(0, 8));
+      cacheSugerenciasRef.current.set(cacheKey, mezcladas);
+
+      if (cacheSugerenciasRef.current.size > 60) {
+        const primerKey = cacheSugerenciasRef.current.keys().next().value as string | undefined;
+        if (primerKey) {
+          cacheSugerenciasRef.current.delete(primerKey);
+        }
+      }
+
+      setSugerencias(mezcladas);
+      setMostrandoSugerencias(mezcladas.length > 0);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
       console.error(error);
-      setSugerencias([]);
+
+      if (requestId === sugerenciasRequestIdRef.current && !cached) {
+        setSugerencias([]);
+        setMostrandoSugerencias(false);
+      }
     }
   }
 
@@ -1149,14 +1313,21 @@ export default function CrearItinerarioPantalla() {
       setBuscandoBase(true);
       setErrorBase(null);
 
-      const [direcciones, alojamientos] = await Promise.all([
-        cargarSugerenciasDireccion(query),
-        query.length >= 2 ? cargarSugerenciasAlojamiento(query) : Promise.resolve([]),
-      ]);
-
-      const sugerenciasOrdenadas = ordenarSugerencias(
-        deduplicarSugerencias([...alojamientos, ...direcciones]),
+      const mapboxResultados = await cargarSugerenciasMapbox(query);
+      let sugerenciasOrdenadas = ordenarSugerencias(
+        deduplicarSugerencias(mapboxResultados),
+        query,
       );
+
+      if (!sugerenciasOrdenadas.length) {
+        const direcciones = await cargarSugerenciasDireccion(query);
+        sugerenciasOrdenadas = ordenarSugerencias(
+          deduplicarSugerencias(direcciones),
+          query,
+        );
+      }
+
+      sugerenciasOrdenadas = sugerenciasOrdenadas.slice(0, 8);
 
       setSugerencias(sugerenciasOrdenadas);
       setMostrandoSugerencias(true);

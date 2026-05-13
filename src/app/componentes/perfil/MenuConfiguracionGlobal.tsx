@@ -82,11 +82,9 @@ export default function MenuConfiguracionGlobal({ abierto, onCerrar }: Props) {
         onCerrar();
         navigate("/perfil");
         break;
-      case "favoritos":
-        abrirModal(
-          "Favoritos",
-          "Aquí podrás ver los lugares y destinos que has guardado. Próximamente disponible."
-        );
+      case "calendario":
+        onCerrar();
+        navigate("/calendario");
         break;
       case "itinerarios":
         onCerrar();
@@ -121,7 +119,7 @@ export default function MenuConfiguracionGlobal({ abierto, onCerrar }: Props) {
       label: "Mi cuenta",
       items: [
         { id: "perfil", titulo: "Mi perfil" },
-        { id: "favoritos", titulo: "Favoritos" },
+        { id: "calendario", titulo: "Calendario" },
         { id: "itinerarios", titulo: "Mis itinerarios" },
       ],
     },

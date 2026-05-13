@@ -16,6 +16,7 @@ export const RUTAS_APP = {
   detallePoi: "/poi/:poiId",
 
   itinerarios: "/itinerarios",
+  favoritos: "/favoritos",
   calendario: "/calendario",
   crearItinerario: "/itinerarios/crear",
   detalleItinerario: "/itinerarios/:itinerarioId",

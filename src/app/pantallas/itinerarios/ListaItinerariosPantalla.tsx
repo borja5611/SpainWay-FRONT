@@ -116,6 +116,19 @@ function IconoSparkle() {
   );
 }
 
+function IconoFavorito() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 3.8L14.55 9.02L20.28 9.86L16.14 13.92L17.12 19.64L12 16.94L6.88 19.64L7.86 13.92L3.72 9.86L9.45 9.02L12 3.8Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconoChevron({ open }: { open: boolean }) {
   return (
     <svg
@@ -383,16 +396,16 @@ export default function ListaItinerariosPantalla() {
 
             <button
               type="button"
-              onClick={() => navigate("/calendario")}
+              onClick={() => navigate("/favoritos")}
               className="rounded-[26px] bg-white p-5 text-left shadow-[0_12px_28px_rgba(15,23,42,0.07)]"
             >
-              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">Planificar</p>
-              <h3 className="mt-2 text-[18px] font-bold text-[#111827]">Calendario del viaje</h3>
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">Favoritos</p>
+              <h3 className="mt-2 text-[18px] font-bold text-[#111827]">POIs guardados</h3>
               <p className="mt-2 text-sm leading-6 text-[#667085]">
-                Selecciona el rango de fechas y define la base temporal.
+                Consulta en un mapa tus lugares marcados y revisa su descripción.
               </p>
               <div className="mt-4 inline-flex rounded-2xl bg-[#fff4ef] p-3 text-[#ff5a36]">
-                <IconoCalendario />
+                <IconoFavorito />
               </div>
             </button>
           </div>
@@ -518,16 +531,13 @@ export default function ListaItinerariosPantalla() {
                       Ver itinerario
                     </button>
 
-                    {item.idReal && (
-                      <button
-                        type="button"
-                        disabled={borrandoId === item.idReal}
-                        onClick={() => setConfirmacionEliminar(item)}
-                        className="mt-3 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 disabled:opacity-60"
-                      >
-                        {borrandoId === item.idReal ? "Borrando..." : "Eliminar itinerario"}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setConfirmacionEliminar(item)}
+                      className="mt-3 w-full rounded-2xl border border-[#fecaca] bg-white px-4 py-3 text-sm font-semibold text-[#dc2626]"
+                    >
+                      Eliminar itinerario
+                    </button>
                   </div>
                 </article>
               ))}
@@ -535,94 +545,106 @@ export default function ListaItinerariosPantalla() {
           )}
         </section>
 
-        <section className="px-5 pt-5">
+        <section className="px-5 pt-6">
           <button
             type="button"
             onClick={() => setEjemplosAbiertos((prev) => !prev)}
-            className="flex w-full items-center justify-between rounded-[24px] bg-white px-5 py-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.06)]"
+            className="flex w-full items-center justify-between rounded-[24px] bg-white px-5 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]"
           >
             <div>
-              <p className="text-base font-semibold text-[#111827]">Itinerarios de ejemplo</p>
-              <p className="mt-1 text-sm text-[#6b7280]">
-                {ejemplosAbiertos ? "Oculta los ejemplos." : "Despliega propuestas de referencia."}
+              <p className="text-left text-[18px] font-bold text-[#111827]">Ejemplos visuales</p>
+              <p className="text-left text-sm text-[#6b7280]">
+                Inspiración con tarjetas demo, separadas de tus datos reales.
               </p>
             </div>
-            <div className="rounded-full bg-[#f8fafc] p-2 text-[#111827]">
-              <IconoChevron open={ejemplosAbiertos} />
-            </div>
+            <IconoChevron open={ejemplosAbiertos} />
           </button>
 
           {ejemplosAbiertos && (
             <div className="mt-4 space-y-4">
-              {ejemplosFiltrados.map((item) => (
-                <article key={item.id} className="overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)]">
-                  <div className="relative h-[190px] overflow-hidden">
-                    <img src={item.imagen} alt={item.titulo} className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
-                    <div className="absolute left-4 top-4 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827] backdrop-blur">Ejemplo</span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(item.categoria)}`}>
-                        {item.categoria}
-                      </span>
-                    </div>
-                    <div className="absolute bottom-4 left-4 right-4 text-white">
-                      <h3 className="text-[22px] font-bold leading-tight">{item.titulo}</h3>
-                      <div className="mt-2 flex items-center gap-2 text-sm text-white/85">
-                        <IconoUbicacion />
-                        <span>{item.destino}</span>
+              {ejemplosFiltrados.length === 0 ? (
+                <div className="rounded-[24px] bg-white p-5 text-sm text-[#6b7280] shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
+                  No hay ejemplos que coincidan con tu búsqueda actual.
+                </div>
+              ) : (
+                ejemplosFiltrados.map((item) => (
+                  <article
+                    key={item.id}
+                    className="overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
+                  >
+                    <div className="relative h-[185px] overflow-hidden">
+                      <img src={item.imagen} alt={item.titulo} className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+                      <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827] backdrop-blur">
+                          {item.dias} días
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(item.categoria)}`}>
+                          {item.categoria}
+                        </span>
+                      </div>
+                      <div className="absolute bottom-4 left-4 right-4 text-white">
+                        <h3 className="text-[22px] font-bold leading-tight">{item.titulo}</h3>
+                        <div className="mt-2 flex items-center gap-2 text-sm text-white/85">
+                          <IconoUbicacion />
+                          <span>{item.destino}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="p-4">
-                    <p className="text-sm leading-6 text-[#6b7280]">{item.subtitulo}</p>
-                    <div className="mt-4 flex gap-3">
-                      <button
-                        type="button"
-                        className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
-                        onClick={() => navigate(`/itinerarios/${item.id}`)}
-                      >
-                        Ver ejemplo
-                      </button>
+
+                    <div className="p-4">
+                      <p className="line-clamp-3 text-sm leading-6 text-[#6b7280]">{item.subtitulo}</p>
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="rounded-2xl bg-[#f8fafc] p-3">
+                          <p className="text-xs text-[#94a3b8]">Lugares</p>
+                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.lugares}</p>
+                        </div>
+                        <div className="rounded-2xl bg-[#f8fafc] p-3">
+                          <p className="text-xs text-[#94a3b8]">Presupuesto</p>
+                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.presupuesto}</p>
+                        </div>
+                        <div className="rounded-2xl bg-[#f8fafc] p-3">
+                          <p className="text-xs text-[#94a3b8]">Avance</p>
+                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.progreso}%</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ))
+              )}
             </div>
           )}
         </section>
-      </div>
 
-      {confirmacionEliminar && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 px-5 backdrop-blur-sm">
-          <div className="w-full max-w-[360px] rounded-[30px] bg-white p-6 text-center shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl font-black text-red-600">
-              !
-            </div>
-            <h2 className="mt-5 text-xl font-bold text-[#111827]">Eliminar itinerario</h2>
-            <p className="mt-3 text-sm leading-6 text-[#667085]">
-              Vas a eliminar <strong>{confirmacionEliminar.titulo}</strong>. Esta acción no se puede deshacer.
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmacionEliminar(null)}
-                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={borrandoId === confirmacionEliminar.idReal}
-                onClick={() => void borrarItinerario(confirmacionEliminar.idReal)}
-                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-              >
-                {borrandoId === confirmacionEliminar.idReal ? "Eliminando..." : "Sí, eliminar"}
-              </button>
+        {confirmacionEliminar && (
+          <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/40 p-4 sm:items-center">
+            <div className="w-full max-w-[380px] rounded-[28px] bg-white p-5 shadow-[0_20px_48px_rgba(15,23,42,0.18)]">
+              <p className="text-lg font-bold text-[#111827]">Eliminar itinerario</p>
+              <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                Vas a eliminar <span className="font-semibold text-[#111827]">{confirmacionEliminar.titulo}</span>. Esta acción no se puede deshacer.
+              </p>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmacionEliminar(null)}
+                  className="rounded-2xl border border-[#e5e7eb] px-4 py-3 text-sm font-semibold text-[#374151]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void borrarItinerario(confirmacionEliminar.idReal)}
+                  disabled={borrandoId === confirmacionEliminar.idReal}
+                  className="rounded-2xl bg-[#dc2626] px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+                >
+                  {borrandoId === confirmacionEliminar.idReal ? "Eliminando..." : "Eliminar"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
+        )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useAuthStore } from "@/app/store/useAuthStore";
 import BloqueRestauracionDia from "@/app/componentes/itinerarios/BloqueRestauracionDia";
 import BloqueEventosDia from "@/app/componentes/itinerarios/BloqueEventosDia";
 import BloqueEventosRangoItinerario from "@/app/componentes/itinerarios/BloqueEventosRangoItinerario";
@@ -22,6 +23,7 @@ import {
   type PoiItinerario,
 } from "@/app/servicios/itinerarios";
 import { itinerariosMock } from "@/app/datos/mock/itinerariosMock";
+import { crearFavorito, eliminarFavorito, getFavoritos } from "@/app/servicios/favoritos";
 
 type DiaUi = {
   numero: number;
@@ -32,6 +34,20 @@ type DiaUi = {
   tips: string[];
   pois: PoiUi[];
 };
+
+
+function IconoFavorito({ activo }: { activo: boolean }) {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill={activo ? "currentColor" : "none"}>
+      <path
+        d="M12 17.25L6.12215 20.3402L7.24472 13.7951L2.48944 9.15983L9.06107 8.20492L12 2.25L14.9389 8.20492L21.5106 9.15983L16.7553 13.7951L17.8779 20.3402L12 17.25Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 type PoiUi = {
   key: string;
@@ -274,7 +290,7 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
   if (iaDays.length > 0) {
     return iaDays.map((day, index) => {
       const numero = day.day_number ?? day.dia ?? index + 1;
-      const dbDay = dbDays.find((item, idx) => idx + 1 === numero) ?? dbDays[index];
+      const dbDay = dbDays.find((_, idx) => idx + 1 === numero) ?? dbDays[index];
       const elementos = dbDay?.elementos ?? [];
 
       const pois = getIaPois(day).map((iaPoi, poiIndex) => {
@@ -344,6 +360,8 @@ function getAnchors(itinerario: Itinerario): string[] {
 export default function DetalleItinerarioPantalla() {
   const navigate = useNavigate();
   const { itinerarioId } = useParams();
+  const usuario = useAuthStore((state) => state.usuario);
+  const idUsuario = usuario?.id_usuario ?? 1;
 
   const idParam = itinerarioId ?? "";
   const id = Number(idParam);
@@ -356,6 +374,8 @@ export default function DetalleItinerarioPantalla() {
   const [itinerario, setItinerario] = useState<Itinerario | null>(null);
   const [seleccionesRestauracion, setSeleccionesRestauracion] = useState<SeleccionRestauracion[]>([]);
   const [seleccionesEventosLive, setSeleccionesEventosLive] = useState<SeleccionEventoLive[]>([]);
+  const [favoritosPoiIds, setFavoritosPoiIds] = useState<Set<number>>(new Set());
+  const [favoritoEnProceso, setFavoritoEnProceso] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [diaAbierto, setDiaAbierto] = useState<number | null>(1);
@@ -401,9 +421,16 @@ export default function DetalleItinerarioPantalla() {
         setLoading(true);
         setError(null);
 
-        const data = await getItinerarioDetalle(id);
+        const [data, favoritos] = await Promise.all([
+          getItinerarioDetalle(id),
+          getFavoritos(idUsuario).catch(() => []),
+        ]);
         setItinerario(data);
-
+        setFavoritosPoiIds(
+          new Set(
+            (favoritos ?? [] as { id_poi: number }[]).map((item) => item.id_poi)
+          )
+        );
         try {
           const selecciones = await getSeleccionesRestauracion(id);
           setSeleccionesRestauracion(selecciones);
@@ -428,7 +455,7 @@ export default function DetalleItinerarioPantalla() {
     }
 
     void cargar();
-  }, [id, ejemplo]);
+  }, [id, ejemplo, idUsuario]);
 
   const diasUi = useMemo(() => (itinerario ? buildDiasUi(itinerario) : []), [itinerario]);
   const totalPois = diasUi.reduce((acc, dia) => acc + dia.pois.length, 0);
@@ -454,6 +481,38 @@ export default function DetalleItinerarioPantalla() {
       "noopener,noreferrer"
     );
   }
+
+  async function toggleFavoritoPoi(poi: PoiUi) {
+    if (!poi.idPoi || favoritoEnProceso === poi.idPoi) return;
+
+    const estabaActivo = favoritosPoiIds.has(poi.idPoi);
+
+    try {
+      setFavoritoEnProceso(poi.idPoi);
+
+      if (estabaActivo) {
+        await eliminarFavorito(idUsuario, poi.idPoi);
+        setFavoritosPoiIds((prev) => {
+          const next = new Set(prev);
+          next.delete(poi.idPoi!);
+          return next;
+        });
+      } else {
+        await crearFavorito({ id_usuario: idUsuario, id_poi: poi.idPoi });
+        setFavoritosPoiIds((prev) => new Set(prev).add(poi.idPoi!));
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setFavoritoEnProceso(null);
+    }
+  }
+
+  const poisFavoritosItinerario = useMemo(() => {
+    return diasUi
+      .flatMap((dia) => dia.pois)
+      .filter((poi) => poi.idPoi !== null && favoritosPoiIds.has(poi.idPoi));
+  }, [diasUi, favoritosPoiIds]);
 
   if (loading) {
     return (
@@ -618,6 +677,66 @@ export default function DetalleItinerarioPantalla() {
               onChange={recargarSeleccionesEventosLive}
             />
           </div>
+        </section>
+
+        <section className="mt-5 rounded-[28px] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-[#94a3b8]">Favoritos</p>
+              <h2 className="mt-2 text-[22px] font-bold text-[#111827]">POIs favoritos de este itinerario</h2>
+            </div>
+            <span className="rounded-full bg-[#fff4ef] px-3 py-1 text-sm font-semibold text-[#ff5a36]">
+              {poisFavoritosItinerario.length}
+            </span>
+          </div>
+
+          {poisFavoritosItinerario.length === 0 ? (
+            <p className="mt-4 text-sm leading-6 text-[#667085]">
+              Marca la estrella de cualquier parada y este apartado se rellenará automáticamente.
+            </p>
+          ) : (
+            <div className="mt-5 flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {poisFavoritosItinerario.map((poi) => (
+                <article
+                  key={`fav-${poi.key}`}
+                  className="min-w-[260px] rounded-[24px] border border-[#eef2f7] bg-[#fcfcfd] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#ff5a36]">
+                        {poi.categoria ?? 'POI'}
+                      </p>
+                      <h3 className="mt-2 text-lg font-black text-[#111827]">{poi.nombre}</h3>
+                    </div>
+                    <div className="text-[#ff5a36]">
+                      <IconoFavorito activo />
+                    </div>
+                  </div>
+
+                  {poi.motivo && (
+                    <p className="mt-3 line-clamp-4 text-sm leading-6 text-[#667085]">{poi.motivo}</p>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => abrirPoiEnMapa(poi)}
+                      className="rounded-full bg-[#111827] px-4 py-2 text-xs font-bold text-white"
+                    >
+                      Ver en mapa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void toggleFavoritoPoi(poi)}
+                      className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36]"
+                    >
+                      Quitar favorito
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         {anchors.length > 0 && (
@@ -884,6 +1003,20 @@ export default function DetalleItinerarioPantalla() {
                                 )}
 
                                 <div className="mt-4 flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => void toggleFavoritoPoi(poi)}
+                                    disabled={!poi.idPoi || favoritoEnProceso === poi.idPoi}
+                                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition ${
+                                      favoritosPoiIds.has(poi.idPoi ?? -1)
+                                        ? "bg-[#fff4ef] text-[#ff5a36]"
+                                        : "bg-[#f8fafc] text-[#475467]"
+                                    } disabled:opacity-60`}
+                                  >
+                                    <IconoFavorito activo={favoritosPoiIds.has(poi.idPoi ?? -1)} />
+                                    {favoritosPoiIds.has(poi.idPoi ?? -1) ? "Guardado" : "Guardar"}
+                                  </button>
+
                                   <button
                                     type="button"
                                     onClick={() => abrirPoiEnMapa(poi)}

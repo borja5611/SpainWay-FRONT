@@ -13,16 +13,19 @@ export default function NavegacionInferior() {
     { icon: User, label: "Perfil", path: "/perfil" },
   ];
 
+  const isItemActive = (path: string) => {
+    return (
+      location.pathname === path ||
+      location.pathname.startsWith(`${path}/`)
+    );
+  };
+
   return (
     <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center pointer-events-none">
       <div className="pointer-events-auto w-[92%] max-w-[980px]">
         <div className="mx-auto flex h-[76px] items-center justify-around rounded-[999px] border border-black/5 bg-white/95 px-4 shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-xl">
           {navItems.map((item) => {
-            const isActive =
-              location.pathname === item.path ||
-              (item.path === "/chat" && location.pathname.startsWith("/chat")) ||
-              (item.path === "/perfil" && location.pathname.startsWith("/perfil"));
-
+            const isActive = isItemActive(item.path);
             const Icon = item.icon;
 
             return (

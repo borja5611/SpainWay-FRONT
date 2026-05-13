@@ -23,6 +23,7 @@ import DetallePoiPantalla from "@/app/pantallas/mapa/DetallePoiPantalla";
 
 import CalendarioPantalla from "@/app/pantallas/itinerarios/CalendarioPantalla";
 import ListaItinerariosPantalla from "@/app/pantallas/itinerarios/ListaItinerariosPantalla";
+import FavoritosPantalla from "@/app/pantallas/itinerarios/FavoritosPantalla";
 import CrearItinerarioPantalla from "@/app/pantallas/itinerarios/CreaItinerarioPantalla";
 import DetalleItinerarioPantalla from "@/app/pantallas/itinerarios/DetalleItinerarioPantalla";
 
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
       { path: RUTAS_APP.detallePoi, element: <DetallePoiPantalla /> },
 
       { path: RUTAS_APP.calendario, element: <CalendarioPantalla /> },
+      { path: RUTAS_APP.favoritos, element: <FavoritosPantalla /> },
       { path: RUTAS_APP.itinerarios, element: <ListaItinerariosPantalla /> },
       { path: RUTAS_APP.crearItinerario, element: <CrearItinerarioPantalla /> },
       { path: RUTAS_APP.detalleItinerario, element: <DetalleItinerarioPantalla /> },
