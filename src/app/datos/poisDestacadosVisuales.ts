@@ -16,12 +16,12 @@ import CiudadArtesHero from "@/assets/poi/valencia/CiudadArtesHero.png";
 export const DESTINO_TO_CCAA: Record<DestinoId, string> = {
   andalucia: "Andalucía",
   asturias: "Asturias",
-  baleares: "Baleares",
+  baleares: "Illes Balears",
   canarias: "Canarias",
   cantabria: "Cantabria",
   cataluna: "Cataluña",
   cv: "Comunidad Valenciana",
-  madrid: "Madrid",
+  madrid: "Comunidad de Madrid",
 };
 
 export function getImagenFallbackPorDestino(destino: DestinoId): string {

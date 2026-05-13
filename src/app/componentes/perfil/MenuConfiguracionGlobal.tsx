@@ -20,17 +20,20 @@ const IconoCerrar = () => (
   </svg>
 );
 
-const IconoSpark = () => (
-  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
-    <path d="M12 3L13.8 8.2L19 10L13.8 11.8L12 17L10.2 11.8L5 10L10.2 8.2L12 3Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+const IconoChevron = () => (
+  <svg className="h-4 w-4 text-[#c4cdd6]" viewBox="0 0 24 24" fill="none">
+    <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
-const IconoChevron = () => (
-  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none">
-    <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+type Grupo = {
+  label: string;
+  items: {
+    id: string;
+    titulo: string;
+    danger?: boolean;
+  }[];
+};
 
 export default function MenuConfiguracionGlobal({ abierto, onCerrar }: Props) {
   const navigate = useNavigate();
@@ -47,33 +50,24 @@ export default function MenuConfiguracionGlobal({ abierto, onCerrar }: Props) {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCerrar();
     };
-
     if (abierto) window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
   }, [abierto, onCerrar]);
 
-  function abrirModalInfo(titulo: string, descripcion: string) {
-    setModalInfo({
-      abierto: true,
-      titulo,
-      descripcion,
-    });
+  function abrirModal(titulo: string, descripcion: string) {
+    setModalInfo({ abierto: true, titulo, descripcion });
   }
 
-  function cerrarModalInfo() {
-    setModalInfo({
-      abierto: false,
-      titulo: "",
-      descripcion: "",
-    });
+  function cerrarModal() {
+    setModalInfo({ abierto: false, titulo: "", descripcion: "" });
   }
 
   async function handleCerrarSesion() {
     try {
       setCerrandoSesion(true);
       await logout();
-    } catch (error) {
-      console.error(error);
+    } catch (e) {
+      console.error(e);
     } finally {
       cerrarSesion();
       onCerrar();
@@ -82,235 +76,175 @@ export default function MenuConfiguracionGlobal({ abierto, onCerrar }: Props) {
     }
   }
 
-  async function handleItemClick(id: string, link: string) {
+  async function handleClick(id: string) {
     switch (id) {
       case "perfil":
         onCerrar();
         navigate("/perfil");
         break;
-
       case "favoritos":
-        abrirModalInfo(
-          "Destinos favoritos",
-          "Aquí podrás gestionar los lugares guardados. La navegación específica de favoritos la conectaremos en la siguiente iteración."
+        abrirModal(
+          "Favoritos",
+          "Aquí podrás ver los lugares y destinos que has guardado. Próximamente disponible."
         );
         break;
-
       case "itinerarios":
         onCerrar();
         navigate("/itinerarios");
         break;
-
-      case "notificaciones":
-        abrirModalInfo(
-          "Notificaciones",
-          "Aquí podrás activar o desactivar recordatorios, avisos de itinerarios y mensajes importantes de la aplicación."
+      case "app":
+        abrirModal(
+          "Ajustes de la app",
+          "Notificaciones, privacidad y otros ajustes básicos de la aplicación. Próximamente disponible."
         );
         break;
-
-      case "privacidad":
-        abrirModalInfo(
-          "Privacidad",
-          "Aquí mostraremos opciones de seguridad, permisos y control de la cuenta cuando terminemos de conectar esa parte."
-        );
-        break;
-
       case "ayuda":
-        abrirModalInfo(
-          "Ayuda y soporte",
-          "Aquí podrás acceder a ayuda, preguntas frecuentes y soporte de SpainWay."
+        abrirModal(
+          "Ayuda",
+          "Aquí podrás consultar dudas frecuentes, soporte básico y recomendaciones rápidas de uso de SpainWay."
         );
         break;
-
       case "acerca":
-        abrirModalInfo(
+        abrirModal(
           "Acerca de SpainWay",
-          "SpainWay te ayuda a descubrir lugares, guardar favoritos, organizar itinerarios y gestionar tu viaje desde una sola app."
+          "SpainWay está pensada para descubrir lugares, explorar comunidades, guardar favoritos y construir itinerarios personalizados de forma mucho más visual."
         );
         break;
-
       case "logout":
         await handleCerrarSesion();
-        break;
-
-      default:
-        if (link !== "#") {
-          onCerrar();
-          navigate(link);
-        } else {
-          abrirModalInfo(
-            "Próximamente",
-            "Esta sección estará disponible más adelante."
-          );
-        }
         break;
     }
   }
 
-  const items = [
+  const grupos: Grupo[] = [
     {
-      id: "perfil",
-      titulo: "Cuenta y perfil",
-      descripcion: "Edita tus datos personales y preferencias.",
-      importante: true,
-      link: "/perfil",
+      label: "Mi cuenta",
+      items: [
+        { id: "perfil", titulo: "Mi perfil" },
+        { id: "favoritos", titulo: "Favoritos" },
+        { id: "itinerarios", titulo: "Mis itinerarios" },
+      ],
     },
     {
-      id: "favoritos",
-      titulo: "Destinos favoritos",
-      descripcion: "Gestiona ciudades y lugares guardados.",
-      link: "#",
+      label: "Aplicación",
+      items: [
+        { id: "app", titulo: "Ajustes de la app" },
+        { id: "ayuda", titulo: "Ayuda" },
+        { id: "acerca", titulo: "Acerca de SpainWay" },
+      ],
     },
     {
-      id: "itinerarios",
-      titulo: "Itinerarios guardados",
-      descripcion: "Consulta tus rutas y viajes creados.",
-      link: "/itinerarios",
-    },
-    {
-      id: "notificaciones",
-      titulo: "Notificaciones",
-      descripcion: "Ajusta avisos y recordatorios.",
-      link: "#",
-    },
-    {
-      id: "privacidad",
-      titulo: "Privacidad",
-      descripcion: "Controla permisos y seguridad.",
-      link: "#",
-    },
-    {
-      id: "ayuda",
-      titulo: "Ayuda y soporte",
-      descripcion: "Soporte y dudas frecuentes.",
-      link: "#",
-    },
-    {
-      id: "acerca",
-      titulo: "Acerca de SpainWay",
-      descripcion: "Información general de la app.",
-      link: "#",
-    },
-    {
-      id: "logout",
-      titulo: cerrandoSesion ? "Cerrando sesión..." : "Cerrar sesión",
-      descripcion: "Salir de la cuenta actual.",
-      link: "#",
+      label: "Sesión",
+      items: [
+        {
+          id: "logout",
+          titulo: cerrandoSesion ? "Cerrando sesión..." : "Cerrar sesión",
+          danger: true,
+        },
+      ],
     },
   ];
 
   return (
     <>
-      <div className={`fixed inset-0 z-[120] transition-all duration-300 ${abierto ? "visible" : "invisible"}`}>
+      <div
+        className={`fixed inset-0 z-[120] transition-all duration-300 ${
+          abierto ? "visible" : "invisible"
+        }`}
+      >
+        {/* Backdrop */}
         <div
-          className={`absolute inset-0 bg-[#0f172a]/32 backdrop-blur-[2px] transition-opacity duration-300 ${abierto ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 bg-[#0f172a]/30 backdrop-blur-[2px] transition-opacity duration-300 ${
+            abierto ? "opacity-100" : "opacity-0"
+          }`}
           onClick={onCerrar}
         />
 
         <aside
-          className={`absolute right-0 top-0 h-full w-full max-w-[390px] transform bg-[#f5f7fb] shadow-[-18px_0_40px_rgba(15,23,42,0.18)] transition-transform duration-300 ease-out ${
+          className={`absolute right-0 top-0 h-full w-full max-w-[380px] transform bg-[#f2f2f7] shadow-[-12px_0_32px_rgba(15,23,42,0.14)] transition-transform duration-300 ease-out ${
             abierto ? "translate-x-0" : "translate-x-full"
           }`}
         >
           <div className="flex h-full flex-col">
-            <div className="relative overflow-hidden border-b border-[#edf1f6] bg-[linear-gradient(135deg,#fff8f4_0%,#ffffff_50%,#f4f1ff_100%)] px-5 pb-5 pt-6">
-              <div className="absolute right-[-20px] top-[-20px] h-24 w-24 rounded-full bg-[#ff6a47]/10 blur-3xl" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#ff6a47] shadow-[0_8px_20px_rgba(15,23,42,0.06)]">
-                    <IconoSpark />
-                    Configuración
-                  </div>
-                  <h2 className="mt-3 text-[30px] font-extrabold tracking-[-0.04em] text-[#111827]">
-                    Ajustes
-                  </h2>
-                </div>
 
-                <button
-                  onClick={onCerrar}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#111827] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:scale-105 active:scale-95"
-                >
-                  <IconoCerrar />
-                </button>
-              </div>
+            {/* Header minimalista */}
+            <div className="flex items-center justify-between border-b border-[#e5e5ea] bg-[#f2f2f7] px-5 pb-4 pt-14">
+              <h2 className="text-[22px] font-bold text-[#111827]">Ajustes</h2>
+              <button
+                onClick={onCerrar}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5e5ea] text-[#6b7280] transition hover:bg-[#d1d1d6] active:scale-95"
+              >
+                <IconoCerrar />
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4">
-              <div className="space-y-4">
-                {items.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => void handleItemClick(item.id, item.link)}
-                    disabled={item.id === "logout" && cerrandoSesion}
-                    className={`group w-full rounded-[28px] p-5 text-left transition-all hover:translate-y-[-2px] ${
-                      item.importante
-                        ? "border border-[#ffd7cd] bg-[linear-gradient(135deg,#fff7f4_0%,#fffdfc_100%)] shadow-[0_14px_30px_rgba(255,106,71,0.08)]"
-                        : "bg-white shadow-[0_14px_30px_rgba(15,23,42,0.04)]"
-                    } ${item.id === "logout" ? "hover:bg-[#fff5f5]" : ""} ${
-                      item.id === "logout" && cerrandoSesion ? "opacity-60 cursor-not-allowed" : ""
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className={`text-[17px] font-bold ${item.id === "logout" ? "text-[#b42318]" : "text-[#111827]"}`}>
-                          {item.titulo}
-                        </h3>
-                        <p className="mt-1 text-sm leading-6 text-[#667085]">{item.descripcion}</p>
-                      </div>
+            {/* Lista */}
+            <div className="flex-1 overflow-y-auto px-4 pb-8 pt-6">
+              <div className="space-y-6">
+                {grupos.map((grupo) => (
+                  <div key={grupo.label}>
+                    {/* Label de sección */}
+                    <p className="mb-1 px-3 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#8e8e93]">
+                      {grupo.label}
+                    </p>
 
-                      <div
-                        className={`shrink-0 rounded-2xl p-3 transition-colors ${
-                          item.id === "logout"
-                            ? "bg-[#fff1f1] text-[#d92d20] group-hover:bg-[#d92d20] group-hover:text-white"
-                            : "bg-[#f8fafc] text-[#98a2b3] group-hover:bg-[#ff6a47] group-hover:text-white"
-                        }`}
-                      >
-                        <IconoChevron />
-                      </div>
+                    {/* Grupo de filas */}
+                    <div className="overflow-hidden rounded-[14px] bg-white">
+                      {grupo.items.map((item, index) => (
+                        <div key={item.id}>
+                          <button
+                            onClick={() => void handleClick(item.id)}
+                            disabled={item.id === "logout" && cerrandoSesion}
+                            className={`flex w-full items-center justify-between px-4 py-[14px] text-left transition-colors active:bg-[#f2f2f7] ${
+                              item.danger
+                                ? "text-[#e53935]"
+                                : "text-[#111827]"
+                            } ${
+                              item.id === "logout" && cerrandoSesion
+                                ? "cursor-not-allowed opacity-50"
+                                : "hover:bg-[#f9f9f9]"
+                            }`}
+                          >
+                            <span className="text-[16px] font-medium">
+                              {item.titulo}
+                            </span>
+                            {!item.danger && <IconoChevron />}
+                          </button>
+
+                          {/* Separador interno excepto el último */}
+                          {index < grupo.items.length - 1 && (
+                            <div className="ml-4 border-b border-[#f0f0f0]" />
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  </button>
+                  </div>
                 ))}
-              </div>
-            </div>
-
-            <div className="border-t border-[#edf1f6] bg-white px-4 py-4">
-              <div className="rounded-[24px] bg-[#111827] p-5 text-white shadow-[0_20px_40px_rgba(0,0,0,0.1)]">
-                <h3 className="text-[18px] font-bold">Perfil al día</h3>
-                <p className="mt-1 text-sm text-white/70">Mejora tus rutas personalizadas.</p>
-                <button
-                  onClick={() => {
-                    navigate("/perfil/editar");
-                    onCerrar();
-                  }}
-                  className="mt-4 w-full rounded-xl bg-[#ff6a47] py-3 text-sm font-bold shadow-lg shadow-[#ff6a47]/20"
-                >
-                  Editar ahora
-                </button>
               </div>
             </div>
           </div>
         </aside>
       </div>
 
+      {/* Modal informativo */}
       {modalInfo.abierto && (
         <>
           <div
             className="fixed inset-0 z-[130] bg-black/40"
-            onClick={cerrarModalInfo}
+            onClick={cerrarModal}
           />
-          <div className="fixed inset-0 z-[140] flex items-center justify-center px-5">
-            <div className="w-full max-w-[360px] rounded-[24px] bg-white p-6 shadow-2xl">
-              <h3 className="text-[22px] font-bold text-[#111827]">
+          <div className="fixed inset-0 z-[140] flex items-center justify-center px-6">
+            <div className="w-full max-w-[320px] rounded-[20px] bg-white p-6 shadow-2xl">
+              <h3 className="text-[18px] font-bold text-[#111827]">
                 {modalInfo.titulo}
               </h3>
-              <p className="mt-3 text-[15px] leading-7 text-[#667085]">
+              <p className="mt-2 text-[15px] leading-7 text-[#6b7280]">
                 {modalInfo.descripcion}
               </p>
-
               <button
                 type="button"
-                onClick={cerrarModalInfo}
-                className="mt-6 w-full rounded-xl bg-[#ff6a47] py-3 text-sm font-bold text-white"
+                onClick={cerrarModal}
+                className="mt-5 w-full rounded-xl bg-[#ff6a47] py-3 text-[15px] font-semibold text-white transition hover:bg-[#e85a38] active:scale-[0.98]"
               >
                 Entendido
               </button>

@@ -9,6 +9,38 @@ import {
   type Conversacion,
 } from "@/app/servicios/conversacion";
 
+type EjemploChat = {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  icono: string;
+  prompt: string;
+};
+
+const ejemplosChat: EjemploChat[] = [
+  {
+    id: "escapada-urbana",
+    titulo: "Escapada urbana",
+    descripcion: "Ciudades cómodas, imprescindibles bien elegidos y un ritmo realista.",
+    icono: "✧",
+    prompt: "Quiero preparar una escapada urbana de 3 días con visitas imprescindibles y tiempo para comer bien.",
+  },
+  {
+    id: "viaje-cultural",
+    titulo: "Viaje cultural",
+    descripcion: "Patrimonio, museos y monumentos con un orden que tenga sentido.",
+    icono: "✧",
+    prompt: "Quiero un viaje cultural con museos, monumentos y barrios históricos, ordenado por zonas.",
+  },
+  {
+    id: "naturaleza-relax",
+    titulo: "Naturaleza y relax",
+    descripcion: "Paisajes, paradas bonitas y un ritmo más relajado y disfrutable.",
+    icono: "✧",
+    prompt: "Quiero una ruta de naturaleza y relax, con miradores, paseos tranquilos y sitios bonitos.",
+  },
+];
+
 function formatDate(value?: string | null): string {
   if (!value) return "Sin fecha";
   const date = new Date(value);
@@ -83,6 +115,29 @@ export default function ChatPantalla() {
     }
   }
 
+  async function abrirEjemplo(ejemplo: EjemploChat) {
+    try {
+      setCreating(true);
+      setError(null);
+      const nuevo = await crearConversacion({
+        id_usuario: idUsuario,
+        titulo: ejemplo.titulo,
+      });
+
+      navigate(`/chat/conversacion/${nuevo.id_conversacion}`, {
+        state: {
+          mensajeInicial: ejemplo.prompt,
+          ejemploId: ejemplo.id,
+        },
+      });
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo abrir el ejemplo de conversación.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   function pedirEliminar(event: MouseEvent<HTMLButtonElement>, chat: Conversacion) {
     event.stopPropagation();
     setChatPendienteEliminar(chat);
@@ -112,9 +167,16 @@ export default function ChatPantalla() {
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-[#94a3b8]">Chat</p>
               <h1 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#0f172a]">Conversaciones del usuario</h1>
-              <p className="mt-2 max-w-[560px] text-sm leading-6 text-[#667085]">Abre una conversación guardada, continúa hablando con el asistente o crea un nuevo chat para preparar otro viaje.</p>
+              <p className="mt-2 max-w-[560px] text-sm leading-6 text-[#667085]">
+                Abre una conversación guardada, continúa hablando con el asistente o crea un nuevo chat para preparar otro viaje.
+              </p>
             </div>
-            <button type="button" onClick={crearNuevoChat} disabled={creating} className="rounded-2xl bg-[#ff5a36] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(255,90,54,0.30)] transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-60">
+            <button
+              type="button"
+              onClick={crearNuevoChat}
+              disabled={creating}
+              className="rounded-2xl bg-[#ff5a36] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(255,90,54,0.30)] transition hover:translate-y-[-1px] disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {creating ? "Creando..." : "Crear nuevo chat"}
             </button>
           </div>
@@ -124,31 +186,72 @@ export default function ChatPantalla() {
 
         <section className="mt-5">
           {loading ? (
-            <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_35px_rgba(15,23,42,0.07)]"><p className="text-sm font-semibold text-[#667085]">Cargando conversaciones...</p></div>
+            <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_35px_rgba(15,23,42,0.07)]">
+              <p className="text-sm font-semibold text-[#667085]">Cargando conversaciones...</p>
+            </div>
           ) : chats.length === 0 ? (
             <div className="rounded-[30px] bg-white p-6 shadow-[0_14px_35px_rgba(15,23,42,0.07)]">
               <p className="text-lg font-black text-[#111827]">No tienes chats guardados</p>
-              <p className="mt-2 text-sm leading-6 text-[#667085]">Crea una conversación nueva y empieza a preparar tu ruta con SpainWay.</p>
-              <button type="button" onClick={crearNuevoChat} disabled={creating} className="mt-5 rounded-2xl bg-[#ff5a36] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:opacity-60">Crear primer chat</button>
+              <p className="mt-2 text-sm leading-6 text-[#667085]">
+                Crea una conversación nueva o usa una idea de ejemplo para empezar más rápido.
+              </p>
+              <button
+                type="button"
+                onClick={crearNuevoChat}
+                disabled={creating}
+                className="mt-5 rounded-2xl bg-[#ff5a36] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:opacity-60"
+              >
+                Crear primer chat
+              </button>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between px-1"><p className="text-sm font-bold text-[#667085]">{totalChats} {totalChats === 1 ? "conversación" : "conversaciones"}</p></div>
+              <div className="flex items-center justify-between px-1">
+                <p className="text-sm font-bold text-[#667085]">
+                  {totalChats} {totalChats === 1 ? "conversación" : "conversaciones"}
+                </p>
+              </div>
+
               {chats.map((chat) => {
                 const titulo = chat.titulo || "Nuevo viaje con SpainWay";
                 const ultimoMensaje = chat.ultimo_mensaje || "Pulsa para abrir esta conversación y seguir hablando.";
                 return (
-                  <article key={chat.id_conversacion} role="button" tabIndex={0} onClick={() => navigate(`/chat/conversacion/${chat.id_conversacion}`)} onKeyDown={(event) => { if (event.key === "Enter") navigate(`/chat/conversacion/${chat.id_conversacion}`); }} className="group cursor-pointer rounded-[30px] bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.07)] transition hover:translate-y-[-2px] hover:shadow-[0_18px_45px_rgba(15,23,42,0.10)]">
+                  <article
+                    key={chat.id_conversacion}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/chat/conversacion/${chat.id_conversacion}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") navigate(`/chat/conversacion/${chat.id_conversacion}`);
+                    }}
+                    className="group cursor-pointer rounded-[30px] bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.07)] transition hover:translate-y-[-2px] hover:shadow-[0_18px_45px_rgba(15,23,42,0.10)]"
+                  >
                     <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fff4ef] text-sm font-black text-[#ff5a36]">{getInitials(titulo)}</div>
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fff4ef] text-sm font-black text-[#ff5a36]">
+                        {getInitials(titulo)}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0"><h3 className="truncate text-[18px] font-black text-[#111827]">{titulo}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-[#667085]">{ultimoMensaje}</p></div>
-                          <span className="shrink-0 rounded-full bg-[#f8fafc] px-3 py-1 text-xs font-bold text-[#667085]">{formatDate(chat.creado)}</span>
+                          <div className="min-w-0">
+                            <h3 className="truncate text-[18px] font-black text-[#111827]">{titulo}</h3>
+                            <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#667085]">{ultimoMensaje}</p>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-[#f8fafc] px-3 py-1 text-xs font-bold text-[#667085]">
+                            {formatDate(chat.creado)}
+                          </span>
                         </div>
                         <div className="mt-5 flex items-center justify-between gap-3">
-                          <span className="text-xs font-bold text-[#ff5a36] opacity-0 transition group-hover:opacity-100">Abrir conversación →</span>
-                          <button type="button" onClick={(event) => pedirEliminar(event, chat)} disabled={deletingId === chat.id_conversacion} className="rounded-full bg-red-50 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-60">{deletingId === chat.id_conversacion ? "Eliminando..." : "Eliminar"}</button>
+                          <span className="text-xs font-bold text-[#ff5a36] opacity-0 transition group-hover:opacity-100">
+                            Abrir conversación →
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(event) => pedirEliminar(event, chat)}
+                            disabled={deletingId === chat.id_conversacion}
+                            className="rounded-full bg-red-50 px-4 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                          >
+                            {deletingId === chat.id_conversacion ? "Eliminando..." : "Eliminar"}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -158,17 +261,76 @@ export default function ChatPantalla() {
             </div>
           )}
         </section>
+
+        <section className="mt-7">
+          <div className="mb-3 px-1">
+            <h2 className="text-[22px] font-black tracking-[-0.03em] text-[#111827]">Empieza con una idea</h2>
+            <p className="mt-1 text-sm leading-6 text-[#667085]">
+              Estos accesos abren ejemplos de itinerarios, no chats vacíos.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {ejemplosChat.map((ejemplo) => (
+              <article
+                key={ejemplo.id}
+                className="rounded-[30px] bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.07)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-[17px] font-black text-[#111827]">{ejemplo.titulo}</h3>
+                    <p className="mt-2 text-sm leading-6 text-[#667085]">{ejemplo.descripcion}</p>
+                  </div>
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#fff4ef] text-[#ff5a36]">
+                    {ejemplo.icono}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void abrirEjemplo(ejemplo)}
+                  disabled={creating}
+                  className="mt-5 rounded-2xl bg-[#f8fafc] px-4 py-3 text-sm font-black text-[#111827] transition hover:bg-[#111827] hover:text-white disabled:opacity-60"
+                >
+                  Ver ejemplo de itinerario
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
       </div>
 
       {chatPendienteEliminar && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/45 px-5 backdrop-blur-sm" onClick={() => setChatPendienteEliminar(null)}>
-          <div className="w-full max-w-[420px] rounded-[32px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.30)]" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/45 px-5 backdrop-blur-sm"
+          onClick={() => setChatPendienteEliminar(null)}
+        >
+          <div
+            className="w-full max-w-[420px] rounded-[32px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.30)]"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-2xl">🗑️</div>
             <h2 className="mt-5 text-center text-[22px] font-black tracking-[-0.03em] text-[#111827]">Eliminar conversación</h2>
-            <p className="mt-3 text-center text-sm leading-6 text-[#667085]">Vas a eliminar <strong className="text-[#111827]">{chatPendienteEliminar.titulo || "Nuevo viaje con SpainWay"}</strong>. Esta acción no se puede deshacer.</p>
+            <p className="mt-3 text-center text-sm leading-6 text-[#667085]">
+              Vas a eliminar <strong className="text-[#111827]">{chatPendienteEliminar.titulo || "Nuevo viaje con SpainWay"}</strong>. Esta acción no se puede deshacer.
+            </p>
             <div className="mt-6 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setChatPendienteEliminar(null)} disabled={deletingId !== null} className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-bold text-[#344054] transition hover:bg-[#f8fafc] disabled:opacity-60">Cancelar</button>
-              <button type="button" onClick={confirmarEliminar} disabled={deletingId !== null} className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(220,38,38,0.25)] transition hover:bg-red-700 disabled:opacity-60">{deletingId !== null ? "Eliminando..." : "Eliminar"}</button>
+              <button
+                type="button"
+                onClick={() => setChatPendienteEliminar(null)}
+                disabled={deletingId !== null}
+                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-bold text-[#344054] transition hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarEliminar}
+                disabled={deletingId !== null}
+                className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(220,38,38,0.25)] transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {deletingId !== null ? "Eliminando..." : "Eliminar"}
+              </button>
             </div>
           </div>
         </div>

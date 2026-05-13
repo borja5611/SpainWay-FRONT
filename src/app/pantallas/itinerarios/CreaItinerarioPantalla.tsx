@@ -28,22 +28,8 @@ type SugerenciaBase = {
   nombre: string;
   lat: number;
   lon: number;
-};
-
-type MapboxFeature = {
-  id?: string;
-  center?: [number, number];
-  place_name?: string;
-  text?: string;
-  place_type?: string[];
-  context?: Array<{
-    id?: string;
-    text?: string;
-  }>;
-};
-
-type MapboxResponse = {
-  features?: MapboxFeature[];
+  kind: "lodging" | "address" | "area" | "poi";
+  secondaryText?: string;
 };
 
 type PoiExcluidoSugerencia = {
@@ -58,18 +44,25 @@ type PoiExcluidoSugerencia = {
 
 type FormularioItinerario = {
   destino: string;
+  subdestino: string;
   dias: string;
   presupuesto: string;
   ritmo: string;
   tipoViaje: string;
   compania: string;
-  imprescindibles: string;
-  extras: string;
+  intereses: string;
   transporte: string;
   restricciones: string;
   zonaBase: string;
   visitedGlobalIds: string;
   cargarEventosLiveLuego: boolean;
+};
+
+type BBoxMapa = {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
 };
 
 const STORAGE_KEY_RANGE = "spainway_trip_date_range";
@@ -99,70 +92,91 @@ const API_URL = import.meta.env.VITE_API_URL as string | undefined;
 const DESTINOS_DISPONIBLES: Array<{
   id: DestinoId;
   nombre: string;
-  centro: [number, number];
-  bbox: [number, number, number, number];
 }> = [
-  {
-    id: "andalucia",
-    nombre: "Andalucía",
-    centro: [-4.4214, 36.7213],
-    bbox: [-7.6, 35.8, -1.6, 38.8],
-  },
-  {
-    id: "asturias",
-    nombre: "Asturias",
-    centro: [-5.8448, 43.3614],
-    bbox: [-7.2, 42.8, -4.4, 43.8],
-  },
-  {
-    id: "baleares",
-    nombre: "Baleares",
-    centro: [2.6502, 39.5696],
-    bbox: [1.1, 38.5, 4.7, 40.2],
-  },
-  {
-    id: "canarias",
-    nombre: "Canarias",
-    centro: [-15.4363, 28.1235],
-    bbox: [-18.3, 27.5, -13.2, 29.5],
-  },
-  {
-    id: "cantabria",
-    nombre: "Cantabria",
-    centro: [-3.8044, 43.4623],
-    bbox: [-4.9, 42.7, -3.1, 43.7],
-  },
-  {
-    id: "cataluna",
-    nombre: "Cataluña",
-    centro: [2.1734, 41.3851],
-    bbox: [0.1, 40.4, 3.4, 42.9],
-  },
-  {
-    id: "madrid",
-    nombre: "Madrid",
-    centro: [-3.7038, 40.4168],
-    bbox: [-3.95, 40.3, -3.5, 40.55],
-  },
-  {
-    id: "cv",
-    nombre: "Comunidad Valenciana",
-    centro: [-0.3763, 39.4699],
-    bbox: [-1.7, 37.8, 0.6, 40.8],
-  },
+  { id: "andalucia", nombre: "Andalucía" },
+  { id: "asturias", nombre: "Asturias" },
+  { id: "baleares", nombre: "Baleares" },
+  { id: "canarias", nombre: "Canarias" },
+  { id: "cantabria", nombre: "Cantabria" },
+  { id: "cataluna", nombre: "Cataluña" },
+  { id: "madrid", nombre: "Madrid" },
+  { id: "cv", nombre: "Comunidad Valenciana" },
 ];
 
-function normalizarDestinoTexto(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+const SUBDESTINOS_POR_DESTINO: Record<string, string[]> = {
+  Andalucía: ["Málaga", "Sevilla", "Granada", "Córdoba", "Cádiz", "Jaén", "Huelva", "Almería"],
+  Asturias: ["Oviedo", "Gijón", "Avilés"],
+  Baleares: ["Mallorca", "Menorca", "Ibiza", "Formentera"],
+  Canarias: [
+    "Tenerife",
+    "Gran Canaria",
+    "Lanzarote",
+    "Fuerteventura",
+    "La Palma",
+    "La Gomera",
+    "El Hierro",
+  ],
+  Cantabria: ["Santander", "Cantabria"],
+  Cataluña: ["Barcelona", "Girona", "Tarragona", "Lleida"],
+  Madrid: ["Madrid"],
+  "Comunidad Valenciana": ["Valencia", "Alicante", "Castellón"],
+};
+
+const CENTROS_SUBDESTINO: Record<string, [number, number, number]> = {
+  "Andalucía|Málaga": [-4.4214, 36.7213, 10],
+  "Andalucía|Sevilla": [-5.9845, 37.3891, 10],
+  "Andalucía|Granada": [-3.5986, 37.1773, 10],
+  "Andalucía|Córdoba": [-4.7794, 37.8882, 10],
+  "Andalucía|Cádiz": [-6.2886, 36.5271, 10],
+  "Andalucía|Jaén": [-3.7903, 37.7796, 10],
+  "Andalucía|Huelva": [-6.9447, 37.2614, 10],
+  "Andalucía|Almería": [-2.4637, 36.834, 10],
+  "Asturias|Oviedo": [-5.8494, 43.3619, 10],
+  "Asturias|Gijón": [-5.6619, 43.5322, 10],
+  "Asturias|Avilés": [-5.9248, 43.5558, 10],
+  "Baleares|Mallorca": [2.6502, 39.5696, 9],
+  "Baleares|Menorca": [4.091, 39.9496, 10],
+  "Baleares|Ibiza": [1.432, 38.9067, 10],
+  "Baleares|Formentera": [1.4323, 38.6964, 11],
+  "Canarias|Tenerife": [-16.6291, 28.2916, 9],
+  "Canarias|Gran Canaria": [-15.598, 27.9202, 9],
+  "Canarias|Lanzarote": [-13.636, 29.0469, 10],
+  "Canarias|Fuerteventura": [-14.02, 28.3587, 9],
+  "Canarias|La Palma": [-17.852, 28.6837, 10],
+  "Canarias|La Gomera": [-17.24, 28.095, 11],
+  "Canarias|El Hierro": [-17.997, 27.725, 11],
+  "Cantabria|Santander": [-3.8099, 43.4623, 11],
+  "Cantabria|Cantabria": [-3.8044, 43.1828, 9],
+  "Cataluña|Barcelona": [2.1734, 41.3851, 10],
+  "Cataluña|Girona": [2.8214, 41.9794, 10],
+  "Cataluña|Tarragona": [1.2445, 41.1189, 10],
+  "Cataluña|Lleida": [0.6222, 41.6176, 10],
+  "Madrid|Madrid": [-3.7038, 40.4168, 11],
+  "Comunidad Valenciana|Valencia": [-0.3763, 39.4699, 10],
+  "Comunidad Valenciana|Alicante": [-0.4907, 38.3452, 10],
+  "Comunidad Valenciana|Castellón": [-0.0577, 39.9864, 10],
+};
+
+function getCentroSubdestino(
+  destino: string,
+  subdestino: string,
+): [number, number, number] | null {
+  if (!destino || !subdestino) return null;
+  return CENTROS_SUBDESTINO[`${destino}|${subdestino}`] ?? null;
 }
 
-function getDestinoPermitido(value?: string | null) {
-  const key = normalizarDestinoTexto(value ?? "");
+function construirDestinoFinal(destino: string, subdestino: string): string {
+  if (!destino.trim()) return "";
+  if (!subdestino.trim()) return destino.trim();
+  return `${destino.trim()}, ${subdestino.trim()}`;
+}
 
+function normalizarDestinoTexto(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
+function getDestinoPermitido(value?: string | null): { id: DestinoId; nombre: string } | null {
+  const key = normalizarDestinoTexto(value ?? "");
   if (!key) return null;
 
   if (
@@ -235,38 +249,41 @@ function getDestinoPermitido(value?: string | null) {
   return DESTINOS_DISPONIBLES.find((item) => normalizarDestinoTexto(item.nombre) === key) ?? null;
 }
 
-function getDestinoConfig(value?: string | null) {
-  const destino = getDestinoPermitido(value);
+function getDestinoConfig(nombre?: string | null): { id: DestinoId; centro: [number, number] } | null {
+  const destino = getDestinoPermitido(nombre);
   if (!destino) return null;
-  return DESTINOS_DISPONIBLES.find((item) => item.id === destino.id) ?? null;
-}
 
-function bboxToMapboxParam(bbox: [number, number, number, number]): string {
-  return bbox.join(",");
-}
-
-function coordsDentroDeDestino(
-  lon: number,
-  lat: number,
-  destino?: string | null,
-): boolean {
-  const config = getDestinoConfig(destino);
-  if (!config) return false;
-
-  const [minLon, minLat, maxLon, maxLat] = config.bbox;
-
-  return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
+  switch (destino.id) {
+    case "andalucia":
+      return { id: destino.id, centro: [-4.5, 37.4] };
+    case "asturias":
+      return { id: destino.id, centro: [-5.85, 43.36] };
+    case "baleares":
+      return { id: destino.id, centro: [2.9, 39.6] };
+    case "canarias":
+      return { id: destino.id, centro: [-15.5, 28.3] };
+    case "cantabria":
+      return { id: destino.id, centro: [-3.8, 43.2] };
+    case "cataluna":
+      return { id: destino.id, centro: [1.5, 41.8] };
+    case "madrid":
+      return { id: destino.id, centro: [-3.7038, 40.4168] };
+    case "cv":
+      return { id: destino.id, centro: [-0.5, 39.4] };
+    default:
+      return null;
+  }
 }
 
 const FORM_INICIAL: FormularioItinerario = {
   destino: "",
+  subdestino: "",
   dias: "",
   presupuesto: "Medio",
   ritmo: "Equilibrado",
   tipoViaje: "Mixto",
-  compania: "",
-  imprescindibles: "",
-  extras: "",
+  compania: "Pareja",
+  intereses: "",
   transporte: "Transporte público",
   restricciones: "",
   zonaBase: "",
@@ -278,14 +295,12 @@ const preguntasIa: PreguntaIa[] = [
   {
     id: "destino",
     titulo: "¿Cuál es el destino principal?",
-    ayuda:
-      "Indica la ciudad, comunidad o zona base sobre la que quieres construir el viaje.",
+    ayuda: "Indica la ciudad, comunidad o zona base sobre la que quieres construir el viaje.",
   },
   {
     id: "base",
     titulo: "¿Desde qué zona o alojamiento empieza cada día?",
-    ayuda:
-      "Se geocodifica para obtener base_lat y base_lon sin meter coordenadas a mano.",
+    ayuda: "Se geocodifica para obtener base_lat y base_lon sin meter coordenadas a mano.",
   },
   {
     id: "negativas",
@@ -295,8 +310,7 @@ const preguntasIa: PreguntaIa[] = [
   {
     id: "visitados",
     titulo: "¿Qué POIs ya se han usado?",
-    ayuda:
-      "Puedes escribir nombres normales; el backend los convierte a global_id comparando con la tabla Poi.",
+    ayuda: "Puedes escribir nombres normales; el backend los convierte a global_id comparando con la tabla Poi.",
   },
 ];
 
@@ -310,27 +324,7 @@ function safeJsonParse<T>(raw: string | null): T | null {
 }
 
 function readStoredRange(): { start: string | null; end: string | null } {
-  const parsed = safeJsonParse<{ start?: string | null; end?: string | null }>(
-    localStorage.getItem(STORAGE_KEY_RANGE),
-  );
-
-  const minDate = getTomorrowIso();
-  const start = parsed?.start ?? null;
-  const end = parsed?.end ?? null;
-
-  if (!start || isBeforeIsoDate(start, minDate)) {
-    localStorage.removeItem(STORAGE_KEY_RANGE);
-    return { start: null, end: null };
-  }
-
-  if (end && end < start) {
-    return { start, end: start };
-  }
-
-  return {
-    start,
-    end: end ?? null,
-  };
+  return { start: null, end: null };
 }
 
 function readStoredForm(): FormularioItinerario {
@@ -338,24 +332,26 @@ function readStoredForm(): FormularioItinerario {
     localStorage.getItem(STORAGE_KEY_FORM_DRAFT),
   );
 
-  const destinoPermitido = getDestinoPermitido(parsed?.destino ?? "");
+  const rawDestino = parsed?.destino ?? "";
+  const partes = rawDestino.split(",").map((item) => item.trim());
+  const destinoPrincipal = partes[0] ?? "";
+  const subdestino = partes[1] ?? parsed?.subdestino ?? "";
+
+  const destinoPermitido = getDestinoPermitido(destinoPrincipal);
 
   return {
     ...FORM_INICIAL,
     ...parsed,
     destino: destinoPermitido?.nombre ?? "",
+    subdestino,
   };
 }
 
 function readStoredBaseCoords(): CoordenadasBase | null {
-  const parsed = safeJsonParse<CoordenadasBase>(
-    localStorage.getItem(STORAGE_KEY_BASE_COORDS),
-  );
-
+  const parsed = safeJsonParse<CoordenadasBase>(localStorage.getItem(STORAGE_KEY_BASE_COORDS));
   if (!parsed) return null;
   if (!Number.isFinite(parsed.lat) || !Number.isFinite(parsed.lon)) return null;
   if (!parsed.label) return null;
-
   return parsed;
 }
 
@@ -367,11 +363,9 @@ function formatRangeText(start: string | null, end: string | null): string {
 
 function getDaysPlaceholder(start: string | null, end: string | null): string {
   if (!start || !end) return "Ej. 5";
-
   const a = new Date(start).getTime();
   const b = new Date(end).getTime();
   const diff = Math.floor((b - a) / 86400000) + 1;
-
   return diff > 0 ? String(diff) : "Ej. 5";
 }
 
@@ -380,10 +374,7 @@ function parseVisitedGlobalIds(value: string): string[] {
     .split(/[\n,;]+/)
     .map((item) => item.trim())
     .filter(Boolean)
-    .filter(
-      (item) =>
-        item.toUpperCase().includes("_") || item.toUpperCase().startsWith("ES"),
-    );
+    .filter((item) => item.toUpperCase().includes("_") || item.toUpperCase().startsWith("ES"));
 }
 
 function parseVisitedNames(value: string): string[] {
@@ -410,41 +401,70 @@ function normalizarValor(value: string): string {
 }
 
 function inferDestinationFromBase(label: string): string {
-  const parts = label
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
+  const parts = label.split(",").map((part) => part.trim()).filter(Boolean);
   const postalCity = parts.find((part) => /^\d{5}\s+/.test(part));
-  if (postalCity) return postalCity.replace(/^\d{5}\s+/, "").trim();
 
+  if (postalCity) return postalCity.replace(/^\d{5}\s+/, "").trim();
   if (parts.length >= 3) return parts[parts.length - 3];
   if (parts.length >= 2) return parts[parts.length - 2];
   return parts[0] ?? "Destino";
 }
 
-function featureToSuggestion(feature: MapboxFeature): SugerenciaBase | null {
-  if (!feature.center) return null;
+function normalizarTextoBusqueda(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
 
-  const [lon, lat] = feature.center;
+function esBusquedaAlojamiento(query: string): boolean {
+  const q = normalizarTextoBusqueda(query);
+  return [
+    "hotel",
+    "hostal",
+    "hostel",
+    "apartamento",
+    "apartamentos",
+    "apartahotel",
+    "alojamiento",
+    "parador",
+    "resort",
+    "pension",
+    "pensión",
+    "airbnb",
+  ].some((term) => q.includes(term));
+}
 
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+function deduplicarSugerencias(items: SugerenciaBase[]): SugerenciaBase[] {
+  const seen = new Set<string>();
 
-  return {
-    id: feature.id ?? feature.place_name ?? `${lat}-${lon}`,
-    nombre: feature.place_name ?? feature.text ?? "Ubicación",
-    lat,
-    lon,
+  return items.filter((item) => {
+    const key = `${item.nombre.toLowerCase()}|${item.lat.toFixed(5)}|${item.lon.toFixed(5)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function ordenarSugerencias(items: SugerenciaBase[]): SugerenciaBase[] {
+  const prioridad: Record<SugerenciaBase["kind"], number> = {
+    lodging: 0,
+    address: 1,
+    area: 2,
+    poi: 3,
   };
+
+  return [...items].sort((a, b) => prioridad[a.kind] - prioridad[b.kind]);
+}
+
+function getBadgeSugerencia(kind: SugerenciaBase["kind"], secondaryText?: string): string {
+  if (secondaryText) return secondaryText;
+  if (kind === "lodging") return "Alojamiento";
+  if (kind === "address") return "Dirección";
+  if (kind === "area") return "Zona";
+  return "POI";
 }
 
 function IconoChevron({ open }: { open: boolean }) {
   return (
-    <svg
-      className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
-      viewBox="0 0 24 24"
-      fill="none"
-    >
+    <svg className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none">
       <path
         d="M6 9L12 15L18 9"
         stroke="currentColor"
@@ -473,35 +493,35 @@ export default function CrearItinerarioPantalla() {
   const navigate = useNavigate();
   const usuario = useAuthStore((state) => state.usuario);
   const setDestinoSeleccionado = useDestinoStore((state) => state.setDestinoSeleccionado);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const idUsuario = usuario?.id_usuario ?? null;
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
-  const destinoActualRef = useRef<string>("");
 
   const [mostrarRecomendaciones, setMostrarRecomendaciones] = useState(false);
   const [buscandoBase, setBuscandoBase] = useState(false);
   const [errorBase, setErrorBase] = useState<string | null>(null);
-  const [baseCoords, setBaseCoords] = useState<CoordenadasBase | null>(() =>
-    readStoredBaseCoords(),
-  );
-  const [generando, setGenerando] = useState(false);
+  const [baseCoords, setBaseCoords] = useState<CoordenadasBase | null>(() => readStoredBaseCoords());
   const [sugerencias, setSugerencias] = useState<SugerenciaBase[]>([]);
   const [mostrandoSugerencias, setMostrandoSugerencias] = useState(false);
   const [busquedaPoiExcluido, setBusquedaPoiExcluido] = useState("");
-  const [sugerenciasPoisExcluidos, setSugerenciasPoisExcluidos] = useState<
-    PoiExcluidoSugerencia[]
-  >([]);
+  const [sugerenciasPoisExcluidos, setSugerenciasPoisExcluidos] = useState<PoiExcluidoSugerencia[]>([]);
   const [buscandoPoiExcluido, setBuscandoPoiExcluido] = useState(false);
+  const [form, setForm] = useState<FormularioItinerario>(() => readStoredForm());
+  const [range, setRange] = useState(() => readStoredRange());
+  const [calendarioAbierto, setCalendarioAbierto] = useState(false);
+  const [fechaInicioTemp, setFechaInicioTemp] = useState(getTomorrowIso());
+  const [fechaFinTemp, setFechaFinTemp] = useState(getTomorrowIso());
+  const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
+  const [avisoValidacion, setAvisoValidacion] = useState<string | null>(null);
+  const [generando, setGenerando] = useState(false);
+  const [progresoGeneracion, setProgresoGeneracion] = useState(0);
 
-  const [form, setForm] = useState<FormularioItinerario>(() =>
-    readStoredForm(),
+  const daysPlaceholder = useMemo(
+    () => getDaysPlaceholder(range.start, range.end),
+    [range.start, range.end],
   );
-
-  useEffect(() => {
-    destinoActualRef.current = form.destino;
-  }, [form.destino]);
 
   useEffect(() => {
     const destinoPermitido = getDestinoPermitido(form.destino);
@@ -510,29 +530,12 @@ export default function CrearItinerarioPantalla() {
     }
   }, [form.destino, setDestinoSeleccionado]);
 
-  const [range, setRange] = useState(() => readStoredRange());
-  const [calendarioAbierto, setCalendarioAbierto] = useState(false);
-  const [fechaInicioTemp, setFechaInicioTemp] = useState(
-    range.start ?? getTomorrowIso(),
-  );
-  const [fechaFinTemp, setFechaFinTemp] = useState(
-    range.end ?? range.start ?? getTomorrowIso(),
-  );
-  const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
-  const [avisoValidacion, setAvisoValidacion] = useState<string | null>(null);
-  const [progresoGeneracion, setProgresoGeneracion] = useState(0);
-
   useEffect(() => {
-    const actualizarRango = () => {
-      setRange(readStoredRange());
-    };
-
-    actualizarRango();
-    window.addEventListener("focus", actualizarRango);
-
-    return () => {
-      window.removeEventListener("focus", actualizarRango);
-    };
+    const emptyRange = { start: null, end: null };
+    setRange(emptyRange);
+    setFechaInicioTemp(getTomorrowIso());
+    setFechaFinTemp(getTomorrowIso());
+    localStorage.removeItem(STORAGE_KEY_RANGE);
   }, []);
 
   useEffect(() => {
@@ -553,11 +556,6 @@ export default function CrearItinerarioPantalla() {
     return () => window.clearInterval(intervalId);
   }, [generando]);
 
-  const daysPlaceholder = useMemo(
-    () => getDaysPlaceholder(range.start, range.end),
-    [range.end, range.start],
-  );
-
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_FORM_DRAFT, JSON.stringify(form));
   }, [form]);
@@ -571,21 +569,15 @@ export default function CrearItinerarioPantalla() {
   }, [baseCoords]);
 
   useEffect(() => {
-    if (!MAPBOX_TOKEN) return;
-    if (!mapContainerRef.current) return;
-    if (mapRef.current) return;
+    if (!MAPBOX_TOKEN || !mapContainerRef.current || mapRef.current) return;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
-
-    const destinoInicial = getDestinoConfig(destinoActualRef.current);
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/streets-v12",
-      center: baseCoords
-        ? [baseCoords.lon, baseCoords.lat]
-        : destinoInicial?.centro ?? [-3.7038, 40.4168],
-      zoom: baseCoords ? 14 : destinoInicial?.id === "madrid" ? 11 : 8,
+      center: baseCoords ? [baseCoords.lon, baseCoords.lat] : [-3.7038, 40.4168],
+      zoom: baseCoords ? 14 : 11,
     });
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
@@ -599,19 +591,6 @@ export default function CrearItinerarioPantalla() {
     map.on("click", async (event) => {
       const lon = event.lngLat.lng;
       const lat = event.lngLat.lat;
-      const destinoActual = destinoActualRef.current;
-      const destinoConfig = getDestinoConfig(destinoActual);
-
-      if (!destinoConfig) {
-        setErrorBase("Selecciona primero un destino.");
-        return;
-      }
-
-      if (!coordsDentroDeDestino(lon, lat, destinoActual)) {
-        setErrorBase(`La zona seleccionada está fuera de ${destinoConfig.nombre}.`);
-        return;
-      }
-
       const label = await reverseGeocode(lat, lon);
 
       aplicarUbicacion({
@@ -619,6 +598,7 @@ export default function CrearItinerarioPantalla() {
         nombre: label,
         lat,
         lon,
+        kind: "address",
       });
     });
 
@@ -629,14 +609,10 @@ export default function CrearItinerarioPantalla() {
       map.remove();
       mapRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [baseCoords]);
 
   useEffect(() => {
-    if (!MAPBOX_TOKEN) return;
-
     const query = form.zonaBase.trim();
-
     if (query.length < 3) {
       setSugerencias([]);
       return;
@@ -647,12 +623,10 @@ export default function CrearItinerarioPantalla() {
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.zonaBase, form.destino]);
+  }, [form.zonaBase, form.destino, form.subdestino]);
 
   useEffect(() => {
     const query = busquedaPoiExcluido.trim();
-
     if (query.length < 3) {
       setSugerenciasPoisExcluidos([]);
       return;
@@ -663,7 +637,6 @@ export default function CrearItinerarioPantalla() {
     }, 280);
 
     return () => window.clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busquedaPoiExcluido]);
 
   function updateForm<K extends keyof FormularioItinerario>(
@@ -682,7 +655,9 @@ export default function CrearItinerarioPantalla() {
     setForm((prev) => ({
       ...prev,
       destino: destinoPermitido?.nombre ?? "",
+      subdestino: "",
       zonaBase: "",
+      visitedGlobalIds: "",
     }));
 
     setBaseCoords(null);
@@ -697,7 +672,6 @@ export default function CrearItinerarioPantalla() {
       setDestinoSeleccionado(destinoPermitido.id);
 
       const config = getDestinoConfig(destinoPermitido.nombre);
-
       if (config && mapRef.current) {
         mapRef.current.flyTo({
           center: config.centro,
@@ -708,12 +682,23 @@ export default function CrearItinerarioPantalla() {
     }
   }
 
+  function updateSubdestino(value: string) {
+    updateForm("subdestino", value);
+
+    const centro = getCentroSubdestino(form.destino, value);
+    if (centro && mapRef.current) {
+      const [lon, lat, zoom] = centro;
+      mapRef.current.flyTo({
+        center: [lon, lat],
+        zoom,
+        essential: true,
+      });
+    }
+  }
+
   function abrirCalendarioPopup() {
     const minDate = getTomorrowIso();
-    const start =
-      range.start && !isBeforeIsoDate(range.start, minDate)
-        ? range.start
-        : minDate;
+    const start = range.start && !isBeforeIsoDate(range.start, minDate) ? range.start : minDate;
     const end = range.end && range.end >= start ? range.end : start;
 
     setFechaInicioTemp(start);
@@ -730,9 +715,7 @@ export default function CrearItinerarioPantalla() {
     }
 
     if (fechaFinTemp < fechaInicioTemp) {
-      setErrorFormulario(
-        "La fecha final no puede ser anterior a la fecha de inicio.",
-      );
+      setErrorFormulario("La fecha final no puede ser anterior a la fecha de inicio.");
       return;
     }
 
@@ -753,31 +736,21 @@ export default function CrearItinerarioPantalla() {
 
   function getErroresValidacion(): string[] {
     const errores: string[] = [];
-    const destino = form.destino.trim();
+    const destino = construirDestinoFinal(form.destino, form.subdestino);
     const dias = Number(form.dias);
     const daysFromDates = Number(getDaysPlaceholder(range.start, range.end));
 
-    if (!destino) {
+    if (!destino.trim()) {
       errores.push("Destino principal");
-    } else if (!getDestinoPermitido(destino)) {
+    } else if (!getDestinoPermitido(form.destino)) {
       errores.push("Destino válido de la lista disponible");
     }
 
-    if (!form.presupuesto.trim()) {
-      errores.push("Presupuesto");
-    }
-
-    if (!form.ritmo.trim()) {
-      errores.push("Ritmo del viaje");
-    }
-
-    if (!form.tipoViaje.trim()) {
-      errores.push("Tipo de viaje");
-    }
-
-    if (!form.transporte.trim()) {
-      errores.push("Transporte principal");
-    }
+    if (!form.subdestino.trim()) errores.push("Provincia / isla / ciudad concreta");
+    if (!form.presupuesto.trim()) errores.push("Presupuesto");
+    if (!form.ritmo.trim()) errores.push("Ritmo del viaje");
+    if (!form.tipoViaje.trim()) errores.push("Tipo de viaje");
+    if (!form.transporte.trim()) errores.push("Transporte principal");
 
     if (!baseCoords || !form.zonaBase.trim()) {
       errores.push("Zona base válida seleccionada en el mapa o buscador");
@@ -834,27 +807,13 @@ export default function CrearItinerarioPantalla() {
       const lngLat = markerRef.current?.getLngLat();
       if (!lngLat) return;
 
-      const destinoActual = destinoActualRef.current;
-      const destinoConfig = getDestinoConfig(destinoActual);
-
-      if (!destinoConfig) {
-        setErrorBase("Selecciona primero un destino.");
-        return;
-      }
-
-      if (!coordsDentroDeDestino(lngLat.lng, lngLat.lat, destinoActual)) {
-        setErrorBase(`La zona seleccionada está fuera de ${destinoConfig.nombre}.`);
-        markerRef.current?.setLngLat([lon, lat]);
-        return;
-      }
-
       const label = await reverseGeocode(lngLat.lat, lngLat.lng);
-
       aplicarUbicacion({
         id: `${lngLat.lat}-${lngLat.lng}`,
         nombre: label,
         lat: lngLat.lat,
         lon: lngLat.lng,
+        kind: "address",
       });
     });
 
@@ -867,68 +826,241 @@ export default function CrearItinerarioPantalla() {
     }
   }
 
+  function getMapSearchContext(): {
+    proximity: { lon: number; lat: number } | null;
+    bbox: BBoxMapa | null;
+  } {
+    const map = mapRef.current;
+
+    if (!map) {
+      return {
+        proximity: null,
+        bbox: null,
+      };
+    }
+
+    const center = map.getCenter();
+    const bounds = map.getBounds();
+
+    if (!bounds) {
+      return {
+        proximity: {
+          lon: center.lng,
+          lat: center.lat,
+        },
+        bbox: null,
+      };
+    }
+
+    return {
+      proximity: {
+        lon: center.lng,
+        lat: center.lat,
+      },
+      bbox: {
+        west: bounds.getWest(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        north: bounds.getNorth(),
+      },
+    };
+  }
+
   async function reverseGeocode(lat: number, lon: number): Promise<string> {
-    if (!MAPBOX_TOKEN)
-      return `Zona seleccionada (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
-
     try {
-      const destinoConfig = getDestinoConfig(destinoActualRef.current);
-
-      const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json` +
-        `?access_token=${MAPBOX_TOKEN}` +
-        `&language=es` +
-        `&limit=1` +
-        `&country=es` +
-        `${destinoConfig ? `&bbox=${bboxToMapboxParam(destinoConfig.bbox)}` : ""}`;
-
-      const response = await fetch(url);
-      const data = (await response.json()) as MapboxResponse;
-      const placeName = data.features?.[0]?.place_name;
-
-      return (
-        placeName ?? `Zona seleccionada (${lat.toFixed(5)}, ${lon.toFixed(5)})`
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(
+          String(lat),
+        )}&lon=${encodeURIComponent(String(lon))}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            "Accept-Language": "es",
+          },
+        },
       );
+
+      if (!response.ok) {
+        return `Zona seleccionada (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
+      }
+
+      const data = (await response.json()) as {
+        display_name?: string;
+      };
+
+      return data.display_name ?? `Zona seleccionada (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
     } catch {
       return `Zona seleccionada (${lat.toFixed(5)}, ${lon.toFixed(5)})`;
     }
   }
 
-  async function cargarSugerencias(query: string) {
-    if (!MAPBOX_TOKEN) return;
+  async function cargarSugerenciasDireccion(query: string): Promise<SugerenciaBase[]> {
+    const { bbox } = getMapSearchContext();
+    const destinoBusqueda = construirDestinoFinal(form.destino, form.subdestino);
+    const busqueda = destinoBusqueda ? `${query}, ${destinoBusqueda}` : query;
 
-    const destinoConfig = getDestinoConfig(form.destino);
+    const params = new URLSearchParams({
+      q: busqueda,
+      format: "jsonv2",
+      addressdetails: "1",
+      limit: "8",
+      countrycodes: "es",
+      "accept-language": "es",
+    });
 
-    if (!destinoConfig) {
-      setSugerencias([]);
-      setErrorBase("Selecciona primero un destino para buscar zonas.");
-      return;
+    if (bbox) {
+      params.set("viewbox", `${bbox.west},${bbox.north},${bbox.east},${bbox.south}`);
+      params.set("bounded", "1");
     }
 
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      {
+        headers: {
+          "Accept-Language": "es",
+        },
+      },
+    );
+
+    if (!response.ok) return [];
+
+    const data = (await response.json()) as Array<{
+      place_id: number;
+      display_name: string;
+      lat: string;
+      lon: string;
+      type?: string;
+    }>;
+
+    const results: SugerenciaBase[] = [];
+
+    for (const item of data) {
+      const lat = Number(item.lat);
+      const lon = Number(item.lon);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        continue;
+      }
+
+      let kind: SugerenciaBase["kind"] = "address";
+      let secondaryText = "Dirección";
+
+      if (item.type === "suburb" || item.type === "neighbourhood") {
+        kind = "area";
+        secondaryText = "Barrio";
+      } else if (item.type === "postcode") {
+        kind = "address";
+        secondaryText = "Código postal";
+      } else if (item.type === "city" || item.type === "town" || item.type === "village") {
+        kind = "area";
+        secondaryText = "Zona";
+      }
+
+      results.push({
+        id: `nominatim-${item.place_id}`,
+        nombre: item.display_name,
+        lat,
+        lon,
+        kind,
+        secondaryText,
+      });
+    }
+
+    return results;
+  }
+
+  async function cargarSugerenciasAlojamiento(query: string): Promise<SugerenciaBase[]> {
+  const { bbox } = getMapSearchContext();
+  if (!bbox) return [];
+
+  const q = normalizarTextoBusqueda(query);
+  const esGenerica = esBusquedaAlojamiento(query);
+
+  const overpassQuery = `
+    [out:json][timeout:20];
+    (
+      node["tourism"~"hotel|hostel|guest_house|apartment|motel"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+      way["tourism"~"hotel|hostel|guest_house|apartment|motel"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+      relation["tourism"~"hotel|hostel|guest_house|apartment|motel"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+    );
+    out center tags;
+  `;
+
+  const response = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+    },
+    body: overpassQuery,
+  });
+
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as {
+    elements?: Array<{
+      id: number;
+      lat?: number;
+      lon?: number;
+      center?: { lat: number; lon: number };
+      tags?: Record<string, string>;
+    }>;
+  };
+
+  const results: SugerenciaBase[] = [];
+
+  for (const el of data.elements ?? []) {
+    const lat = el.lat ?? el.center?.lat;
+    const lon = el.lon ?? el.center?.lon;
+
+    if (typeof lat !== "number" || !Number.isFinite(lat)) {
+      continue;
+    }
+
+    if (typeof lon !== "number" || !Number.isFinite(lon)) {
+      continue;
+    }
+
+    const nombre = el.tags?.name ?? el.tags?.brand ?? el.tags?.operator ?? "Alojamiento";
+
+    const direccion = [
+      el.tags?.["addr:street"],
+      el.tags?.["addr:housenumber"],
+      el.tags?.["addr:postcode"],
+      el.tags?.["addr:city"],
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    const searchable = normalizarTextoBusqueda([nombre, direccion].filter(Boolean).join(" "));
+
+    if (!esGenerica && q && !searchable.includes(q)) {
+      continue;
+    }
+
+    results.push({
+      id: `osm-hotel-${el.id}`,
+      nombre: direccion ? `${nombre} · ${direccion}` : nombre,
+      lat,
+      lon,
+      kind: "lodging",
+      secondaryText: "Hotel / alojamiento",
+    });
+  }
+
+  return results.slice(0, 8);
+}
+
+  async function cargarSugerencias(query: string) {
     try {
-      const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-        `?access_token=${MAPBOX_TOKEN}` +
-        `&language=es` +
-        `&country=es` +
-        `&autocomplete=true` +
-        `&limit=6` +
-        `&types=address,place,postcode,poi,neighborhood,locality` +
-        `&bbox=${bboxToMapboxParam(destinoConfig.bbox)}` +
-        `&proximity=${destinoConfig.centro[0]},${destinoConfig.centro[1]}`;
+      const [direcciones, alojamientos] = await Promise.all([
+        cargarSugerenciasDireccion(query),
+        query.trim().length >= 2 ? cargarSugerenciasAlojamiento(query) : Promise.resolve([]),
+      ]);
 
-      const response = await fetch(url);
-      if (!response.ok) return;
+      const mezcladas = ordenarSugerencias(
+        deduplicarSugerencias([...alojamientos, ...direcciones]),
+      );
 
-      const data = (await response.json()) as MapboxResponse;
-      const next = (data.features ?? [])
-        .map(featureToSuggestion)
-        .filter((item): item is SugerenciaBase => item !== null)
-        .filter((item) =>
-          coordsDentroDeDestino(item.lon, item.lat, form.destino),
-        );
-
-      setSugerencias(next);
+      setSugerencias(mezcladas.slice(0, 8));
     } catch (error) {
       console.error(error);
       setSugerencias([]);
@@ -936,19 +1068,6 @@ export default function CrearItinerarioPantalla() {
   }
 
   function aplicarUbicacion(sugerencia: SugerenciaBase) {
-    const destinoActual = destinoActualRef.current || form.destino;
-    const destinoConfig = getDestinoConfig(destinoActual);
-
-    if (!destinoConfig) {
-      setErrorBase("Selecciona primero un destino.");
-      return;
-    }
-
-    if (!coordsDentroDeDestino(sugerencia.lon, sugerencia.lat, destinoActual)) {
-      setErrorBase(`La zona seleccionada está fuera de ${destinoConfig.nombre}.`);
-      return;
-    }
-
     const coords = {
       lat: sugerencia.lat,
       lon: sugerencia.lon,
@@ -978,8 +1097,10 @@ export default function CrearItinerarioPantalla() {
 
     try {
       setBuscandoPoiExcluido(true);
+      const destinoBusqueda = construirDestinoFinal(form.destino, form.subdestino);
+
       const response = await fetch(
-        `${API_URL}/api/pois/busqueda/texto?q=${encodeURIComponent(query)}`,
+        `${API_URL}/api/pois/busqueda/texto?q=${encodeURIComponent(query)}&destino=${encodeURIComponent(destinoBusqueda)}`,
       );
 
       if (!response.ok) {
@@ -1018,19 +1139,7 @@ export default function CrearItinerarioPantalla() {
   }
 
   async function buscarZonaBase() {
-    if (!MAPBOX_TOKEN) {
-      setErrorBase("Falta VITE_MAPBOX_TOKEN en el .env del frontend.");
-      return;
-    }
-
     const query = form.zonaBase.trim();
-    const destinoConfig = getDestinoConfig(form.destino);
-
-    if (!destinoConfig) {
-      setErrorBase("Selecciona primero un destino.");
-      return;
-    }
-
     if (!query) {
       setErrorBase("Escribe una zona, hotel, barrio, calle o código postal.");
       return;
@@ -1040,38 +1149,25 @@ export default function CrearItinerarioPantalla() {
       setBuscandoBase(true);
       setErrorBase(null);
 
-      await cargarSugerencias(query);
+      const [direcciones, alojamientos] = await Promise.all([
+        cargarSugerenciasDireccion(query),
+        query.length >= 2 ? cargarSugerenciasAlojamiento(query) : Promise.resolve([]),
+      ]);
 
-      const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json` +
-        `?access_token=${MAPBOX_TOKEN}` +
-        `&language=es` +
-        `&country=es` +
-        `&limit=1` +
-        `&types=address,place,postcode,poi,neighborhood,locality` +
-        `&bbox=${bboxToMapboxParam(destinoConfig.bbox)}` +
-        `&proximity=${destinoConfig.centro[0]},${destinoConfig.centro[1]}`;
+      const sugerenciasOrdenadas = ordenarSugerencias(
+        deduplicarSugerencias([...alojamientos, ...direcciones]),
+      );
 
-      const response = await fetch(url);
+      setSugerencias(sugerenciasOrdenadas);
+      setMostrandoSugerencias(true);
 
-      if (!response.ok) {
-        throw new Error("No se pudo geocodificar la zona base.");
-      }
-
-      const data = (await response.json()) as MapboxResponse;
-      const sugerencia = featureToSuggestion(data.features?.[0] ?? {});
-
-      if (!sugerencia) {
-        setErrorBase(`No se ha encontrado esa zona dentro de ${destinoConfig.nombre}.`);
+      const primera = sugerenciasOrdenadas[0];
+      if (!primera) {
+        setErrorBase("No se ha encontrado esa zona. Prueba con otra búsqueda.");
         return;
       }
 
-      if (!coordsDentroDeDestino(sugerencia.lon, sugerencia.lat, form.destino)) {
-        setErrorBase(`La zona encontrada está fuera de ${destinoConfig.nombre}.`);
-        return;
-      }
-
-      aplicarUbicacion(sugerencia);
+      aplicarUbicacion(primera);
     } catch (error) {
       console.error(error);
       setErrorBase("No se pudo buscar la zona base.");
@@ -1081,35 +1177,36 @@ export default function CrearItinerarioPantalla() {
   }
 
   function generarPayloadRecomendador(): PayloadRecomendador {
+    if (!idUsuario) {
+      throw new Error("No hay una sesión válida para generar el itinerario.");
+    }
+
     if (!baseCoords) {
-      throw new Error(
-        "Selecciona una zona base con el buscador o haciendo click en el mapa.",
-      );
+      throw new Error("Selecciona una zona base con el buscador o haciendo click en el mapa.");
     }
 
     const negativePreferences = parseNegativePreferences(form.restricciones);
     const destinoPermitido = getDestinoPermitido(form.destino);
-    const destination = destinoPermitido?.nombre ?? form.destino.trim();
+    const destination = construirDestinoFinal(
+      destinoPermitido?.nombre ?? form.destino.trim(),
+      form.subdestino,
+    );
     const daysFromDates = Number(getDaysPlaceholder(range.start, range.end));
     const days = Number(form.dias) || daysFromDates || 1;
-
-    const notes = form.restricciones.trim();
 
     return {
       id_usuario: idUsuario,
       destination,
       days: Number.isFinite(days) && days > 0 ? days : 1,
       budget: normalizarValor(form.presupuesto),
-      dates: [range.start, range.end].filter((item): item is string =>
-        Boolean(item),
-      ),
+      dates: [range.start, range.end].filter((item): item is string => Boolean(item)),
       pace: normalizarValor(form.ritmo),
       trip_type: normalizarValor(form.tipoViaje),
       companions: form.compania.trim(),
       transport: normalizarValor(form.transporte),
-      must_see: form.imprescindibles.trim(),
-      extras: form.extras.trim(),
-      notes,
+      must_see: form.intereses.trim(),
+      extras: form.intereses.trim(),
+      notes: form.restricciones.trim(),
       base_location_name: form.zonaBase.trim(),
       base_address: form.zonaBase.trim(),
       base_lat: baseCoords.lat,
@@ -1135,9 +1232,7 @@ export default function CrearItinerarioPantalla() {
       setAvisoValidacion(mensaje);
       setErrorFormulario(null);
       setErrorBase(
-        erroresValidacion.some((campo) =>
-          campo.toLowerCase().includes("zona base"),
-        )
+        erroresValidacion.some((campo) => campo.toLowerCase().includes("zona base"))
           ? "Selecciona una zona base válida con el buscador o haciendo click en el mapa."
           : null,
       );
@@ -1157,10 +1252,7 @@ export default function CrearItinerarioPantalla() {
       }
 
       const payload = generarPayloadRecomendador();
-      localStorage.setItem(
-        STORAGE_KEY_RECOMMENDER_DRAFT,
-        JSON.stringify(payload),
-      );
+      localStorage.setItem(STORAGE_KEY_RECOMMENDER_DRAFT, JSON.stringify(payload));
 
       const resultado = await generarItinerario(payload);
 
@@ -1197,17 +1289,10 @@ export default function CrearItinerarioPantalla() {
         <section className="rounded-[30px] bg-gradient-to-br from-[#fff8f4] via-[#ffffff] to-[#f4f1ff] p-5 shadow-[0_12px_30px_rgba(15,23,42,0.07)]">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
-                Itinerarios
-              </p>
-
-              <h1 className="mt-2 text-[24px] font-bold tracking-[-0.03em]">
-                Crear itinerario
-              </h1>
-
+              <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">Itinerarios</p>
+              <h1 className="mt-2 text-[24px] font-bold tracking-[-0.03em]">Crear itinerario</h1>
               <p className="mt-2 text-sm leading-6 text-[#667085]">
-                Rellena el destino, la zona base y tus preferencias. Al generar
-                se abrirá automáticamente el chat con la propuesta guardada.
+                Rellena el destino, la zona base y tus preferencias. Al generar se abrirá automáticamente el chat con la propuesta guardada.
               </p>
             </div>
 
@@ -1223,10 +1308,7 @@ export default function CrearItinerarioPantalla() {
           <div className="mt-5 rounded-[22px] bg-[#fff7f1] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-[#8c2d12]">
-                  Preguntas clave para el motor de IA
-                </p>
-
+                <p className="text-sm font-semibold text-[#8c2d12]">Preguntas clave para el motor de IA</p>
                 <p className="mt-1 text-xs leading-5 text-[#b54708]">
                   Pulsa para ver u ocultar las recomendaciones.
                 </p>
@@ -1270,39 +1352,58 @@ export default function CrearItinerarioPantalla() {
           )}
 
           <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Destino
-              </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">Destino</label>
+                <select
+                  value={form.destino}
+                  onChange={(event) => updateDestino(event.target.value)}
+                  required
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm text-[#111827] outline-none"
+                >
+                  <option value="">Selecciona un destino disponible</option>
+                  {DESTINOS_DISPONIBLES.map((destino) => (
+                    <option key={destino.id} value={destino.nombre}>
+                      {destino.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <select
-                value={form.destino}
-                onChange={(event) => updateDestino(event.target.value)}
-                required
-                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none text-[#111827]"
-              >
-                <option value="">Selecciona un destino disponible</option>
-                {DESTINOS_DISPONIBLES.map((destino) => (
-                  <option key={destino.id} value={destino.nombre}>
-                    {destino.nombre}
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">
+                  Provincia / isla / ciudad
+                </label>
+                <select
+                  value={form.subdestino}
+                  onChange={(event) => updateSubdestino(event.target.value)}
+                  disabled={!form.destino}
+                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm text-[#111827] outline-none disabled:opacity-60"
+                >
+                  <option value="">
+                    {form.destino ? "Selecciona una zona concreta" : "Selecciona antes un destino"}
                   </option>
-                ))}
-              </select>
+                  {(SUBDESTINOS_POR_DESTINO[form.destino] ?? []).map((item) => (
+                    <option key={item} value={item}>
+                      {form.destino}, {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <p className="mt-2 text-xs leading-5 text-[#667085]">
-                Solo se muestran los destinos que ya tenemos resueltos con imágenes, POIs y mapa.
-              </p>
+              <div className="sm:col-span-2">
+                <p className="text-xs leading-5 text-[#667085]">
+                  Así evitamos mezclar territorios demasiado amplios. Por ejemplo:
+                  <strong> Canarias, Tenerife</strong> o <strong>Baleares, Ibiza</strong>.
+                </p>
+              </div>
             </div>
 
             <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
               <div className="mb-3">
-                <p className="text-sm font-bold text-[#111827]">
-                  Zona base del viaje
-                </p>
-
+                <p className="text-sm font-bold text-[#111827]">Zona base del viaje</p>
                 <p className="mt-1 text-xs leading-5 text-[#667085]">
-                  Escribe al menos 3 letras. Las sugerencias se limitarán al destino seleccionado.
-                  También puedes hacer click directamente en el mapa.
+                  Escribe al menos 3 letras. Buscamos hoteles, barrios, calles y zonas usando mejor el contexto del mapa y del destino.
                 </p>
               </div>
 
@@ -1313,7 +1414,7 @@ export default function CrearItinerarioPantalla() {
                     value={form.zonaBase}
                     onChange={(event) => updateZonaBase(event.target.value)}
                     onFocus={() => setMostrandoSugerencias(true)}
-                    placeholder="Ej. Serrano, Bernabéu, Gran Vía, 28013..."
+                    placeholder="Ej. hotel, calle, barrio, código postal..."
                     className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
                   />
 
@@ -1325,9 +1426,16 @@ export default function CrearItinerarioPantalla() {
                           type="button"
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => aplicarUbicacion(sugerencia)}
-                          className="block w-full border-b border-[#f1f5f9] px-4 py-3 text-left text-sm text-[#344054] transition last:border-b-0 hover:bg-[#fff7f3] hover:text-[#ff5a36]"
+                          className="block w-full border-b border-[#f1f5f9] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#fff7f3]"
                         >
-                          {sugerencia.nombre}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-[#344054]">{sugerencia.nombre}</p>
+                            </div>
+                            <span className="shrink-0 rounded-full bg-[#fff1eb] px-2.5 py-1 text-[11px] font-semibold text-[#ff5a36]">
+                              {getBadgeSugerencia(sugerencia.kind, sugerencia.secondaryText)}
+                            </span>
+                          </div>
                         </button>
                       ))}
                     </div>
@@ -1355,8 +1463,8 @@ export default function CrearItinerarioPantalla() {
                   <p className="font-semibold">Base seleccionada:</p>
                   <p>{baseCoords.label}</p>
                   <p className="mt-1">
-                    base_lat: <strong>{baseCoords.lat.toFixed(6)}</strong> ·
-                    base_lon: <strong>{baseCoords.lon.toFixed(6)}</strong>
+                    base_lat: <strong>{baseCoords.lat.toFixed(6)}</strong> · base_lon:{" "}
+                    <strong>{baseCoords.lon.toFixed(6)}</strong>
                   </p>
                 </div>
               )}
@@ -1374,10 +1482,7 @@ export default function CrearItinerarioPantalla() {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                  Días
-                </label>
-
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">Días</label>
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -1388,7 +1493,6 @@ export default function CrearItinerarioPantalla() {
                     placeholder={daysPlaceholder}
                     className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
                   />
-
                   <button
                     type="button"
                     onClick={abrirCalendarioPopup}
@@ -1400,21 +1504,15 @@ export default function CrearItinerarioPantalla() {
                 </div>
 
                 <p className="mt-2 text-xs leading-5 text-[#667085]">
-                  Puedes escribir solo los días o seleccionar un rango de
-                  fechas.
+                  Puedes escribir solo los días o seleccionar un rango de fechas.
                 </p>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                  Presupuesto
-                </label>
-
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">Presupuesto</label>
                 <select
                   value={form.presupuesto}
-                  onChange={(event) =>
-                    updateForm("presupuesto", event.target.value)
-                  }
+                  onChange={(event) => updateForm("presupuesto", event.target.value)}
                   className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
                 >
                   <option>Bajo</option>
@@ -1428,11 +1526,9 @@ export default function CrearItinerarioPantalla() {
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#ff5a36]">
                 Fechas seleccionadas
               </p>
-
               <p className="mt-2 text-sm font-medium text-[#7a271a]">
                 {formatRangeText(range.start, range.end)}
               </p>
-
               <button
                 type="button"
                 onClick={abrirCalendarioPopup}
@@ -1444,10 +1540,7 @@ export default function CrearItinerarioPantalla() {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                  Ritmo del viaje
-                </label>
-
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">Ritmo del viaje</label>
                 <select
                   value={form.ritmo}
                   onChange={(event) => updateForm("ritmo", event.target.value)}
@@ -1460,15 +1553,10 @@ export default function CrearItinerarioPantalla() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                  Tipo de viaje
-                </label>
-
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">Tipo de viaje</label>
                 <select
                   value={form.tipoViaje}
-                  onChange={(event) =>
-                    updateForm("tipoViaje", event.target.value)
-                  }
+                  onChange={(event) => updateForm("tipoViaje", event.target.value)}
                   className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
                 >
                   <option>Mixto</option>
@@ -1481,83 +1569,59 @@ export default function CrearItinerarioPantalla() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Compañía
-              </label>
-
-              <input
-                type="text"
+              <label className="mb-2 block text-sm font-semibold text-[#111827]">Compañía</label>
+              <select
                 value={form.compania}
                 onChange={(event) => updateForm("compania", event.target.value)}
-                placeholder="Solo, pareja, amigos, familia..."
-                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-              />
+                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
+              >
+                <option value="Solo">Solo</option>
+                <option value="Pareja">Pareja</option>
+                <option value="Amigos">Amigos</option>
+                <option value="Familia">Familia</option>
+              </select>
             </div>
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Imprescindibles
+                Lugares imprescindibles y extras deseados
               </label>
-
               <textarea
-                rows={3}
-                value={form.imprescindibles}
-                onChange={(event) =>
-                  updateForm("imprescindibles", event.target.value)
-                }
-                placeholder="Lugares o actividades que deben aparecer sí o sí"
+                rows={4}
+                value={form.intereses}
+                onChange={(event) => updateForm("intereses", event.target.value)}
+                placeholder="Ej. playas top, casco histórico, restaurantes locales, miradores, compras, ocio nocturno..."
                 className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Extras deseados
-              </label>
-
-              <textarea
-                rows={3}
-                value={form.extras}
-                onChange={(event) => updateForm("extras", event.target.value)}
-                placeholder="Restaurantes, miradores, compras, playas, ocio nocturno..."
-                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                Transporte
-              </label>
-
-              <input
-                type="text"
+              <label className="mb-2 block text-sm font-semibold text-[#111827]">Transporte</label>
+              <select
                 value={form.transporte}
-                onChange={(event) =>
-                  updateForm("transporte", event.target.value)
-                }
-                placeholder="Coche, tren, transporte público, a pie..."
-                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
-              />
+                onChange={(event) => updateForm("transporte", event.target.value)}
+                className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
+              >
+                <option value="Transporte público">Transporte público</option>
+                <option value="Coche">Coche</option>
+                <option value="Mixto">Mixto</option>
+                <option value="A pie">A pie</option>
+              </select>
             </div>
 
             <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
               <label className="mb-2 block text-sm font-semibold text-[#111827]">
                 Restricciones y preferencias negativas
               </label>
-
               <textarea
                 rows={4}
                 value={form.restricciones}
-                onChange={(event) =>
-                  updateForm("restricciones", event.target.value)
-                }
+                onChange={(event) => updateForm("restricciones", event.target.value)}
                 placeholder="Ej. No quiero museos, no caminar mucho, evitar playas, movilidad reducida, horarios concretos..."
                 className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
               />
-
               <p className="mt-2 text-xs leading-5 text-[#667085]">
-                Aquí unificamos restricciones y cosas que quieres evitar. Puedes
-                separarlas por comas o escribir una por línea.
+                Aquí unificamos restricciones y cosas que quieres evitar. Puedes separarlas por comas o escribir una por línea.
               </p>
             </div>
 
@@ -1565,21 +1629,15 @@ export default function CrearItinerarioPantalla() {
               <label className="mb-2 block text-sm font-semibold text-[#111827]">
                 POIs que NO quieres que salgan
               </label>
-
               <p className="mb-3 text-xs leading-5 text-[#667085]">
-                Escribe parte del nombre y selecciona el POI real. Por ejemplo,
-                si escribes <strong>plaza</strong>, aparecerán lugares como
-                Plaza de España, Puerta del Sol o plazas similares guardadas en
-                tu base de datos.
+                Escribe parte del nombre y selecciona el POI real.
               </p>
 
               <div className="relative">
                 <input
                   type="text"
                   value={busquedaPoiExcluido}
-                  onChange={(event) =>
-                    setBusquedaPoiExcluido(event.target.value)
-                  }
+                  onChange={(event) => setBusquedaPoiExcluido(event.target.value)}
                   placeholder="Ej. Plaza España, Bernabéu, Museo del Prado..."
                   className="w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
                 />
@@ -1587,9 +1645,7 @@ export default function CrearItinerarioPantalla() {
                 {busquedaPoiExcluido.trim().length >= 3 && (
                   <div className="absolute left-0 right-0 top-[54px] z-40 overflow-hidden rounded-[18px] border border-[#e5e7eb] bg-white shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
                     {buscandoPoiExcluido ? (
-                      <div className="px-4 py-3 text-sm text-[#667085]">
-                        Buscando POIs...
-                      </div>
+                      <div className="px-4 py-3 text-sm text-[#667085]">Buscando POIs...</div>
                     ) : sugerenciasPoisExcluidos.length > 0 ? (
                       sugerenciasPoisExcluidos.map((poi) => (
                         <button
@@ -1599,15 +1655,9 @@ export default function CrearItinerarioPantalla() {
                           onClick={() => seleccionarPoiExcluido(poi)}
                           className="block w-full border-b border-[#f1f5f9] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#fff7f3]"
                         >
-                          <p className="text-sm font-semibold text-[#111827]">
-                            {poi.nombre}
-                          </p>
+                          <p className="text-sm font-semibold text-[#111827]">{poi.nombre}</p>
                           <p className="mt-1 text-xs text-[#667085]">
-                            {[
-                              poi.categoria_poi?.nombre,
-                              poi.municipio?.nombre,
-                              poi.direccion,
-                            ]
+                            {[poi.categoria_poi?.nombre, poi.municipio?.nombre, poi.direccion]
                               .filter(Boolean)
                               .join(" · ") || "POI de la base de datos"}
                           </p>
@@ -1640,55 +1690,35 @@ export default function CrearItinerarioPantalla() {
               <textarea
                 rows={2}
                 value={form.visitedGlobalIds}
-                onChange={(event) =>
-                  updateForm("visitedGlobalIds", event.target.value)
-                }
+                onChange={(event) => updateForm("visitedGlobalIds", event.target.value)}
                 placeholder="También puedes escribir nombres separados por comas: Bernabéu, Puerta del Sol..."
                 className="mt-4 w-full rounded-[18px] border border-[#d9dee8] bg-white px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
               />
 
               <p className="mt-2 text-xs leading-5 text-[#667085]">
-                El backend comparará estos nombres con la tabla Poi y los
-                convertirá a global_id para que el recomendador no los elija.
+                El backend comparará estos nombres con la tabla Poi y los convertirá a global_id para que el recomendador no los elija.
               </p>
             </div>
 
             <div className="rounded-[24px] border border-[#dbeafe] bg-[#eff6ff] p-4">
-              <p className="text-sm font-black text-[#1d4ed8]">
-                Eventos en vivo bajo demanda
-              </p>
-
+              <p className="text-sm font-black text-[#1d4ed8]">Eventos en vivo bajo demanda</p>
               <p className="mt-2 text-sm leading-6 text-[#1e3a8a]">
-                El itinerario se generará sin cargar conciertos, teatro o
-                eventos live automáticamente. Después, dentro de cada día del
-                itinerario, podrás buscar eventos en vivo y añadir solo los que
-                realmente te interesen.
+                El itinerario se generará sin cargar conciertos, teatro o eventos live automáticamente. Después, dentro de cada día del itinerario, podrás buscar eventos en vivo y añadir solo los que realmente te interesen.
               </p>
 
               <label className="mt-4 flex items-center gap-3 text-sm font-semibold text-[#1e3a8a]">
                 <input
                   type="checkbox"
                   checked={form.cargarEventosLiveLuego}
-                  onChange={(event) =>
-                    updateForm("cargarEventosLiveLuego", event.target.checked)
-                  }
+                  onChange={(event) => updateForm("cargarEventosLiveLuego", event.target.checked)}
                 />
                 Gestionar eventos live manualmente después
               </label>
 
               <div className="mt-4 rounded-[18px] bg-white/70 px-4 py-3 text-xs leading-5 text-[#1e3a8a]">
-                Esta opción evita cargar eventos de pago o demasiadas propuestas
-                desde el principio. Así mantienes el itinerario limpio y luego
-                decides qué conciertos, teatro o planes en vivo quieres
-                incorporar.
+                Esta opción evita cargar eventos de pago o demasiadas propuestas desde el principio.
               </div>
             </div>
-
-            {errorFormulario && (
-              <div className="rounded-[18px] bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
-                {errorFormulario}
-              </div>
-            )}
 
             <div className="mt-2 flex gap-3">
               <button
@@ -1717,15 +1747,12 @@ export default function CrearItinerarioPantalla() {
           <div className="w-full max-w-[430px] rounded-[30px] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.18em] text-[#ff5a36]">
-                  Calendario
-                </p>
+                <p className="text-xs uppercase tracking-[0.18em] text-[#ff5a36]">Calendario</p>
                 <h2 className="mt-2 text-[22px] font-bold tracking-[-0.03em] text-[#111827]">
                   Seleccionar fechas
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  El inicio mínimo es mañana. También puedes cerrar esto y
-                  escribir solo los días.
+                  El inicio mínimo es mañana. También puedes cerrar esto y escribir solo los días.
                 </p>
               </div>
 
@@ -1740,9 +1767,7 @@ export default function CrearItinerarioPantalla() {
 
             <div className="mt-5 grid grid-cols-1 gap-4">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                  Fecha de inicio
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">Fecha de inicio</label>
                 <input
                   type="date"
                   min={getTomorrowIso()}
@@ -1757,9 +1782,7 @@ export default function CrearItinerarioPantalla() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold text-[#111827]">
-                  Fecha final
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-[#111827]">Fecha final</label>
                 <input
                   type="date"
                   min={fechaInicioTemp || getTomorrowIso()}
@@ -1770,8 +1793,7 @@ export default function CrearItinerarioPantalla() {
               </div>
 
               <div className="rounded-[18px] bg-[#fff7f4] px-4 py-3 text-sm font-semibold text-[#9a3412]">
-                Duración calculada:{" "}
-                {getDaysPlaceholder(fechaInicioTemp, fechaFinTemp)} días
+                Duración calculada: {getDaysPlaceholder(fechaInicioTemp, fechaFinTemp)} días
               </div>
             </div>
 
@@ -1810,14 +1832,8 @@ export default function CrearItinerarioPantalla() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#fff4ef] text-xl font-black text-[#ff5a36]">
               !
             </div>
-
-            <h2 className="mt-5 text-xl font-bold text-[#111827]">
-              Faltan datos
-            </h2>
-
-            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#667085]">
-              {avisoValidacion}
-            </p>
+            <h2 className="mt-5 text-xl font-bold text-[#111827]">Faltan datos</h2>
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#667085]">{avisoValidacion}</p>
 
             <button
               type="button"
@@ -1834,12 +1850,9 @@ export default function CrearItinerarioPantalla() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 px-5 backdrop-blur-sm">
           <div className="w-full max-w-[360px] rounded-[30px] bg-white p-6 text-center shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
             <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#ffe0d6] border-t-[#ff5a36]" />
-            <h2 className="mt-5 text-xl font-bold text-[#111827]">
-              Generando itinerario
-            </h2>
+            <h2 className="mt-5 text-xl font-bold text-[#111827]">Generando itinerario</h2>
             <p className="mt-2 text-sm leading-6 text-[#667085]">
-              Estamos preparando la ruta con tus preferencias. No cierres esta
-              pantalla.
+              Estamos preparando la ruta con tus preferencias. No cierres esta pantalla.
             </p>
             <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#f3f4f6]">
               <div
@@ -1847,9 +1860,7 @@ export default function CrearItinerarioPantalla() {
                 style={{ width: `${progresoGeneracion}%` }}
               />
             </div>
-            <p className="mt-3 text-sm font-black text-[#ff5a36]">
-              {progresoGeneracion}%
-            </p>
+            <p className="mt-3 text-sm font-black text-[#ff5a36]">{progresoGeneracion}%</p>
           </div>
         </div>
       )}

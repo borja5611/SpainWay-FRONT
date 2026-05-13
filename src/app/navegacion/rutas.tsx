@@ -28,7 +28,6 @@ import DetalleItinerarioPantalla from "@/app/pantallas/itinerarios/DetalleItiner
 
 import ChatPantalla from "@/app/pantallas/chat/ChatPantalla";
 import ChatDetallePantalla from "@/app/pantallas/chat/ChatDetallePantalla";
-import InicioItinerarioPantalla from "@/app/pantallas/chat/InicioItinerarioPantalla";
 import ChatPreferenciasPantalla from "@/app/pantallas/chat/ChatPreferenciasPantalla";
 import ChatPresupuestoPantalla from "@/app/pantallas/chat/ChatPresupuestoPantalla";
 import ChatInteresesPantalla from "@/app/pantallas/chat/ChatInteresesPantalla";
@@ -38,6 +37,7 @@ import ResultadoChatPantalla from "@/app/pantallas/chat/ResultadoChatPantalla";
 import PerfilPantalla from "@/app/pantallas/perfil/PerfilPantalla";
 import EditarPerfilPantalla from "@/app/pantallas/perfil/EditarPerfilPantalla";
 import EditarPreferenciasPantalla from "@/app/pantallas/perfil/EditarPreferenciasPantalla";
+import PoiEnMapaPantalla from "@/app/pantallas/mapa/PoiEnMapaPantalla";
 
 export const router = createBrowserRouter([
   {
@@ -77,7 +77,7 @@ export const router = createBrowserRouter([
       { path: RUTAS_APP.crearItinerario, element: <CrearItinerarioPantalla /> },
       { path: RUTAS_APP.detalleItinerario, element: <DetalleItinerarioPantalla /> },
 
-      { path: RUTAS_APP.chat, element: <InicioItinerarioPantalla /> },
+      { path: RUTAS_APP.chat, element: <ChatPantalla /> },
       { path: RUTAS_APP.chatDestino, element: <ChatPantalla /> },
       { path: RUTAS_APP.chatDetalle, element: <ChatDetallePantalla /> },
       { path: RUTAS_APP.chatPreferencias, element: <ChatPreferenciasPantalla /> },
@@ -85,10 +85,12 @@ export const router = createBrowserRouter([
       { path: RUTAS_APP.chatIntereses, element: <ChatInteresesPantalla /> },
       { path: RUTAS_APP.chatCargando, element: <CargandoItinerarioPantalla /> },
       { path: RUTAS_APP.resultadoChat, element: <ResultadoChatPantalla /> },
+      
 
       { path: RUTAS_APP.perfil, element: <PerfilPantalla /> },
       { path: RUTAS_APP.editarPerfil, element: <EditarPerfilPantalla /> },
       { path: "/perfil/preferencias", element: <EditarPreferenciasPantalla /> },
+      { path: "/mapa/poi", element: <PoiEnMapaPantalla /> },
     ],
   },
 ]);

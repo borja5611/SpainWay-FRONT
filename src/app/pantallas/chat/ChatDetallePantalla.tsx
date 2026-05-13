@@ -38,9 +38,10 @@ function getSugerenciasChat(conversacion?: Conversacion | null): string[] {
   const tieneCosta = ["baleares", "canarias", "valencia", "andalucia", "cataluna", "cantabria", "asturias"].some((item) => key.includes(item));
 
   return [
+    "Añade 3 POIs destacados al día 3",
     "Quita el POI que menos encaje del día 1",
-    `Añade un POI destacado de ${destino} al día 3`,
-    tieneCosta ? "Añade una playa o cala al día 2" : "Añade un mirador o parque al día 2",
+    tieneCosta ? "Añade una playa o cala al día 2" : "Añade un parque o mirador al día 2",
+    `Cambia un POI del día 2 por otro mejor de ${destino}`,
     "Regenera el día 3 con un enfoque más gastronómico",
   ];
 }
@@ -161,7 +162,7 @@ export default function ChatDetallePantalla() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => navigate("/chat/destino")}
+              onClick={() => navigate("/chat")}
               className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f8fafc] text-lg font-black text-[#111827] transition hover:bg-[#eef2f7]"
             >
               ←
@@ -203,7 +204,7 @@ export default function ChatDetallePantalla() {
               <div className="rounded-[28px] bg-white p-5 shadow-sm">
                 <p className="text-lg font-black text-[#111827]">Empieza la conversación</p>
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Puedes pedir cambios concretos. Si el cambio se puede aplicar, se guardará en la base de datos y el detalle del itinerario se actualizará.
+                  Puedes pedir cambios directos sobre el itinerario. Si se puede aplicar, se guarda en base de datos y el detalle se actualiza al instante.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {sugerencias.map((item) => (
@@ -295,7 +296,7 @@ export default function ChatDetallePantalla() {
                     void enviarMensaje();
                   }
                 }}
-                placeholder="Ej. Quita Plaza Mayor del día 2 y pon otro diferente..."
+                placeholder="Ej. añade 3 POIs al día 3, quita Plaza Mayor del día 2..."
                 className="max-h-32 min-h-[48px] flex-1 resize-none rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
               />
               <button
