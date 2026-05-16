@@ -7,7 +7,8 @@ import { AuthInfoModal } from "@/app/componentes/auth/AuthInfoModal";
 import { EmailIcon } from "@/app/componentes/auth/icons";
 import { solicitarRecuperacionContrasena } from "@/app/servicios/auth";
 
-const RESET_EMAIL_KEY = "spainway_reset_email";
+const RESET_EMAIL_KEY = "spainway_password_reset_email";
+const RESET_EMAIL_LEGACY_KEY = "spainway_reset_email";
 const RESET_DEV_CODE_KEY = "spainway_reset_dev_code";
 
 type ModalState = {
@@ -47,6 +48,7 @@ export default function RecuperarContrasenaPantalla() {
       const respuesta = await solicitarRecuperacionContrasena(emailNormalizado);
 
       sessionStorage.setItem(RESET_EMAIL_KEY, emailNormalizado);
+      sessionStorage.setItem(RESET_EMAIL_LEGACY_KEY, emailNormalizado);
       if (respuesta.devCode) {
         sessionStorage.setItem(RESET_DEV_CODE_KEY, respuesta.devCode);
       } else {
@@ -55,10 +57,10 @@ export default function RecuperarContrasenaPantalla() {
 
       setModal({
         tipo: "success",
-        titulo: "Código preparado",
+        titulo: "Revisa tu correo",
         mensaje:
           respuesta.message ||
-          "Hemos preparado un código de verificación para cambiar tu contraseña.",
+          "Si el correo pertenece a una cuenta de SpainWay, recibirás un código de recuperación en unos minutos.",
         continuar: true,
         devCode: respuesta.devCode,
       });
@@ -92,7 +94,7 @@ export default function RecuperarContrasenaPantalla() {
           ¿Olvidaste tu contraseña?
         </h1>
         <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] leading-[24px] text-[#7c6b69] tracking-[0.5px]">
-          Introduce tu correo y validaremos un código para crear una contraseña nueva.
+Introduce tu correo y te enviaremos un código para crear una contraseña nueva.
         </p>
       </div>
 
@@ -115,7 +117,7 @@ export default function RecuperarContrasenaPantalla() {
           className="bg-[#e12414] w-full px-6 py-[10px] rounded-[10px] mb-6 hover:bg-[#c41f12] active:bg-[#a01810] transition-all duration-200 shadow-sm active:shadow-none disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold leading-[24px] text-[#f2f2f2] text-[16px] text-center">
-            {loading ? "Preparando código..." : "Enviar código"}
+            {loading ? "Enviando código..." : "Enviar código"}
           </p>
         </button>
 
@@ -141,13 +143,13 @@ export default function RecuperarContrasenaPantalla() {
           modal?.devCode ? (
             <div className="rounded-[18px] border border-[#fed7aa] bg-[#fff7ed] px-4 py-3 text-center">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#c2410c]">
-                Código temporal para pruebas
+                Código temporal
               </p>
               <p className="mt-2 text-[28px] font-black tracking-[0.22em] text-[#111827]">
                 {modal.devCode}
               </p>
               <p className="mt-2 text-xs leading-5 text-[#9a3412]">
-                Cuando incorpores envío de email real, este código dejará de mostrarse en pantalla.
+                Este código solo se mostrará si activas un modo de pruebas en el backend.
               </p>
             </div>
           ) : null

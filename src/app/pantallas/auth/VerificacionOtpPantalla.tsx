@@ -111,7 +111,7 @@ export default function VerificacionOtpPantalla() {
       setModal({
         tipo: "success",
         titulo: "Código reenviado",
-        mensaje: respuesta.message || "Hemos generado un nuevo código de recuperación.",
+        mensaje: respuesta.message || "Si el correo pertenece a una cuenta de SpainWay, recibirás un nuevo código de recuperación.",
         devCode: respuesta.devCode,
       });
     } catch (err) {
@@ -183,6 +183,14 @@ export default function VerificacionOtpPantalla() {
             className="font-['Inter:Medium',sans-serif] font-medium text-[14px] leading-[24px] text-[#7c6b69] hover:underline disabled:opacity-60"
           >
             {reenviando ? "Reenviando..." : "Reenviar código"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/login")}
+            className="mt-5 block w-full font-['Inter:Semi_Bold',sans-serif] text-[14px] font-semibold leading-[24px] text-[#e12414] hover:underline"
+          >
+            Volver al login
           </button>
         </div>
       </form>
