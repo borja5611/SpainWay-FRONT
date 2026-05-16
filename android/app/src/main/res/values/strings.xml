@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SpainWay</string>
+    <string name="title_activity_main">SpainWay</string>
+    <string name="package_name">com.spainway.app</string>
+    <string name="custom_url_scheme">com.spainway.app</string>
+</resources>
