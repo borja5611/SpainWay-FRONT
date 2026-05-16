@@ -5,6 +5,7 @@ import MenuConfiguracionGlobal from "../perfil/MenuConfiguracionGlobal";
 type CabeceraProps = {
   titulo: string;
   subtitulo?: string;
+  mostrarVolver?: boolean;
 };
 
 function IconoConfig() {

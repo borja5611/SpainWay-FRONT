@@ -312,7 +312,7 @@ const preguntasIa: PreguntaIa[] = [
   {
     id: "visitados",
     titulo: "¿Qué POIs ya se han usado?",
-    ayuda: "Puedes escribir nombres normales; el backend los convierte a global_id comparando con la tabla Poi.",
+    ayuda: "Puedes escribir nombres normales; el sistema los usará para evitar repeticiones en el itinerario.",
   },
 ];
 
@@ -1440,7 +1440,7 @@ export default function CrearItinerarioPantalla() {
       setErrorFormulario(
         error instanceof Error
           ? error.message
-          : "No se pudo generar el itinerario. Revisa que el backend y la IA estén arrancados.",
+          : "No se pudo generar el itinerario ahora mismo. Revisa los datos del viaje e inténtalo de nuevo en unos segundos.",
       );
     } finally {
       window.setTimeout(() => {
@@ -1867,7 +1867,7 @@ export default function CrearItinerarioPantalla() {
               />
 
               <p className="mt-2 text-xs leading-5 text-[#667085]">
-                El backend comparará estos nombres con la tabla Poi y los convertirá a global_id para que el recomendador no los elija.
+                El sistema usará estos nombres para evitar que vuelvan a aparecer en la propuesta generada.
               </p>
             </div>
 

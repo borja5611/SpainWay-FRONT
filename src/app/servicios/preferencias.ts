@@ -64,3 +64,14 @@ export async function actualizarPreferencias(
 
   return response.json() as Promise<PreferenciasUsuario>;
 }
+
+export async function getUsuarioResumen(idUsuario: number): Promise<unknown> {
+  const response = await fetch(`${API_URL}/api/usuarios/${idUsuario}`);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Error obteniendo resumen de usuario: ${response.status} ${text}`);
+  }
+
+  return response.json() as Promise<unknown>;
+}

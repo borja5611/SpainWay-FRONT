@@ -97,6 +97,7 @@ export default function OnboardingPantalla() {
     if (currentStep < onboardingData.length) {
       navigate(`/onboarding/${currentStep + 1}`);
     } else {
+      localStorage.setItem("spainway_onboarding_seen", "1");
       navigate("/login");
     }
   };

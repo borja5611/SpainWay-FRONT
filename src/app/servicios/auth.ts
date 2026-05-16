@@ -121,6 +121,71 @@ export function obtenerUsuarioGuardado(): UsuarioAuth | null {
   }
 }
 
+export interface SolicitarResetResponse {
+  ok: boolean;
+  message: string;
+  email?: string;
+  devCode?: string;
+}
+
+export interface VerificarResetResponse {
+  ok: boolean;
+  resetToken: string;
+}
+
+export async function solicitarRecuperacionContrasena(email: string): Promise<SolicitarResetResponse> {
+  const response = await fetch(`${API_URL}/api/auth/password/forgot`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as SolicitarResetResponse;
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo iniciar la recuperación de contraseña.");
+  }
+
+  return data;
+}
+
+export async function verificarCodigoRecuperacion(email: string, code: string): Promise<VerificarResetResponse> {
+  const response = await fetch(`${API_URL}/api/auth/password/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, code }),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as VerificarResetResponse & { message?: string };
+
+  if (!response.ok) {
+    throw new Error(data.message || "El código no es válido o ha caducado.");
+  }
+
+  return data;
+}
+
+export async function cambiarContrasenaConToken(resetToken: string, password: string): Promise<{ ok: boolean; message: string }> {
+  const response = await fetch(`${API_URL}/api/auth/password/reset`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ resetToken, password }),
+  });
+
+  const data = (await response.json().catch(() => ({}))) as { ok: boolean; message: string };
+
+  if (!response.ok) {
+    throw new Error(data.message || "No se pudo actualizar la contraseña.");
+  }
+
+  return data;
+}
 
 export function getSocialAuthUrl(provider: "google" | "facebook" | "linkedin") {
   return `${API_URL}/api/auth/${provider}`;

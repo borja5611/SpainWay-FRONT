@@ -4,6 +4,7 @@ import { AuthLayout } from "@/app/componentes/auth/AuthLayout";
 import { Logo } from "@/app/componentes/auth/Logo";
 import { InputField } from "@/app/componentes/auth/InputField";
 import { SocialLogin } from "@/app/componentes/auth/SocialLogin";
+import { AuthInfoModal } from "@/app/componentes/auth/AuthInfoModal";
 import { EmailIcon, LockIcon, EyeIcon } from "@/app/componentes/auth/icons";
 import { RUTAS_APP } from "@/app/utilidades/rutas";
 import { getSocialAuthUrl, register } from "@/app/servicios/auth";
@@ -48,11 +49,19 @@ export default function RegistroPantalla() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [modal, setModal] = useState<{ tipo: "info" | "error" | "success"; titulo: string; mensaje: string } | null>(null);
 
   const handleChange = (field: keyof typeof formData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  function mostrarError(mensaje: string) {
+    setModal({
+      tipo: "error",
+      titulo: "No se pudo continuar",
+      mensaje,
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -69,40 +78,38 @@ export default function RegistroPantalla() {
       !nombre ||
       !username
     ) {
-      setError("Debes rellenar los campos obligatorios");
+      mostrarError("Completa los campos obligatorios para crear tu cuenta.");
       return;
     }
 
     if (!esEmailValido(email)) {
-      setError("Introduce un email válido");
+      mostrarError("Introduce un email válido para poder acceder y recuperar tu cuenta más adelante.");
       return;
     }
 
     if (!/^[a-zA-Z0-9._-]{3,30}$/.test(username)) {
-      setError(
-        "El nombre de usuario debe tener entre 3 y 30 caracteres y solo usar letras, números, punto, guion o guion bajo"
-      );
+      mostrarError("El nombre de usuario debe tener entre 3 y 30 caracteres y solo puede usar letras, números, punto, guion o guion bajo.");
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setError("Las contraseñas no coinciden");
+      mostrarError("Las contraseñas no coinciden. Revísalas antes de continuar.");
       return;
     }
 
     if (formData.password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres");
+      mostrarError("La contraseña debe tener al menos 6 caracteres.");
       return;
     }
 
     if (formData.phone.trim() && !esTelefonoValido(telefonoLimpio)) {
-      setError("Introduce un número de teléfono válido");
+      mostrarError("Introduce un número de teléfono válido o deja el campo vacío.");
       return;
     }
 
     try {
       setLoading(true);
-      setError("");
+
 
       const telefonoCompleto = formData.phone.trim()
         ? `${formData.countryCode}${telefonoLimpio}`
@@ -120,7 +127,7 @@ export default function RegistroPantalla() {
       navigate(RUTAS_APP.inicio);
     } catch (err) {
       console.error(err);
-      setError("No se pudo registrar la cuenta.");
+      mostrarError("No se pudo crear la cuenta. Puede que el email o el nombre de usuario ya estén registrados.");
     } finally {
       setLoading(false);
     }
@@ -128,11 +135,23 @@ export default function RegistroPantalla() {
 
   function loginSocial(provider: "google" | "facebook" | "linkedin") {
     if (provider !== "google") {
-      setError("De momento solo está activo el acceso con Google.");
+      setModal({
+        tipo: "info",
+        titulo: "Registro social en preparación",
+        mensaje: "El registro con Facebook y LinkedIn todavía no está disponible. Puedes crear tu cuenta con email y contraseña.",
+      });
       return;
     }
 
-    window.location.href = getSocialAuthUrl("google");
+    try {
+      window.location.href = getSocialAuthUrl("google");
+    } catch {
+      setModal({
+        tipo: "info",
+        titulo: "Google estará disponible pronto",
+        mensaje: "Estamos preparando el registro con Google. De momento puedes crear tu cuenta con email y contraseña.",
+      });
+    }
   }
 
   return (
@@ -242,18 +261,20 @@ export default function RegistroPantalla() {
           </div>
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-[10px] bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
         <div className="text-center mb-6">
           <p className="font-['Poppins:ExtraLight',sans-serif] text-[12px] leading-[25px] text-black">
             Al registrarte, estás aceptando nuestros{" "}
             <button
               type="button"
-              className="font-['Poppins:Medium',sans-serif] text-[#ef7464] active:opacity-70 transition-all"
+              onClick={() =>
+                setModal({
+                  tipo: "info",
+                  titulo: "Términos y condiciones",
+                  mensaje:
+                    "Al crear una cuenta aceptas usar SpainWay de forma responsable, mantener tus datos de acceso protegidos y permitir que guardemos la información necesaria para gestionar tu perfil, preferencias, favoritos e itinerarios.\n\nSpainWay muestra recomendaciones turísticas y rutas orientativas. Revisa siempre horarios, precios, disponibilidad y condiciones reales antes de desplazarte o reservar."
+                })
+              }
+              className="font-['Poppins:Medium',sans-serif] text-[#ef7464] active:opacity-70 transition-all hover:underline"
             >
               términos y condiciones
             </button>
@@ -293,6 +314,14 @@ export default function RegistroPantalla() {
           </button>
         </div>
       </form>
+
+      <AuthInfoModal
+        abierto={Boolean(modal)}
+        tipo={modal?.tipo}
+        titulo={modal?.titulo ?? ""}
+        mensaje={modal?.mensaje ?? ""}
+        onCerrar={() => setModal(null)}
+      />
     </AuthLayout>
   );
 }

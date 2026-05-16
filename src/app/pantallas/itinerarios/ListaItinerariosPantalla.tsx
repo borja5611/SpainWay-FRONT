@@ -44,7 +44,7 @@ const imagenesDestino: Record<string, string> = {
   asturias: "/pois-destacados/asturias/covadonga.webp",
   baleares: "/pois-destacados/baleares/ses-illetes.webp",
   canarias: "/pois-destacados/canarias/playa-cofete.webp",
-  cantabria: "/pois-destacados/cantabria/sant-vicente.webp",
+  cantabria: "/pois-destacados/cantabria/san-vicente.webp",
   cataluna: "/pois-destacados/cataluña/sagrada-familia.webp",
   madrid: "/pois-destacados/madrid/museo-prado.webp",
   valencia: "/pois-destacados/valencia/artes-ciencias.webp",
@@ -175,9 +175,12 @@ function presupuestoLabel(value: number | null): string {
 
 function calcularDias(inicio?: string | null, fin?: string | null): number {
   if (!inicio || !fin) return 0;
+
   const a = new Date(inicio).getTime();
   const b = new Date(fin).getTime();
+
   if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+
   return Math.max(1, Math.floor((b - a) / 86400000) + 1);
 }
 
@@ -198,20 +201,96 @@ function normalizarTexto(texto?: string | null): string {
   return (texto ?? "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function getImagenDestino(destino?: string | null): string {
   const key = normalizarTexto(destino);
-  if (key.includes("andalucia") || key.includes("malaga") || key.includes("sevilla") || key.includes("granada") || key.includes("cordoba") || key.includes("cadiz") || key.includes("huelva") || key.includes("jaen") || key.includes("almeria")) return imagenesDestino.andalucia;
-  if (key.includes("asturias") || key.includes("oviedo") || key.includes("gijon")) return imagenesDestino.asturias;
-  if (key.includes("baleares") || key.includes("mallorca") || key.includes("menorca") || key.includes("ibiza") || key.includes("formentera")) return imagenesDestino.baleares;
-  if (key.includes("canarias") || key.includes("tenerife") || key.includes("gran canaria") || key.includes("lanzarote") || key.includes("fuerteventura") || key.includes("la palma")) return imagenesDestino.canarias;
-  if (key.includes("cantabria") || key.includes("santander")) return imagenesDestino.cantabria;
-  if (key.includes("cataluna") || key.includes("catalunya") || key.includes("barcelona") || key.includes("girona") || key.includes("tarragona") || key.includes("lleida")) return imagenesDestino.cataluna;
-  if (key.includes("madrid")) return imagenesDestino.madrid;
-  if (key.includes("valencia") || key.includes("alicante") || key.includes("castellon")) return imagenesDestino.valencia;
+
+  if (
+    key.includes("andalucia") ||
+    key.includes("malaga") ||
+    key.includes("sevilla") ||
+    key.includes("granada") ||
+    key.includes("cordoba") ||
+    key.includes("cadiz") ||
+    key.includes("huelva") ||
+    key.includes("jaen") ||
+    key.includes("almeria")
+  ) {
+    return imagenesDestino.andalucia;
+  }
+
+  if (key.includes("asturias") || key.includes("oviedo") || key.includes("gijon")) {
+    return imagenesDestino.asturias;
+  }
+
+  if (
+    key.includes("baleares") ||
+    key.includes("mallorca") ||
+    key.includes("menorca") ||
+    key.includes("ibiza") ||
+    key.includes("formentera")
+  ) {
+    return imagenesDestino.baleares;
+  }
+
+  if (
+    key.includes("canarias") ||
+    key.includes("tenerife") ||
+    key.includes("gran canaria") ||
+    key.includes("lanzarote") ||
+    key.includes("fuerteventura") ||
+    key.includes("la palma")
+  ) {
+    return imagenesDestino.canarias;
+  }
+
+  if (key.includes("cantabria") || key.includes("santander")) {
+    return imagenesDestino.cantabria;
+  }
+
+  if (
+    key.includes("cataluna") ||
+    key.includes("catalunya") ||
+    key.includes("barcelona") ||
+    key.includes("girona") ||
+    key.includes("tarragona") ||
+    key.includes("lleida")
+  ) {
+    return imagenesDestino.cataluna;
+  }
+
+  if (key.includes("madrid")) {
+    return imagenesDestino.madrid;
+  }
+
+  if (
+    key.includes("valencia") ||
+    key.includes("alicante") ||
+    key.includes("castellon") ||
+    key.includes("comunidad valenciana")
+  ) {
+    return imagenesDestino.valencia;
+  }
+
   return imagenesDestino.andalucia;
+}
+
+function getImagenItinerario(item: Itinerario): string {
+  return getImagenDestino(
+    [
+      item.destino,
+      item.titulo,
+      item.ia_resumen,
+      item.ia_json?.summary,
+      item.ia_json?.resumen,
+      item.base_nombre,
+      item.base_direccion,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
 }
 
 function mapItinerarioReal(item: Itinerario): UserItinerary {
@@ -231,7 +310,7 @@ function mapItinerarioReal(item: Itinerario): UserItinerary {
     lugares: String(totalPois),
     presupuesto: presupuestoLabel(item.presupuesto),
     progreso: item.estado?.includes("borrador") ? 60 : 100,
-    imagen: getImagenDestino(item.destino),
+    imagen: getImagenItinerario(item),
     etiquetas: [
       item.estado ?? "",
       item.transporte ?? "",
@@ -263,11 +342,12 @@ export default function ListaItinerariosPantalla() {
     try {
       setLoading(true);
       setError(null);
+
       const data = await getItinerariosResumen(idUsuario);
       setUserItineraries(Array.isArray(data) ? data.map(mapItinerarioReal) : []);
     } catch (err) {
       console.error(err);
-      setError("No se pudieron cargar los itinerarios reales del backend.");
+      setError("No se pudieron cargar tus itinerarios. Inténtalo de nuevo en unos segundos.");
       setUserItineraries([]);
     } finally {
       setLoading(false);
@@ -282,6 +362,7 @@ export default function ListaItinerariosPantalla() {
 
   const itinerariosUsuarioFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
+
     return userItineraries.filter((item) => {
       const coincideFiltro = filtroActivo === "Todos" ? true : item.categoria === filtroActivo;
       const texto = [
@@ -295,12 +376,14 @@ export default function ListaItinerariosPantalla() {
       ]
         .join(" ")
         .toLowerCase();
+
       return coincideFiltro && texto.includes(q);
     });
   }, [busqueda, filtroActivo, userItineraries]);
 
   const ejemplosFiltrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
+
     return ejemplos.filter((item) => {
       const coincideFiltro = filtroActivo === "Todos" ? true : item.categoria === filtroActivo;
       const texto = [
@@ -312,21 +395,25 @@ export default function ListaItinerariosPantalla() {
       ]
         .join(" ")
         .toLowerCase();
+
       return coincideFiltro && texto.includes(q);
     });
   }, [busqueda, ejemplos, filtroActivo]);
 
   async function borrarItinerario(idReal?: number) {
     if (!idReal) return;
+
     try {
       setBorrandoId(idReal);
       setError(null);
+
       await eliminarItinerario(idReal);
+
       setUserItineraries((prev) => prev.filter((item) => item.idReal !== idReal));
       setConfirmacionEliminar(null);
     } catch (err) {
       console.error(err);
-      setError("No se pudo eliminar el itinerario.");
+      setError("No se pudo eliminar el itinerario. Inténtalo de nuevo.");
     } finally {
       setBorrandoId(null);
     }
@@ -337,12 +424,17 @@ export default function ListaItinerariosPantalla() {
       <div className="mx-auto w-full max-w-[430px] pb-28">
         <section className="px-5 pt-5">
           <div className="rounded-[30px] bg-gradient-to-br from-[#fff8f4] via-[#ffffff] to-[#f5f3ff] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
-            <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">Itinerarios</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-[#94a3b8]">
+              Itinerarios
+            </p>
+
             <h1 className="mt-2 text-[28px] font-bold tracking-[-0.03em] text-[#111827]">
               Retoma y organiza mejor tus viajes
             </h1>
+
             <p className="mt-3 text-sm leading-6 text-[#667085]">
-              Aquí verás primero los itinerarios reales guardados en base de datos. Los ejemplos quedan guardados en un desplegable aparte.
+              Aquí verás primero los itinerarios reales guardados. Los ejemplos quedan separados
+              para que no se mezclen con tus viajes.
             </p>
 
             <div className="mt-5 grid grid-cols-3 gap-3">
@@ -350,12 +442,14 @@ export default function ListaItinerariosPantalla() {
                 <p className="text-xs text-[#94a3b8]">Guardados</p>
                 <p className="mt-1 text-lg font-bold text-[#111827]">{userItineraries.length}</p>
               </div>
+
               <div className="rounded-2xl bg-white p-4">
                 <p className="text-xs text-[#94a3b8]">En progreso</p>
                 <p className="mt-1 text-lg font-bold text-[#111827]">
                   {userItineraries.filter((item) => item.progreso < 100).length}
                 </p>
               </div>
+
               <div className="rounded-2xl bg-white p-4">
                 <p className="text-xs text-[#94a3b8]">Ejemplos</p>
                 <p className="mt-1 text-lg font-bold text-[#111827]">{ejemplos.length}</p>
@@ -364,12 +458,14 @@ export default function ListaItinerariosPantalla() {
 
             <div className="mt-5 flex items-center gap-3 rounded-[22px] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
               <IconoBusqueda />
+
               <input
                 value={busqueda}
                 onChange={(event) => setBusqueda(event.target.value)}
                 placeholder="Buscar destino, categoría o idea"
                 className="w-full bg-transparent text-sm text-[#111827] outline-none placeholder:text-[#98a2b3]"
               />
+
               <div className="rounded-full bg-[#f3f4f6] p-2">
                 <IconoFiltro />
               </div>
@@ -415,6 +511,7 @@ export default function ListaItinerariosPantalla() {
           <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {filtros.map((filtro) => {
               const activo = filtro === filtroActivo;
+
               return (
                 <button
                   key={filtro}
@@ -444,7 +541,9 @@ export default function ListaItinerariosPantalla() {
         <section className="px-5 pt-5">
           <div className="mb-3">
             <h2 className="text-[20px] font-bold tracking-[-0.02em]">Tus itinerarios</h2>
-            <p className="text-sm text-[#6b7280]">Aquí solo se muestran los itinerarios reales del usuario.</p>
+            <p className="text-sm text-[#6b7280]">
+              Aquí solo se muestran tus itinerarios reales.
+            </p>
           </div>
 
           {loading ? (
@@ -453,10 +552,15 @@ export default function ListaItinerariosPantalla() {
             </div>
           ) : itinerariosUsuarioFiltrados.length === 0 ? (
             <div className="rounded-[24px] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-              <p className="text-base font-semibold text-[#111827]">Aún no tienes itinerarios guardados</p>
-              <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-                Cuando crees tu primer itinerario aparecerá aquí. Los ejemplos se pueden consultar en el desplegable inferior.
+              <p className="text-base font-semibold text-[#111827]">
+                Aún no tienes itinerarios guardados
               </p>
+
+              <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                Cuando crees tu primer itinerario aparecerá aquí. Los ejemplos se pueden consultar
+                en el desplegable inferior.
+              </p>
+
               <button
                 type="button"
                 onClick={() => navigate("/itinerarios/crear")}
@@ -472,19 +576,33 @@ export default function ListaItinerariosPantalla() {
                   key={item.id}
                   className="overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
                 >
-                  <div className="relative h-[190px] overflow-hidden">
-                    <img src={item.imagen} alt={item.titulo} className="h-full w-full object-cover" />
+                  <div className="relative h-[190px] overflow-hidden bg-[#e5e7eb]">
+                    <img
+                      src={item.imagen}
+                      alt={item.titulo}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+
                     <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+
                     <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                       <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827] backdrop-blur">
                         {item.dias || "-"} días
                       </span>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(item.categoria)}`}>
+
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(
+                          item.categoria,
+                        )}`}
+                      >
                         {item.categoria}
                       </span>
                     </div>
+
                     <div className="absolute bottom-4 left-4 right-4 text-white">
                       <h3 className="text-[22px] font-bold leading-tight">{item.titulo}</h3>
+
                       <div className="mt-2 flex items-center gap-2 text-sm text-white/85">
                         <IconoUbicacion />
                         <span>{item.destino}</span>
@@ -493,19 +611,30 @@ export default function ListaItinerariosPantalla() {
                   </div>
 
                   <div className="p-4">
-                    <p className="line-clamp-3 text-sm leading-6 text-[#6b7280]">{item.subtitulo}</p>
+                    <p className="line-clamp-3 text-sm leading-6 text-[#6b7280]">
+                      {item.subtitulo}
+                    </p>
+
                     <div className="mt-4 grid grid-cols-3 gap-2">
                       <div className="rounded-2xl bg-[#f8fafc] p-3">
                         <p className="text-xs text-[#94a3b8]">Lugares</p>
-                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.lugares}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                          {item.lugares}
+                        </p>
                       </div>
+
                       <div className="rounded-2xl bg-[#f8fafc] p-3">
                         <p className="text-xs text-[#94a3b8]">Presupuesto</p>
-                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.presupuesto}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                          {item.presupuesto}
+                        </p>
                       </div>
+
                       <div className="rounded-2xl bg-[#f8fafc] p-3">
                         <p className="text-xs text-[#94a3b8]">Avance</p>
-                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.progreso}%</p>
+                        <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                          {item.progreso}%
+                        </p>
                       </div>
                     </div>
 
@@ -514,7 +643,10 @@ export default function ListaItinerariosPantalla() {
                         <IconoCalendario />
                         Siguiente paso
                       </div>
-                      <p className="mt-2 text-sm leading-5 text-[#6b7280]"></p>
+
+                      <p className="mt-2 text-sm leading-5 text-[#6b7280]">
+                        Revisa la propuesta y ajusta cada día según tus preferencias.
+                      </p>
                     </div>
 
                     {item.base && (
@@ -552,11 +684,14 @@ export default function ListaItinerariosPantalla() {
             className="flex w-full items-center justify-between rounded-[24px] bg-white px-5 py-4 shadow-[0_12px_28px_rgba(15,23,42,0.06)]"
           >
             <div>
-              <p className="text-left text-[18px] font-bold text-[#111827]">Ejemplos visuales</p>
+              <p className="text-left text-[18px] font-bold text-[#111827]">
+                Ejemplos visuales
+              </p>
               <p className="text-left text-sm text-[#6b7280]">
                 Inspiración con tarjetas demo, separadas de tus datos reales.
               </p>
             </div>
+
             <IconoChevron open={ejemplosAbiertos} />
           </button>
 
@@ -572,19 +707,33 @@ export default function ListaItinerariosPantalla() {
                     key={item.id}
                     className="overflow-hidden rounded-[28px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
                   >
-                    <div className="relative h-[185px] overflow-hidden">
-                      <img src={item.imagen} alt={item.titulo} className="h-full w-full object-cover" />
+                    <div className="relative h-[185px] overflow-hidden bg-[#e5e7eb]">
+                      <img
+                        src={item.imagen}
+                        alt={item.titulo}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+
                       <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+
                       <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                         <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#111827] backdrop-blur">
                           {item.dias} días
                         </span>
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(item.categoria)}`}>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${obtenerColorCategoria(
+                            item.categoria,
+                          )}`}
+                        >
                           {item.categoria}
                         </span>
                       </div>
+
                       <div className="absolute bottom-4 left-4 right-4 text-white">
                         <h3 className="text-[22px] font-bold leading-tight">{item.titulo}</h3>
+
                         <div className="mt-2 flex items-center gap-2 text-sm text-white/85">
                           <IconoUbicacion />
                           <span>{item.destino}</span>
@@ -593,19 +742,30 @@ export default function ListaItinerariosPantalla() {
                     </div>
 
                     <div className="p-4">
-                      <p className="line-clamp-3 text-sm leading-6 text-[#6b7280]">{item.subtitulo}</p>
+                      <p className="line-clamp-3 text-sm leading-6 text-[#6b7280]">
+                        {item.subtitulo}
+                      </p>
+
                       <div className="mt-4 grid grid-cols-3 gap-2">
                         <div className="rounded-2xl bg-[#f8fafc] p-3">
                           <p className="text-xs text-[#94a3b8]">Lugares</p>
-                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.lugares}</p>
+                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                            {item.lugares}
+                          </p>
                         </div>
+
                         <div className="rounded-2xl bg-[#f8fafc] p-3">
                           <p className="text-xs text-[#94a3b8]">Presupuesto</p>
-                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.presupuesto}</p>
+                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                            {item.presupuesto}
+                          </p>
                         </div>
+
                         <div className="rounded-2xl bg-[#f8fafc] p-3">
                           <p className="text-xs text-[#94a3b8]">Avance</p>
-                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{item.progreso}%</p>
+                          <p className="mt-1 text-sm font-semibold text-[#0f172a]">
+                            {item.progreso}%
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -620,8 +780,13 @@ export default function ListaItinerariosPantalla() {
           <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/40 p-4 sm:items-center">
             <div className="w-full max-w-[380px] rounded-[28px] bg-white p-5 shadow-[0_20px_48px_rgba(15,23,42,0.18)]">
               <p className="text-lg font-bold text-[#111827]">Eliminar itinerario</p>
+
               <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-                Vas a eliminar <span className="font-semibold text-[#111827]">{confirmacionEliminar.titulo}</span>. Esta acción no se puede deshacer.
+                Vas a eliminar{" "}
+                <span className="font-semibold text-[#111827]">
+                  {confirmacionEliminar.titulo}
+                </span>
+                . Esta acción no se puede deshacer.
               </p>
 
               <div className="mt-5 grid grid-cols-2 gap-3">
@@ -632,6 +797,7 @@ export default function ListaItinerariosPantalla() {
                 >
                   Cancelar
                 </button>
+
                 <button
                   type="button"
                   onClick={() => void borrarItinerario(confirmacionEliminar.idReal)}

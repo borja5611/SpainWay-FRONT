@@ -1,9 +1,75 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
 import { ciudadesInicio } from "@/app/datos/mock/inicioDescubrimiento";
-import BloqueInfoInicio from "@/app/componentes/inicio/BloqueInfoInicio";
 import ContenedorPantallaPrincipal from "@/app/componentes/layout/ContenedorPantallaPrincipal";
 import type { DestinoId } from "@/app/datos/mock/destinos";
+
+
+const slidesProducto = [
+  {
+    titulo: "Explora sin perderte",
+    descripcion:
+      "Empieza por una comunidad, revisa sus zonas principales y entra al mapa con el contexto ya preparado.",
+    etiqueta: "Inicio guiado",
+  },
+  {
+    titulo: "Descubre lugares relevantes",
+    descripcion:
+      "Los POIs destacados aparecen donde aportan más valor: sobre el mapa y con acciones rápidas para consultarlos.",
+    etiqueta: "Mapa útil",
+  },
+  {
+    titulo: "Crea rutas con intención",
+    descripcion:
+      "La planificación combina destino, zona base, fechas, ritmo y preferencias para generar itinerarios más coherentes.",
+    etiqueta: "Itinerarios",
+  },
+];
+
+function CarruselProducto() {
+  const [activo, setActivo] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setActivo((prev) => (prev + 1) % slidesProducto.length);
+    }, 4200);
+
+    return () => window.clearInterval(id);
+  }, []);
+
+  const slide = slidesProducto[activo];
+
+  return (
+    <section className="mt-7 rounded-[30px] border border-[#eceae5] bg-white p-4 shadow-sm">
+      <article className="relative min-h-[190px] rounded-[26px] bg-gradient-to-br from-[#fff7f4] via-white to-[#f4f1ff] p-6 transition-all duration-500">
+        <div className="max-w-[760px] pr-2">
+          <span className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#ff5a36] shadow-sm">
+            {slide.etiqueta}
+          </span>
+          <h2 className="mt-4 text-[25px] font-black leading-[31px] tracking-[-0.04em] text-[#111827] sm:text-[28px] sm:leading-[34px]">
+            {slide.titulo}
+          </h2>
+          <p className="mt-3 text-[15px] leading-7 text-[#667085] sm:text-[16px]">
+            {slide.descripcion}
+          </p>
+        </div>
+
+        <div className="mt-5 flex items-center gap-2">
+          {slidesProducto.map((item, index) => (
+            <button
+              key={item.titulo}
+              type="button"
+              onClick={() => setActivo(index)}
+              className={`h-2.5 rounded-full transition-all ${activo === index ? "w-8 bg-[#ff5a36]" : "w-2.5 bg-[#d0d5dd]"}`}
+              aria-label={`Ver tarjeta ${index + 1}`}
+            />
+          ))}
+        </div>
+      </article>
+    </section>
+  );
+}
 
 const detallesComunidad: Record<
   string,
@@ -142,18 +208,7 @@ export default function InicioPantalla() {
           </div>
         </section>
 
-        <section className="mt-7">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <BloqueInfoInicio
-              titulo="Comunidades mejor organizadas"
-              descripcion="La portada se centra en territorios y no en una lista excesiva de tarjetas, mejorando la lectura general."
-            />
-            <BloqueInfoInicio
-              titulo="Exploración más útil"
-              descripcion="La parte detallada y los POIs destacados se trasladan al mapa, donde tiene más sentido descubrirlos."
-            />
-          </div>
-        </section>
+        <CarruselProducto />
 
         <section className="mt-9">
           <div className="mb-5">

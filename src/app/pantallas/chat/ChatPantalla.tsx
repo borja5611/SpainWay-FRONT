@@ -75,6 +75,7 @@ export default function ChatPantalla() {
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [chatPendienteEliminar, setChatPendienteEliminar] = useState<Conversacion | null>(null);
+  const [ejemploActivo, setEjemploActivo] = useState<EjemploChat | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const totalChats = useMemo(() => chats.length, [chats.length]);
@@ -115,27 +116,8 @@ export default function ChatPantalla() {
     }
   }
 
-  async function abrirEjemplo(ejemplo: EjemploChat) {
-    try {
-      setCreating(true);
-      setError(null);
-      const nuevo = await crearConversacion({
-        id_usuario: idUsuario,
-        titulo: ejemplo.titulo,
-      });
-
-      navigate(`/chat/conversacion/${nuevo.id_conversacion}`, {
-        state: {
-          mensajeInicial: ejemplo.prompt,
-          ejemploId: ejemplo.id,
-        },
-      });
-    } catch (err) {
-      console.error(err);
-      setError("No se pudo abrir el ejemplo de conversación.");
-    } finally {
-      setCreating(false);
-    }
+  function abrirEjemplo(ejemplo: EjemploChat) {
+    setEjemploActivo(ejemplo);
   }
 
   function pedirEliminar(event: MouseEvent<HTMLButtonElement>, chat: Conversacion) {
@@ -266,7 +248,7 @@ export default function ChatPantalla() {
           <div className="mb-3 px-1">
             <h2 className="text-[22px] font-black tracking-[-0.03em] text-[#111827]">Empieza con una idea</h2>
             <p className="mt-1 text-sm leading-6 text-[#667085]">
-              Estos accesos abren ejemplos de itinerarios, no chats vacíos.
+              Estos accesos muestran ejemplos visuales. No crean conversaciones ni guardan nada.
             </p>
           </div>
 
@@ -288,9 +270,8 @@ export default function ChatPantalla() {
 
                 <button
                   type="button"
-                  onClick={() => void abrirEjemplo(ejemplo)}
-                  disabled={creating}
-                  className="mt-5 rounded-2xl bg-[#f8fafc] px-4 py-3 text-sm font-black text-[#111827] transition hover:bg-[#111827] hover:text-white disabled:opacity-60"
+                  onClick={() => abrirEjemplo(ejemplo)}
+                  className="mt-5 rounded-2xl bg-[#f8fafc] px-4 py-3 text-sm font-black text-[#111827] transition hover:bg-[#111827] hover:text-white"
                 >
                   Ver ejemplo de itinerario
                 </button>
@@ -299,6 +280,55 @@ export default function ChatPantalla() {
           </div>
         </section>
       </div>
+
+
+      {ejemploActivo && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/45 px-5 backdrop-blur-sm"
+          onClick={() => setEjemploActivo(null)}
+        >
+          <div
+            className="w-full max-w-[430px] rounded-[32px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.30)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">Ejemplo de itinerario</p>
+                <h2 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#111827]">{ejemploActivo.titulo}</h2>
+                <p className="mt-2 text-sm leading-6 text-[#667085]">{ejemploActivo.descripcion}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEjemploActivo(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3f4f6] text-[#667085]"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-[22px] bg-[#f8fafc] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#64748b]">Prompt orientativo</p>
+              <p className="mt-2 text-sm leading-6 text-[#334155]">{ejemploActivo.prompt}</p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {[
+                "Día 1 · Llegada, paseo por el centro y primera parada gastronómica.",
+                "Día 2 · Visitas principales agrupadas por zonas para evitar desplazamientos innecesarios.",
+                "Día 3 · Plan flexible con mirador, barrio destacado y tiempo libre antes de volver.",
+              ].map((linea) => (
+                <div key={linea} className="rounded-[18px] border border-[#eef2f7] bg-white px-4 py-3 text-sm font-semibold leading-6 text-[#475467]">
+                  {linea}
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-4 rounded-[18px] bg-[#fff7f4] px-4 py-3 text-xs leading-5 text-[#9a3412]">
+              Es solo una vista de ejemplo para orientar al usuario. No crea una conversación real ni se añade a tu historial.
+            </p>
+          </div>
+        </div>
+      )}
 
       {chatPendienteEliminar && (
         <div

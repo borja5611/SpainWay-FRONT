@@ -19,7 +19,7 @@ export default function TarjetaDestino({ destino, onClick }: Props) {
       />
       <div className="p-4">
         <h3 className="text-lg font-semibold text-gray-900">{destino.nombre}</h3>
-        <p className="mt-1 text-sm text-gray-600">{destino.descripcion}</p>
+        <p className="mt-1 text-sm text-gray-600">{destino.subtitulo}</p>
       </div>
     </button>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
 import { mapaPorDestino } from "@/app/datos/mock/mapaPorDestino";
@@ -31,6 +31,9 @@ type CardDestacadaUi = {
   descripcion: string;
   imagen: string;
   enlaceGoogle?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  direccion?: string | null;
   real: boolean;
 };
 
@@ -102,6 +105,11 @@ function traducirCategoriaPoi(valor?: string | null): string {
   return valor.replaceAll("_", " ");
 }
 
+function buildGoogleUrl(nombre: string, direccion?: string | null): string {
+  const query = [nombre, direccion].filter(Boolean).join(" ").trim();
+  return `https://www.google.com/search?q=${encodeURIComponent(query || nombre)}`;
+}
+
 function descripcionBasePorCategoria(
   categoria: string,
   nombreLugar: string,
@@ -139,8 +147,11 @@ export default function MapaPantalla() {
 
   const [poisReales, setPoisReales] = useState<PoiDestacado[]>([]);
   const [loading, setLoading] = useState(false);
+  const mapaSectionRef = useRef<HTMLDivElement | null>(null);
+
   const [poiSeleccionado, setPoiSeleccionado] = useState<PoiDetalleMapa | null>(null);
   const [cargandoPoiSeleccionado, setCargandoPoiSeleccionado] = useState(false);
+  const [poiEnfocado, setPoiEnfocado] = useState<PoiMapaUi | null>(null);
 
   const poiIdParam = useMemo(() => {
     const value = new URLSearchParams(location.search).get("poi");
@@ -174,7 +185,7 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
           direccion: poi.direccion ?? null,
           lat: typeof poi.latitud === "number" ? poi.latitud : null,
           lng: typeof poi.longitud === "number" ? poi.longitud : null,
-          googleUrl: poi.google_search_url ?? null,
+          googleUrl: null,
         });
       } catch (error) {
         console.error(error);
@@ -223,12 +234,20 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     return mapaPorDestino[destinoSeleccionado] ?? null;
   }, [destinoSeleccionado, poiIdParam]);
 
+  useEffect(() => {
+    setPoiEnfocado(null);
+  }, [destinoSeleccionado]);
+
   const configInteractivo = useMemo(() => {
     if (!destinoSeleccionado || poiIdParam) return null;
     return mapaInteractivoPorDestino[destinoSeleccionado] ?? null;
   }, [destinoSeleccionado, poiIdParam]);
 
   const poisMapa: PoiMapaUi[] = useMemo(() => {
+    if (poiEnfocado) {
+      return [poiEnfocado];
+    }
+
     if (poiSeleccionado && poiSeleccionado.lat !== null && poiSeleccionado.lng !== null) {
       return [
         {
@@ -249,7 +268,7 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     const comunidad = DESTINO_TO_CCAA[destinoSeleccionado] ?? "este destino";
 
     return poisReales
-      .map((item) => {
+      .map((item): PoiMapaUi | null => {
         const lat = extraerLat(item.poi);
         const lng = extraerLng(item.poi);
 
@@ -275,10 +294,11 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
           imagen: item.imagen_url || item.poi?.image_url || BLANK_IMAGE,
           lat,
           lng,
+          direccion: item.poi?.direccion ?? undefined,
         };
       })
       .filter((item): item is PoiMapaUi => item !== null);
-  }, [destinoSeleccionado, poiSeleccionado, poisReales]);
+  }, [destinoSeleccionado, poiEnfocado, poiSeleccionado, poisReales]);
 
   const cardsDestacadas: CardDestacadaUi[] = useMemo(() => {
     if (!destinoSeleccionado || !config) return [];
@@ -305,7 +325,10 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
             item.poi?.descripcion_snippet ||
             descripcionBasePorCategoria(categoria, nombre, comunidad),
           imagen: item.imagen_url || item.poi?.image_url || BLANK_IMAGE,
-          enlaceGoogle: item.poi?.google_search_url ?? null,
+          enlaceGoogle: null,
+          lat: extraerLat(item.poi),
+          lng: extraerLng(item.poi),
+          direccion: item.poi?.direccion ?? null,
           real: true,
         };
       });
@@ -318,11 +341,22 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
       descripcion: item.descripcion,
       imagen: item.imagen,
       enlaceGoogle: null,
+      lat: null,
+      lng: null,
+      direccion: null,
       real: false,
     }));
   }, [config, destinoSeleccionado, poisReales]);
 
   const centroMapa = useMemo(() => {
+    if (poiEnfocado) {
+      return {
+        latitude: poiEnfocado.lat,
+        longitude: poiEnfocado.lng,
+        zoom: 15,
+      };
+    }
+
     if (poiSeleccionado && poiSeleccionado.lat !== null && poiSeleccionado.lng !== null) {
       return {
         latitude: poiSeleccionado.lat,
@@ -340,7 +374,7 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     }
 
     return null;
-  }, [configInteractivo, poiSeleccionado]);
+  }, [configInteractivo, poiEnfocado, poiSeleccionado]);
 
   if (poiIdParam && cargandoPoiSeleccionado) {
     return (
@@ -422,11 +456,13 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
 
           <p className="mt-2 text-[14px] leading-[24px] text-[#7c6b69]">
             {poiSeleccionado
-              ? "Ubicación exacta del POI seleccionado desde tu itinerario."
+              ? "Ubicación exacta del POI seleccionado."
+              : poiEnfocado
+              ? "Mapa centrado en el lugar que acabas de seleccionar."
               : config?.subtitulo}
           </p>
 
-          <div className="mt-5">
+          <div ref={mapaSectionRef} className="mt-5">
             {centroMapa ? (
               <MapaInteractivo
                 longitude={centroMapa.longitude}
@@ -484,16 +520,14 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
                   Ver detalle del POI
                 </button>
 
-                {poiSeleccionado.googleUrl && (
-                  <a
-                    href={poiSeleccionado.googleUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-[14px] bg-[#fff4ef] px-4 py-3 text-sm font-semibold text-[#ff5a36]"
-                  >
-                    Abrir en Google
-                  </a>
-                )}
+                <a
+                  href={buildGoogleUrl(poiSeleccionado.nombre, poiSeleccionado.direccion)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-[14px] bg-[#fff4ef] px-4 py-3 text-sm font-semibold text-[#ff5a36]"
+                >
+                  Buscar en Google
+                </a>
               </div>
             </div>
           )}
@@ -515,61 +549,99 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
 
             {cardsDestacadas.length > 0 ? (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {cardsDestacadas.map((item) => (
-                  <article
-                    key={item.id}
-                    className="overflow-hidden rounded-[24px] bg-white text-left shadow-sm"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (item.real) {
-                          navigate(`/poi/${item.id}`);
-                        }
-                      }}
-                      className="block w-full text-left"
+                {cardsDestacadas.map((item) => {
+                  const puedeEnfocar =
+                    typeof item.lat === "number" &&
+                    Number.isFinite(item.lat) &&
+                    typeof item.lng === "number" &&
+                    Number.isFinite(item.lng);
+                  const googleUrl = buildGoogleUrl(item.titulo, item.direccion);
+
+                  return (
+                    <article
+                      key={item.id}
+                      className="overflow-hidden rounded-[24px] bg-white text-left shadow-sm"
                     >
                       <div className="flex h-[440px] flex-col">
-                        <div className="h-[220px] w-full overflow-hidden bg-[#f3f4f6]">
-                          <img
-                            src={item.imagen}
-                            alt={item.titulo}
-                            loading="lazy"
-                            className="block h-full w-full object-cover object-center"
-                          />
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (item.real) {
+                              navigate(`/poi/${item.id}`);
+                            }
+                          }}
+                          className="block w-full text-left"
+                        >
+                          <div className="h-[220px] w-full overflow-hidden bg-[#f3f4f6]">
+                            <img
+                              src={item.imagen}
+                              alt={item.titulo}
+                              loading="lazy"
+                              className="block h-full w-full object-cover object-center"
+                            />
+                          </div>
+                        </button>
 
                         <div className="flex min-h-0 flex-1 flex-col border-t border-[#eef0f3] p-5">
                           <div className="w-fit rounded-full bg-[#fff4ef] px-3 py-1 text-[11px] font-semibold text-[#ff5a36]">
                             {item.categoria}
                           </div>
 
-                          <h4 className="mt-3 line-clamp-2 min-h-[56px] text-[18px] font-semibold leading-[28px] text-black">
-                            {item.titulo}
-                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (item.real) {
+                                navigate(`/poi/${item.id}`);
+                              }
+                            }}
+                            className="mt-3 text-left"
+                          >
+                            <h4 className="line-clamp-2 min-h-[56px] text-[18px] font-semibold leading-[28px] text-black">
+                              {item.titulo}
+                            </h4>
+                          </button>
 
-                          <p className="mt-3 line-clamp-4 text-[14px] leading-[26px] text-[#667085]">
+                          <p className="mt-3 line-clamp-3 text-[14px] leading-[26px] text-[#667085]">
                             {item.descripcion}
                           </p>
+
+                          <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                            <button
+                              type="button"
+                              disabled={!puedeEnfocar}
+                              onClick={() => {
+                                if (!puedeEnfocar || item.lat == null || item.lng == null) return;
+                                setPoiEnfocado({
+                                  id: item.id,
+                                  nombre: item.titulo,
+                                  categoria: item.categoria,
+                                  descripcion: item.descripcion,
+                                  imagen: item.imagen,
+                                  lat: item.lat,
+                                  lng: item.lng,
+                                  direccion: item.direccion ?? undefined,
+                                });
+                                mapaSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                              }}
+                              className="rounded-full bg-[#111827] px-4 py-2 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              Ver solo en mapa
+                            </button>
+
+                            <a
+                              href={googleUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-full bg-[#fff4ef] px-4 py-2 text-[13px] font-semibold text-[#ff5a36] transition hover:bg-[#ffe6dc]"
+                            >
+                              Buscar en Google
+                            </a>
+                          </div>
                         </div>
                       </div>
-                    </button>
-
-                    {item.enlaceGoogle && (
-                      <div className="px-5 pb-5">
-                        <a
-                          href={item.enlaceGoogle}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(event) => event.stopPropagation()}
-                          className="inline-flex rounded-full bg-[#fff4ef] px-4 py-2 text-[13px] font-semibold text-[#ff5a36] transition hover:bg-[#ffe6dc]"
-                        >
-                          Ver en Google
-                        </a>
-                      </div>
-                    )}
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-[22px] bg-white p-5 shadow-sm">
