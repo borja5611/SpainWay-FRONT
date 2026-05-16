@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { itinerariosMock } from "@/app/datos/mock/itinerariosMock";
+import { itinerariosMock } from "../../datos/mock/itinerariosMock";
 
 const ideas = [
   {

@@ -22,7 +22,7 @@ import {
   type Itinerario,
   type PoiItinerario,
 } from "@/app/servicios/itinerarios";
-import { itinerariosMock } from "@/app/datos/mock/itinerariosMock";
+import { itinerariosMock } from "../../datos/mock/itinerariosMock";
 import { crearFavorito, eliminarFavorito, getFavoritos } from "@/app/servicios/favoritos";
 
 type DiaUi = {
