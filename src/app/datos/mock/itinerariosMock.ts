@@ -1,4 +1,4 @@
-import HeroMadrid from "../../../assets/inicio/madrid/Heromadrid.png";
+import HeroMadrid from "../../../assets/inicio/madrid/HeroMadrid.png";
 import HeroValencia from "../../../assets/inicio/valencia/HeroValencia.png";
 import HeroBarcelona from "../../../assets/inicio/barcelona/HeroBarcelona.png";
 import HeroAndalucia from "../../../assets/inicio/andalucia/HeroSevilla.png";
