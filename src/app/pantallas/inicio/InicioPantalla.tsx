@@ -5,7 +5,6 @@ import { ciudadesInicio } from "@/app/datos/mock/inicioDescubrimiento";
 import ContenedorPantallaPrincipal from "@/app/componentes/layout/ContenedorPantallaPrincipal";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
-
 const slidesProducto = [
   {
     titulo: "Explora sin perderte",
@@ -74,66 +73,41 @@ function CarruselProducto() {
 const detallesComunidad: Record<
   string,
   {
-    etiqueta: string;
     resumen: string;
     apoyo: string;
   }
 > = {
   Andalucía: {
-    etiqueta: "Costa, cultura y escapadas largas",
-    resumen:
-      "Ciudades monumentales, costa, arte y experiencias con identidad propia.",
-    apoyo:
-      "Ideal para mezclar patrimonio, naturaleza, gastronomía y rutas con mucho recorrido.",
+    resumen: "Ciudades monumentales, costa y patrimonio con identidad propia.",
+    apoyo: "Ideal para mezclar cultura, naturaleza y gastronomía.",
   },
   Asturias: {
-    etiqueta: "Naturaleza y tradición del norte",
-    resumen:
-      "Naturaleza, pueblos del norte, mar y una forma de viajar mucho más pausada.",
-    apoyo:
-      "Perfecta para combinar paisajes verdes, visitas culturales y escapadas con encanto.",
+    resumen: "Naturaleza, pueblos del norte y mar con ritmo pausado.",
+    apoyo: "Perfecta para paisajes verdes, cultura y escapadas con encanto.",
   },
   Baleares: {
-    etiqueta: "Islas mediterráneas",
-    resumen:
-      "Patrimonio, calas y escapadas visuales en destinos con muchísima fuerza paisajística.",
-    apoyo:
-      "Muy buena opción para viajes relajados, costa, miradores y rincones singulares.",
+    resumen: "Calas, patrimonio y paisajes mediterráneos de gran fuerza visual.",
+    apoyo: "Muy buena para viajes relajados, costa y rincones singulares.",
   },
   Canarias: {
-    etiqueta: "Volcanes y costa atlántica",
-    resumen:
-      "Volcanes, playas, arquitectura singular y paisajes únicos en territorios insulares.",
-    apoyo:
-      "Pensada para combinar mar, naturaleza, pueblos con identidad y rutas escénicas.",
+    resumen: "Volcanes, playas y arquitectura singular en territorios insulares.",
+    apoyo: "Combina mar, naturaleza y rutas escénicas únicas.",
   },
   Cantabria: {
-    etiqueta: "Mar, montaña y patrimonio",
-    resumen:
-      "Cuevas, costa, montaña y patrimonio natural y cultural muy equilibrado.",
-    apoyo:
-      "Encaja muy bien en viajes de naturaleza, escapadas tranquilas y rutas con variedad.",
+    resumen: "Costa, montaña, cuevas y patrimonio muy equilibrado.",
+    apoyo: "Encaja en viajes de naturaleza y rutas con variedad.",
   },
   Cataluña: {
-    etiqueta: "Ciudad, costa y arquitectura",
-    resumen:
-      "Barcelona, costa, arquitectura y vida urbana mediterránea con mucho contenido.",
-    apoyo:
-      "Muy potente para combinar city break, cultura, gastronomía y escapadas cercanas.",
+    resumen: "Barcelona, costa y arquitectura mediterránea con mucho contenido.",
+    apoyo: "Potente para city break, cultura y escapadas cercanas.",
   },
   "Comunidad Valenciana": {
-    etiqueta: "Mediterráneo y contraste urbano",
-    resumen:
-      "Mediterráneo, cultura, arquitectura y experiencias urbanas con mucha luz.",
-    apoyo:
-      "Funciona muy bien para viajes equilibrados entre ciudad, costa y planes relajados.",
+    resumen: "Mediterráneo, arquitectura y experiencias urbanas con mucha luz.",
+    apoyo: "Equilibrada entre ciudad, costa y planes relajados.",
   },
   Madrid: {
-    etiqueta: "Capital cultural",
-    resumen:
-      "Gran capital cultural, barrios históricos y espacios emblemáticos para descubrir.",
-    apoyo:
-      "Muy buena para escapadas urbanas, museos, gastronomía y recorridos con ritmo flexible.",
+    resumen: "Capital cultural con barrios históricos y espacios emblemáticos.",
+    apoyo: "Ideal para museos, gastronomía y recorridos flexibles.",
   },
 };
 
@@ -225,10 +199,8 @@ export default function InicioPantalla() {
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             {ciudadesInicio.map((ciudad) => {
               const detalle = detallesComunidad[ciudad.nombre] ?? {
-                etiqueta: "Exploración territorial",
                 resumen: ciudad.subtitulo,
-                apoyo:
-                  "Una buena base para descubrir lugares relevantes y construir un viaje más ajustado.",
+                apoyo: "Una buena base para descubrir lugares relevantes.",
               };
 
               return (
@@ -247,11 +219,7 @@ export default function InicioPantalla() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
 
                     <div className="absolute inset-x-0 bottom-0 p-6 md:p-7 text-white">
-                      <div className="inline-flex rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/95 backdrop-blur-sm">
-                        {detalle.etiqueta}
-                      </div>
-
-                      <h3 className="mt-4 text-[38px] font-bold leading-none drop-shadow-sm md:text-[42px]">
+                      <h3 className="text-[38px] font-bold leading-none drop-shadow-sm md:text-[42px]">
                         {ciudad.nombre}
                       </h3>
 
