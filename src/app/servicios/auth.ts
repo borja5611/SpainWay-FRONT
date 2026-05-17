@@ -33,8 +33,6 @@ export interface LoginPayload {
 
 const TOKEN_KEY = "spainway_token";
 const USER_KEY = "spainway_user";
-const LOGIN_AT_KEY = "spainway_login_at";
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {
   const response = await fetch(`${API_URL}/api/auth/register`, {
@@ -101,45 +99,24 @@ export async function logout(): Promise<{ ok: boolean; message: string }> {
 export function guardarSesion(auth: AuthResponse) {
   localStorage.setItem(TOKEN_KEY, auth.token);
   localStorage.setItem(USER_KEY, JSON.stringify(auth.usuario));
-  localStorage.setItem(LOGIN_AT_KEY, Date.now().toString());
 }
 
 export function limpiarSesion() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(LOGIN_AT_KEY);
-}
-
-function sesionCaducada(): boolean {
-  const loginAt = Number(localStorage.getItem(LOGIN_AT_KEY));
-
-  if (!loginAt) return false;
-
-  return Date.now() - loginAt > SESSION_DURATION_MS;
 }
 
 export function obtenerTokenGuardado(): string | null {
-  if (sesionCaducada()) {
-    limpiarSesion();
-    return null;
-  }
-
   return localStorage.getItem(TOKEN_KEY);
 }
 
 export function obtenerUsuarioGuardado(): UsuarioAuth | null {
-  if (sesionCaducada()) {
-    limpiarSesion();
-    return null;
-  }
-
   const raw = localStorage.getItem(USER_KEY);
   if (!raw) return null;
 
   try {
     return JSON.parse(raw) as UsuarioAuth;
   } catch {
-    limpiarSesion();
     return null;
   }
 }
