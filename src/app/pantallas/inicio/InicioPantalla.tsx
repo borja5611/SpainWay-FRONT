@@ -210,7 +210,7 @@ export default function InicioPantalla() {
                   onClick={() => seleccionarDestino(ciudad.id)}
                   className="group overflow-hidden rounded-[34px] bg-white text-left shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md"
                 >
-                  <div className="relative h-[300px] overflow-hidden md:h-[320px]">
+                  <div className="relative h-[280px] overflow-hidden sm:h-[300px] md:h-[320px]">
                     <img
                       src={ciudad.imagen}
                       alt={ciudad.nombre}
@@ -218,16 +218,16 @@ export default function InicioPantalla() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
 
-                    <div className="absolute inset-x-0 bottom-0 p-6 md:p-7 text-white">
-                      <h3 className="text-[38px] font-bold leading-none drop-shadow-sm md:text-[42px]">
+                    <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-6 md:p-7">
+                      <h3 className="text-[26px] font-bold leading-tight drop-shadow-sm sm:text-[34px] md:text-[42px]">
                         {ciudad.nombre}
                       </h3>
 
-                      <p className="mt-4 max-w-[620px] text-[18px] font-semibold leading-[28px] text-white/95">
+                      <p className="mt-3 max-w-[620px] text-[14px] font-semibold leading-[22px] text-white/95 sm:text-[16px] sm:leading-[26px]">
                         {detalle.resumen}
                       </p>
 
-                      <p className="mt-3 max-w-[620px] text-[14px] leading-6 text-white/82">
+                      <p className="mt-2 max-w-[620px] text-[13px] leading-5 text-white/82 sm:text-[14px] sm:leading-6">
                         {detalle.apoyo}
                       </p>
 
