@@ -1,75 +1,9 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
 import { ciudadesInicio } from "@/app/datos/mock/inicioDescubrimiento";
+import BloqueInfoInicio from "@/app/componentes/inicio/BloqueInfoInicio";
 import ContenedorPantallaPrincipal from "@/app/componentes/layout/ContenedorPantallaPrincipal";
 import type { DestinoId } from "@/app/datos/mock/destinos";
-
-
-const slidesProducto = [
-  {
-    titulo: "Explora sin perderte",
-    descripcion:
-      "Empieza por una comunidad, revisa sus zonas principales y entra al mapa con el contexto ya preparado.",
-    etiqueta: "Inicio guiado",
-  },
-  {
-    titulo: "Descubre lugares relevantes",
-    descripcion:
-      "Los POIs destacados aparecen donde aportan más valor: sobre el mapa y con acciones rápidas para consultarlos.",
-    etiqueta: "Mapa útil",
-  },
-  {
-    titulo: "Crea rutas con intención",
-    descripcion:
-      "La planificación combina destino, zona base, fechas, ritmo y preferencias para generar itinerarios más coherentes.",
-    etiqueta: "Itinerarios",
-  },
-];
-
-function CarruselProducto() {
-  const [activo, setActivo] = useState(0);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setActivo((prev) => (prev + 1) % slidesProducto.length);
-    }, 4200);
-
-    return () => window.clearInterval(id);
-  }, []);
-
-  const slide = slidesProducto[activo];
-
-  return (
-    <section className="mt-7 rounded-[30px] border border-[#eceae5] bg-white p-4 shadow-sm">
-      <article className="relative min-h-[190px] rounded-[26px] bg-gradient-to-br from-[#fff7f4] via-white to-[#f4f1ff] p-6 transition-all duration-500">
-        <div className="max-w-[760px] pr-2">
-          <span className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-[#ff5a36] shadow-sm">
-            {slide.etiqueta}
-          </span>
-          <h2 className="mt-4 text-[25px] font-black leading-[31px] tracking-[-0.04em] text-[#111827] sm:text-[28px] sm:leading-[34px]">
-            {slide.titulo}
-          </h2>
-          <p className="mt-3 text-[15px] leading-7 text-[#667085] sm:text-[16px]">
-            {slide.descripcion}
-          </p>
-        </div>
-
-        <div className="mt-5 flex items-center gap-2">
-          {slidesProducto.map((item, index) => (
-            <button
-              key={item.titulo}
-              type="button"
-              onClick={() => setActivo(index)}
-              className={`h-2.5 rounded-full transition-all ${activo === index ? "w-8 bg-[#ff5a36]" : "w-2.5 bg-[#d0d5dd]"}`}
-              aria-label={`Ver tarjeta ${index + 1}`}
-            />
-          ))}
-        </div>
-      </article>
-    </section>
-  );
-}
 
 const detallesComunidad: Record<
   string,
@@ -163,13 +97,14 @@ export default function InicioPantalla() {
                   className="mt-3 text-[34px] font-bold leading-[38px] text-black md:text-[42px] md:leading-[46px]"
                   style={{ fontFamily: "var(--font-family-display)" }}
                 >
-                  Explora comunidades y encuentra la escapada que mejor encaja contigo
+                  Explora comunidades y encuentra la escapada que mejor encaja
+                  contigo
                 </h1>
 
                 <p className="mt-4 max-w-[700px] text-[15px] leading-[27px] text-[#6d6d6d] md:text-[16px]">
-                  Descubre destinos de forma visual, entra al mapa con una idea más
-                  clara y empieza a construir viajes mucho más coherentes desde el
-                  primer clic.
+                  Descubre destinos de forma visual, entra al mapa con una idea
+                  más clara y empieza a construir viajes mucho más coherentes
+                  desde el primer clic.
                 </p>
               </div>
 
@@ -179,8 +114,8 @@ export default function InicioPantalla() {
                     Más visual
                   </p>
                   <p className="mt-2 text-[14px] leading-6 text-[#5f5f5f]">
-                    Elige primero una comunidad con contexto suficiente para empezar
-                    mejor la exploración.
+                    Elige primero una comunidad con contexto suficiente para
+                    empezar mejor la exploración.
                   </p>
                 </div>
 
@@ -199,8 +134,8 @@ export default function InicioPantalla() {
                     Más directo
                   </p>
                   <p className="mt-2 text-[14px] leading-6 text-[#5f5f5f]">
-                    Pulsa una comunidad y pasa a descubrir sus lugares más relevantes
-                    dentro del mapa.
+                    Pulsa una comunidad y pasa a descubrir sus lugares más
+                    relevantes dentro del mapa.
                   </p>
                 </div>
               </div>
@@ -208,7 +143,18 @@ export default function InicioPantalla() {
           </div>
         </section>
 
-        <CarruselProducto />
+        <section className="mt-7">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <BloqueInfoInicio
+              titulo="Comunidades mejor organizadas"
+              descripcion="La portada se centra en territorios y no en una lista excesiva de tarjetas, mejorando la lectura general."
+            />
+            <BloqueInfoInicio
+              titulo="Exploración más útil"
+              descripcion="La parte detallada y los POIs destacados se trasladan al mapa, donde tiene más sentido descubrirlos."
+            />
+          </div>
+        </section>
 
         <section className="mt-9">
           <div className="mb-5">
@@ -236,30 +182,33 @@ export default function InicioPantalla() {
                   key={ciudad.id}
                   type="button"
                   onClick={() => seleccionarDestino(ciudad.id)}
-                  className="group overflow-hidden rounded-[34px] bg-white text-left shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md"
+                  className="group spainway-destino-card overflow-hidden rounded-[34px] bg-white text-left shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md"
                 >
-                  <div className="relative h-[300px] overflow-hidden md:h-[320px]">
+                  <div className="relative h-full min-h-[360px] overflow-hidden md:min-h-[380px]">
                     <img
                       src={ciudad.imagen}
                       alt={ciudad.nombre}
-                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                      loading="lazy"
+                      decoding="async"
+                      className="spainway-destino-card-img transition duration-300 group-hover:scale-[1.03]"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
 
-                    <div className="absolute inset-x-0 bottom-0 p-6 md:p-7 text-white">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/35 to-transparent" />
+
+                    <div className="spainway-destino-card-content absolute inset-x-0 bottom-0 text-white">
                       <div className="inline-flex rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/95 backdrop-blur-sm">
                         {detalle.etiqueta}
                       </div>
 
-                      <h3 className="mt-4 text-[38px] font-bold leading-none drop-shadow-sm md:text-[42px]">
+                      <h3 className="spainway-destino-card-title mt-4 font-bold drop-shadow-sm">
                         {ciudad.nombre}
                       </h3>
 
-                      <p className="mt-4 max-w-[620px] text-[18px] font-semibold leading-[28px] text-white/95">
+                      <p className="spainway-destino-card-resumen mt-4 max-w-[620px] font-semibold text-white/95">
                         {detalle.resumen}
                       </p>
 
-                      <p className="mt-3 max-w-[620px] text-[14px] leading-6 text-white/82">
+                      <p className="spainway-destino-card-apoyo mt-3 max-w-[620px] text-white/85">
                         {detalle.apoyo}
                       </p>
 
