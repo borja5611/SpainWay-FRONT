@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useAuthStore } from "@/app/store/useAuthStore";
+import { obtenerUsuarioGuardado } from "@/app/servicios/auth";
 import { getFavoritos, type Favorito } from "@/app/servicios/favoritos";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
@@ -44,8 +45,9 @@ function getDireccion(favorito: Favorito): string {
 
 export default function FavoritosPantalla() {
   const navigate = useNavigate();
-  const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const usuarioStore = useAuthStore((state) => state.usuario);
+  const usuario = useMemo(() => usuarioStore ?? obtenerUsuarioGuardado(), [usuarioStore]);
+  const idUsuario = usuario?.id_usuario ?? null;
 
   const mapSectionRef = useRef<HTMLElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -60,6 +62,13 @@ export default function FavoritosPantalla() {
 
   useEffect(() => {
     async function cargarFavoritos() {
+      if (!idUsuario) {
+        setLoading(false);
+        setFavoritos([]);
+        setError("Inicia sesión para consultar tus favoritos.");
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);

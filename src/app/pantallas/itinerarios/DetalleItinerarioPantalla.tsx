@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuthStore } from "@/app/store/useAuthStore";
+import { obtenerUsuarioGuardado } from "@/app/servicios/auth";
 import BloqueRestauracionDia from "@/app/componentes/itinerarios/BloqueRestauracionDia";
 import BloqueEventosDia from "@/app/componentes/itinerarios/BloqueEventosDia";
 import BloqueEventosRangoItinerario from "@/app/componentes/itinerarios/BloqueEventosRangoItinerario";
@@ -401,8 +402,9 @@ function stringValue(value: unknown, fallback = ""): string {
 export default function DetalleItinerarioPantalla() {
   const navigate = useNavigate();
   const { itinerarioId } = useParams();
-  const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const usuarioStore = useAuthStore((state) => state.usuario);
+  const usuario = useMemo(() => usuarioStore ?? obtenerUsuarioGuardado(), [usuarioStore]);
+  const idUsuario = usuario?.id_usuario ?? null;
 
   const idParam = itinerarioId ?? "";
   const id = Number(idParam);
@@ -461,6 +463,12 @@ export default function DetalleItinerarioPantalla() {
 
       if (!Number.isInteger(id)) {
         setError("Itinerario inválido.");
+        setLoading(false);
+        return;
+      }
+
+      if (!idUsuario) {
+        setError("Inicia sesión para consultar este itinerario.");
         setLoading(false);
         return;
       }
@@ -593,6 +601,11 @@ export default function DetalleItinerarioPantalla() {
   }
 
   async function toggleFavoritoPoi(poi: PoiUi) {
+    if (!idUsuario) {
+      setError("Inicia sesión para guardar favoritos.");
+      return;
+    }
+
     if (!poi.idPoi || favoritoEnProceso === poi.idPoi) return;
 
     const estabaActivo = favoritosPoiIds.has(poi.idPoi);

@@ -34,6 +34,48 @@ export interface LoginPayload {
 const TOKEN_KEY = "spainway_token";
 const USER_KEY = "spainway_user";
 
+function safeJsonParse<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const decoded = atob(padded);
+
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function usuarioDesdeToken(token: string | null): UsuarioAuth | null {
+  if (!token) return null;
+
+  const payload = decodeJwtPayload(token);
+  const id = Number(payload?.id_usuario ?? payload?.sub ?? payload?.userId);
+
+  if (!Number.isInteger(id) || id <= 0) return null;
+
+  return {
+    id_usuario: id,
+    nombre: String(payload?.nombre ?? payload?.nombre_usuario ?? "Usuario"),
+    nombre_usuario: payload?.nombre_usuario ? String(payload.nombre_usuario) : null,
+    email: payload?.email ? String(payload.email) : "",
+    telefono: null,
+    rol: payload?.rol ? String(payload.rol) : "user",
+  };
+}
+
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {
   const response = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
@@ -84,8 +126,10 @@ export async function me(token: string): Promise<UsuarioAuth> {
 }
 
 export async function logout(): Promise<{ ok: boolean; message: string }> {
+  const token = obtenerTokenGuardado();
   const response = await fetch(`${API_URL}/api/auth/logout`, {
     method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 
   if (!response.ok) {
@@ -99,26 +143,62 @@ export async function logout(): Promise<{ ok: boolean; message: string }> {
 export function guardarSesion(auth: AuthResponse) {
   localStorage.setItem(TOKEN_KEY, auth.token);
   localStorage.setItem(USER_KEY, JSON.stringify(auth.usuario));
+
+  // Compatibilidad con código anterior o stores persistidos.
+  localStorage.setItem("token", auth.token);
+  localStorage.setItem("access_token", auth.token);
 }
 
 export function limpiarSesion() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  localStorage.removeItem("token");
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("usuario");
+  localStorage.removeItem("user");
+  localStorage.removeItem("spainway-auth");
 }
 
 export function obtenerTokenGuardado(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  const tokenDirecto =
+    localStorage.getItem(TOKEN_KEY) ??
+    localStorage.getItem("token") ??
+    localStorage.getItem("access_token");
+
+  if (tokenDirecto) return tokenDirecto;
+
+  const authStorage = safeJsonParse<{
+    state?: { token?: string | null };
+    token?: string | null;
+  }>(localStorage.getItem("spainway-auth"));
+
+  return authStorage?.state?.token ?? authStorage?.token ?? null;
 }
 
 export function obtenerUsuarioGuardado(): UsuarioAuth | null {
-  const raw = localStorage.getItem(USER_KEY);
-  if (!raw) return null;
+  const usuarioDirecto =
+    safeJsonParse<UsuarioAuth>(localStorage.getItem(USER_KEY)) ??
+    safeJsonParse<UsuarioAuth>(localStorage.getItem("usuario")) ??
+    safeJsonParse<UsuarioAuth>(localStorage.getItem("user"));
 
-  try {
-    return JSON.parse(raw) as UsuarioAuth;
-  } catch {
-    return null;
-  }
+  if (usuarioDirecto?.id_usuario) return usuarioDirecto;
+
+  const authStorage = safeJsonParse<{
+    state?: { usuario?: UsuarioAuth | null; user?: UsuarioAuth | null };
+    usuario?: UsuarioAuth | null;
+    user?: UsuarioAuth | null;
+  }>(localStorage.getItem("spainway-auth"));
+
+  const usuarioAuth =
+    authStorage?.state?.usuario ??
+    authStorage?.state?.user ??
+    authStorage?.usuario ??
+    authStorage?.user ??
+    null;
+
+  if (usuarioAuth?.id_usuario) return usuarioAuth;
+
+  return usuarioDesdeToken(obtenerTokenGuardado());
 }
 
 export interface SolicitarResetResponse {

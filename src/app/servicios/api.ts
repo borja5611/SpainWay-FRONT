@@ -1,32 +1,15 @@
 // src/app/servicios/api.ts
 
+import { obtenerTokenGuardado, limpiarSesion } from "./auth";
+
 const API_URL = import.meta.env.VITE_API_URL;
 
 if (!API_URL) {
   throw new Error("VITE_API_URL no está definida en el .env del front");
 }
 
-function getStoredToken(): string | null {
-  try {
-    const authStorage = localStorage.getItem("spainway-auth");
-    if (authStorage) {
-      const parsed = JSON.parse(authStorage) as {
-        state?: { token?: string | null };
-        token?: string | null;
-      };
-
-      const token = parsed.state?.token ?? parsed.token ?? null;
-      if (token) return token;
-    }
-
-    return localStorage.getItem("token") ?? localStorage.getItem("access_token");
-  } catch {
-    return localStorage.getItem("token") ?? localStorage.getItem("access_token");
-  }
-}
-
 function authHeaders(token?: string): HeadersInit {
-  const finalToken = token ?? getStoredToken();
+  const finalToken = token ?? obtenerTokenGuardado();
 
   return finalToken
     ? {
@@ -37,18 +20,18 @@ function authHeaders(token?: string): HeadersInit {
 
 async function handleResponse<T>(response: Response, url: string, method: string): Promise<T> {
   if (response.status === 401) {
-    try {
-      localStorage.removeItem("spainway-auth");
-      localStorage.removeItem("token");
-      localStorage.removeItem("access_token");
-    } catch {
-      // No hacemos nada: limpiar localStorage no debe romper la app.
-    }
+    // Si el backend dice no autorizado, la sesión local ya no vale.
+    // Esto evita quedarnos haciendo llamadas con un token roto.
+    limpiarSesion();
   }
 
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Error ${method} ${url}: ${response.status} ${text}`);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;

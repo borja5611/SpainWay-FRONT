@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/app/store/useAuthStore";
+import { obtenerUsuarioGuardado } from "@/app/servicios/auth";
 import {
   crearConversacion,
   eliminarConversacion,
@@ -67,8 +68,9 @@ function getInitials(name?: string | null): string {
 
 export default function ChatPantalla() {
   const navigate = useNavigate();
-  const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const usuarioStore = useAuthStore((state) => state.usuario);
+  const usuario = useMemo(() => usuarioStore ?? obtenerUsuarioGuardado(), [usuarioStore]);
+  const idUsuario = usuario?.id_usuario ?? null;
 
   const [chats, setChats] = useState<Conversacion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +83,13 @@ export default function ChatPantalla() {
   const totalChats = useMemo(() => chats.length, [chats.length]);
 
   async function cargarConversaciones() {
+    if (!idUsuario) {
+      setLoading(false);
+      setChats([]);
+      setError("Inicia sesión para consultar tus conversaciones.");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -100,6 +109,11 @@ export default function ChatPantalla() {
   }, [idUsuario]);
 
   async function crearNuevoChat() {
+    if (!idUsuario) {
+      setError("Inicia sesión para crear una conversación.");
+      return;
+    }
+
     try {
       setCreating(true);
       setError(null);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/app/store/useAuthStore";
+import { obtenerUsuarioGuardado } from "@/app/servicios/auth";
 import {
   eliminarItinerario,
   getItinerariosResumen,
@@ -324,8 +325,9 @@ function mapItinerarioReal(item: Itinerario): UserItinerary {
 
 export default function ListaItinerariosPantalla() {
   const navigate = useNavigate();
-  const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const usuarioStore = useAuthStore((state) => state.usuario);
+  const usuario = useMemo(() => usuarioStore ?? obtenerUsuarioGuardado(), [usuarioStore]);
+  const idUsuario = usuario?.id_usuario ?? null;
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroActivo, setFiltroActivo] = useState<
@@ -339,6 +341,13 @@ export default function ListaItinerariosPantalla() {
   const [ejemplosAbiertos, setEjemplosAbiertos] = useState(false);
 
   async function cargarItinerarios() {
+    if (!idUsuario) {
+      setLoading(false);
+      setUserItineraries([]);
+      setError("Inicia sesión para consultar tus itinerarios guardados.");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
