@@ -15,6 +15,7 @@ import {
 } from "@/app/servicios/eventosLive";
 import {
   getItinerarioDetalle,
+  regenerarItinerarioCompleto,
   type DiaItinerario,
   type ElementoItinerario,
   type IaDayPlan,
@@ -61,6 +62,16 @@ type PoiUi = {
   googleUrl: string | null;
   latitud: number | null;
   longitud: number | null;
+};
+
+type ItinerarioConBase = Itinerario & {
+  base_nombre?: string | null;
+  base_direccion?: string | null;
+  base_place_id?: string | null;
+  base_latitud?: number | string | null;
+  base_longitud?: number | string | null;
+  permite_excursiones?: boolean | null;
+  radio_max_km?: number | string | null;
 };
 
 function formatFecha(value?: string | null): string {
@@ -356,6 +367,36 @@ function getAnchors(itinerario: Itinerario): string[] {
     ? itinerario.ia_json.anchors_used
     : [];
 }
+function buildGoogleMapsDirectionsUrl(poi: PoiUi): string {
+  if (
+    typeof poi.latitud === "number" &&
+    Number.isFinite(poi.latitud) &&
+    typeof poi.longitud === "number" &&
+    Number.isFinite(poi.longitud)
+  ) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+      `${poi.latitud},${poi.longitud}`
+    )}&travelmode=walking`;
+  }
+
+  const destino = [poi.nombre, poi.direccion].filter(Boolean).join(", ");
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+    destino
+  )}&travelmode=walking`;
+}
+
+function getPreferenciasJson(itinerario: Itinerario): Record<string, unknown> {
+  return itinerario.preferencias_json &&
+    typeof itinerario.preferencias_json === "object" &&
+    !Array.isArray(itinerario.preferencias_json)
+    ? (itinerario.preferencias_json as Record<string, unknown>)
+    : {};
+}
+
+function stringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
 
 export default function DetalleItinerarioPantalla() {
   const navigate = useNavigate();
@@ -379,6 +420,13 @@ export default function DetalleItinerarioPantalla() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [diaAbierto, setDiaAbierto] = useState<number | null>(1);
+  const [regenerando, setRegenerando] = useState(false);
+  const [preferenciasRegeneracion, setPreferenciasRegeneracion] = useState({
+    pace: "medio",
+    trip_type: "mixto",
+    transport: "mixto",
+    notes: "",
+  });
 
   async function recargarSeleccionesRestauracion() {
     if (!Number.isInteger(id)) return;
@@ -426,6 +474,13 @@ export default function DetalleItinerarioPantalla() {
           getFavoritos(idUsuario).catch(() => []),
         ]);
         setItinerario(data);
+        const preferenciasGuardadas = getPreferenciasJson(data);
+        setPreferenciasRegeneracion({
+          pace: stringValue(preferenciasGuardadas.pace, data.accesibilidad ?? "medio"),
+          trip_type: stringValue(preferenciasGuardadas.trip_type, "mixto"),
+          transport: stringValue(preferenciasGuardadas.transport, data.transporte ?? "mixto"),
+          notes: "",
+        });
         setFavoritosPoiIds(
           new Set(
             (favoritos ?? [] as { id_poi: number }[]).map((item) => item.id_poi)
@@ -470,16 +525,71 @@ export default function DetalleItinerarioPantalla() {
       return;
     }
 
-    if (poi.googleUrl) {
-      window.open(poi.googleUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
+    window.open(buildGoogleMapsDirectionsUrl(poi), "_blank", "noopener,noreferrer");
+  }
 
-    window.open(
-      `https://www.google.com/maps/search/${encodeURIComponent(poi.nombre)}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
+  function abrirGoogleMapsDesdeUbicacion(poi: PoiUi) {
+    window.open(buildGoogleMapsDirectionsUrl(poi), "_blank", "noopener,noreferrer");
+  }
+
+  async function regenerarItinerarioConPreferencias() {
+    if (!itinerario || !usuario?.id_usuario || regenerando) return;
+
+    const preferenciasBase = getPreferenciasJson(itinerario);
+    const itinerarioBase = itinerario as ItinerarioConBase;
+    const visitedGlobalIds = diasUi
+      .flatMap((dia) => dia.pois)
+      .map((poi) => poi.idGlobal)
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+    const visitedPoiNames = diasUi
+      .flatMap((dia) => dia.pois)
+      .map((poi) => poi.nombre)
+      .filter(Boolean);
+
+    const dates = [itinerario.inicio, itinerario.fin]
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .map((value) => value.slice(0, 10));
+
+    try {
+      setRegenerando(true);
+
+      const respuesta = await regenerarItinerarioCompleto({
+        id_usuario: usuario.id_usuario,
+        destination: itinerario.destino ?? stringValue(preferenciasBase.destination, "España"),
+        days: diasUi.length || Number(preferenciasBase.days ?? 3),
+        budget: stringValue(preferenciasBase.budget, presupuestoLabel(itinerario.presupuesto).toLowerCase()),
+        dates,
+        pace: preferenciasRegeneracion.pace,
+        trip_type: preferenciasRegeneracion.trip_type,
+        transport: preferenciasRegeneracion.transport,
+        companions: stringValue(preferenciasBase.companions, ""),
+        must_see: stringValue(preferenciasBase.must_see, ""),
+        extras: stringValue(preferenciasBase.extras, ""),
+        notes: preferenciasRegeneracion.notes,
+        base_location_name:
+          itinerarioBase.base_nombre ?? stringValue(preferenciasBase.base_location_name, ""),
+        base_address: itinerarioBase.base_direccion ?? stringValue(preferenciasBase.base_address, ""),
+        base_place_id: itinerarioBase.base_place_id ?? stringValue(preferenciasBase.base_place_id, ""),
+        base_lat: itinerarioBase.base_latitud != null ? Number(itinerarioBase.base_latitud) : null,
+        base_lon: itinerarioBase.base_longitud != null ? Number(itinerarioBase.base_longitud) : null,
+        allow_excursions: itinerarioBase.permite_excursiones ?? true,
+        max_distance_km:
+          itinerarioBase.radio_max_km != null ? Number(itinerarioBase.radio_max_km) : null,
+        visited_global_ids: visitedGlobalIds,
+        visited_poi_names: visitedPoiNames,
+        negative_preferences: visitedPoiNames,
+        include_live_events: true,
+        user_message: preferenciasRegeneracion.notes,
+      });
+
+      navigate(`/itinerarios/${respuesta.id_itinerario}`);
+    } catch (error) {
+      console.error(error);
+      setError("No se pudo regenerar el itinerario con las nuevas preferencias.");
+    } finally {
+      setRegenerando(false);
+    }
   }
 
   async function toggleFavoritoPoi(poi: PoiUi) {
@@ -677,6 +787,96 @@ export default function DetalleItinerarioPantalla() {
               onChange={recargarSeleccionesEventosLive}
             />
           </div>
+        </section>
+
+        <section className="mt-5 rounded-[28px] bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#ff5a36]">
+                Regeneración inteligente
+              </p>
+              <h2 className="mt-2 text-[22px] font-black text-[#111827]">
+                Regenerar con nuevas preferencias
+              </h2>
+              <p className="mt-2 max-w-[680px] text-sm leading-6 text-[#667085]">
+                Crea una nueva versión del itinerario usando la IA2 actual, el contexto guardado del usuario,
+                favoritos, mensajes recientes y la meteorología del destino. La versión actual no se borra.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void regenerarItinerarioConPreferencias()}
+              disabled={regenerando || !usuario?.id_usuario}
+              className="rounded-2xl bg-[#ff5a36] px-5 py-3 text-sm font-black text-white shadow-[0_12px_28px_rgba(255,90,54,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {regenerando ? "Regenerando..." : "Regenerar itinerario"}
+            </button>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <label className="text-sm font-bold text-[#344054]">
+              Ritmo
+              <select
+                value={preferenciasRegeneracion.pace}
+                onChange={(event) =>
+                  setPreferenciasRegeneracion((prev) => ({ ...prev, pace: event.target.value }))
+                }
+                className="mt-2 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#ff5a36]"
+              >
+                <option value="relajado">Relajado</option>
+                <option value="medio">Medio</option>
+                <option value="intenso">Intenso</option>
+              </select>
+            </label>
+
+            <label className="text-sm font-bold text-[#344054]">
+              Tipo de viaje
+              <select
+                value={preferenciasRegeneracion.trip_type}
+                onChange={(event) =>
+                  setPreferenciasRegeneracion((prev) => ({ ...prev, trip_type: event.target.value }))
+                }
+                className="mt-2 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#ff5a36]"
+              >
+                <option value="mixto">Mixto</option>
+                <option value="cultura">Cultura</option>
+                <option value="naturaleza">Naturaleza</option>
+                <option value="gastronomia">Gastronomía</option>
+                <option value="playa">Playa</option>
+                <option value="familia">Familia</option>
+                <option value="pareja">Pareja</option>
+              </select>
+            </label>
+
+            <label className="text-sm font-bold text-[#344054]">
+              Transporte
+              <select
+                value={preferenciasRegeneracion.transport}
+                onChange={(event) =>
+                  setPreferenciasRegeneracion((prev) => ({ ...prev, transport: event.target.value }))
+                }
+                className="mt-2 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#ff5a36]"
+              >
+                <option value="mixto">Mixto</option>
+                <option value="a_pie">A pie</option>
+                <option value="transporte_publico">Transporte público</option>
+                <option value="coche">Coche</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="mt-4 block text-sm font-bold text-[#344054]">
+            Notas para la nueva versión
+            <textarea
+              value={preferenciasRegeneracion.notes}
+              onChange={(event) =>
+                setPreferenciasRegeneracion((prev) => ({ ...prev, notes: event.target.value }))
+              }
+              placeholder="Ejemplo: hazlo más local, añade más naturaleza y evita repetir sitios parecidos."
+              className="mt-2 min-h-[96px] w-full resize-none rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#ff5a36]"
+            />
+          </label>
         </section>
 
         <section className="mt-5 rounded-[28px] bg-white p-5 shadow-sm">
@@ -1025,16 +1225,13 @@ export default function DetalleItinerarioPantalla() {
                                     Ver en mapa
                                   </button>
 
-                                  {poi.googleUrl && (
-                                    <a
-                                      href={poi.googleUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36]"
-                                    >
-                                      Buscar en Google
-                                    </a>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirGoogleMapsDesdeUbicacion(poi)}
+                                    className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36]"
+                                  >
+                                    Cómo llegar
+                                  </button>
                                 </div>
                               </div>
                             </article>

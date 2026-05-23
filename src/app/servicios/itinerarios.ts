@@ -234,3 +234,46 @@ export const regenerarDiaItinerario = (
     `/api/itinerarios/${idItinerario}/regenerar-dia`,
     payload
   );
+
+
+export interface RegenerarItinerarioPayload {
+  id_usuario: number;
+  destination: string;
+  days: number;
+  budget?: string;
+  dates?: string[];
+  pace?: string;
+  trip_type?: string;
+  companions?: string;
+  transport?: string;
+  must_see?: string;
+  extras?: string;
+  notes?: string;
+  base_location_name?: string;
+  base_address?: string;
+  base_place_id?: string;
+  base_lat?: number | null;
+  base_lon?: number | null;
+  allow_excursions?: boolean;
+  max_distance_km?: number | null;
+  visited_global_ids?: string[];
+  visited_poi_names?: string[];
+  negative_preferences?: string[];
+  include_live_events?: boolean;
+  user_message?: string;
+}
+
+export interface RespuestaGenerarItinerario {
+  ok: boolean;
+  id_conversacion: number;
+  id_itinerario: number;
+  respuesta: string;
+  itinerario: Itinerario;
+  ia?: unknown;
+}
+
+export const regenerarItinerarioCompleto = (payload: RegenerarItinerarioPayload) =>
+  apiPost<RespuestaGenerarItinerario, RegenerarItinerarioPayload>(
+    "/api/recomendador/generar",
+    payload
+  );

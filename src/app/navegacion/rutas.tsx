@@ -39,6 +39,7 @@ import PerfilPantalla from "@/app/pantallas/perfil/PerfilPantalla";
 import EditarPerfilPantalla from "@/app/pantallas/perfil/EditarPerfilPantalla";
 import EditarPreferenciasPantalla from "@/app/pantallas/perfil/EditarPreferenciasPantalla";
 import PoiEnMapaPantalla from "@/app/pantallas/mapa/PoiEnMapaPantalla";
+import RutaNoEncontradaPantalla from "@/app/pantallas/RutaNoEncontradaPantalla";
 
 export const router = createBrowserRouter([
   {
@@ -94,5 +95,9 @@ export const router = createBrowserRouter([
       { path: "/perfil/preferencias", element: <EditarPreferenciasPantalla /> },
       { path: "/mapa/poi", element: <PoiEnMapaPantalla /> },
     ],
+  },
+  {
+    path: "*",
+    element: <RutaNoEncontradaPantalla />,
   },
 ]);

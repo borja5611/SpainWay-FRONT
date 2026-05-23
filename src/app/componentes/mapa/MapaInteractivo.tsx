@@ -422,7 +422,9 @@ export default function MapaInteractivo({
       el.style.cursor = "pointer";
       el.style.fontSize = "24px";
       el.style.lineHeight = "1";
-      el.innerHTML = `<span>${icono}</span>`;
+      const span = document.createElement("span");
+      span.textContent = icono;
+      el.appendChild(span);
 
       el.addEventListener("click", () => {
         setSelectedPoi(poi);

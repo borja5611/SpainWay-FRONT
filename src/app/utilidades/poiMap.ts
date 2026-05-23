@@ -48,6 +48,26 @@ export function buildGoogleMapsUrl(poi: PoiMapPayload): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(texto)}`;
 }
 
+
+export function buildGoogleMapsDirectionsUrl(poi: PoiMapPayload): string {
+  const params = new URLSearchParams();
+  params.set("api", "1");
+
+  if (
+    typeof poi.lat === "number" &&
+    Number.isFinite(poi.lat) &&
+    typeof poi.lon === "number" &&
+    Number.isFinite(poi.lon)
+  ) {
+    params.set("destination", `${poi.lat},${poi.lon}`);
+  } else {
+    params.set("destination", [poi.nombre, poi.direccion].filter(Boolean).join(", "));
+  }
+
+  params.set("travelmode", "walking");
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 export function readPoiFromSearch(search: string): PoiMapPayload | null {
   const params = new URLSearchParams(search);
 

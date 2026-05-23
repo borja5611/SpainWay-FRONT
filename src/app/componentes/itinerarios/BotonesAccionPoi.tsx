@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import {
+  buildGoogleMapsDirectionsUrl,
   buildGoogleMapsUrl,
   buildPoiMapUrl,
   type PoiMapPayload,
@@ -23,12 +24,22 @@ export default function BotonesAccionPoi({ poi }: Props) {
       </button>
 
       <a
-        href={buildGoogleMapsUrl(poi)}
+        href={buildGoogleMapsDirectionsUrl(poi)}
         target="_blank"
         rel="noreferrer"
         className="rounded-full bg-[#fff1eb] px-4 py-2 text-xs font-bold text-[#ff5a36]"
+        title="Abre Google Maps con destino al POI; Google usará tu ubicación actual si das permiso en el navegador."
       >
-        Ver en Google
+        Ir desde mi ubicación
+      </a>
+
+      <a
+        href={buildGoogleMapsUrl(poi)}
+        target="_blank"
+        rel="noreferrer"
+        className="rounded-full bg-[#f8fafc] px-4 py-2 text-xs font-bold text-[#475467]"
+      >
+        Buscar en Google
       </a>
     </div>
   );
