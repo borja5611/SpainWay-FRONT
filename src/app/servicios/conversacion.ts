@@ -62,6 +62,27 @@ export interface ProcesarMensajeChatPayload {
   contenido: string;
 }
 
+
+export interface PoiRecomendadoChat {
+  id_poi: number;
+  nombre?: string | null;
+  tipo?: string | null;
+  subcategoria?: string | null;
+  direccion?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  descripcion?: string | null;
+  google_search_url?: string | null;
+  municipio?: {
+    nombre?: string | null;
+    provincia?: {
+      nombre?: string | null;
+      comunidad?: { nombre?: string | null } | null;
+    } | null;
+  } | null;
+  categoria_poi?: { nombre?: string | null } | null;
+}
+
 export interface ProcesarMensajeChatResponse {
   user: Mensaje;
   assistant: Mensaje;
@@ -69,6 +90,10 @@ export interface ProcesarMensajeChatResponse {
   error?: string;
   itinerario?: unknown;
   poi?: unknown;
+  pois?: PoiRecomendadoChat[];
+  destino?: string | null;
+  query?: string | null;
+  source?: string | null;
 }
 
 export const procesarMensajeChat = (

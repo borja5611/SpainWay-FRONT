@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuthStore } from "@/app/store/useAuthStore";
-import { obtenerUsuarioGuardado } from "@/app/servicios/auth";
 import BloqueRestauracionDia from "@/app/componentes/itinerarios/BloqueRestauracionDia";
 import BloqueEventosDia from "@/app/componentes/itinerarios/BloqueEventosDia";
 import BloqueEventosRangoItinerario from "@/app/componentes/itinerarios/BloqueEventosRangoItinerario";
@@ -16,6 +15,7 @@ import {
 } from "@/app/servicios/eventosLive";
 import {
   getItinerarioDetalle,
+  aplicarAccionManualItinerario,
   regenerarItinerarioCompleto,
   type DiaItinerario,
   type ElementoItinerario,
@@ -26,6 +26,7 @@ import {
 } from "@/app/servicios/itinerarios";
 import { itinerariosMock } from "../../datos/mock/itinerariosMock";
 import { crearFavorito, eliminarFavorito, getFavoritos } from "@/app/servicios/favoritos";
+import { searchPoisDestacados, type PoiDestacado } from "@/app/servicios/poisDestacados";
 
 type DiaUi = {
   numero: number;
@@ -402,9 +403,8 @@ function stringValue(value: unknown, fallback = ""): string {
 export default function DetalleItinerarioPantalla() {
   const navigate = useNavigate();
   const { itinerarioId } = useParams();
-  const usuarioStore = useAuthStore((state) => state.usuario);
-  const usuario = useMemo(() => usuarioStore ?? obtenerUsuarioGuardado(), [usuarioStore]);
-  const idUsuario = usuario?.id_usuario ?? null;
+  const usuario = useAuthStore((state) => state.usuario);
+  const idUsuario = usuario?.id_usuario ?? 1;
 
   const idParam = itinerarioId ?? "";
   const id = Number(idParam);
@@ -419,6 +419,8 @@ export default function DetalleItinerarioPantalla() {
   const [seleccionesEventosLive, setSeleccionesEventosLive] = useState<SeleccionEventoLive[]>([]);
   const [favoritosPoiIds, setFavoritosPoiIds] = useState<Set<number>>(new Set());
   const [favoritoEnProceso, setFavoritoEnProceso] = useState<number | null>(null);
+  const [accionPoiEnProceso, setAccionPoiEnProceso] = useState<string | null>(null);
+  const [poisDestacados, setPoisDestacados] = useState<PoiDestacado[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [diaAbierto, setDiaAbierto] = useState<number | null>(1);
@@ -467,12 +469,6 @@ export default function DetalleItinerarioPantalla() {
         return;
       }
 
-      if (!idUsuario) {
-        setError("Inicia sesión para consultar este itinerario.");
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
         setError(null);
@@ -508,6 +504,14 @@ export default function DetalleItinerarioPantalla() {
         } catch (err) {
           console.error("No se pudieron cargar selecciones de eventos live:", err);
           setSeleccionesEventosLive([]);
+        }
+
+        try {
+          const destacados = await searchPoisDestacados(data.destino ?? "");
+          setPoisDestacados(Array.isArray(destacados) ? destacados.slice(0, 12) : []);
+        } catch (err) {
+          console.error("No se pudieron cargar POIs destacados:", err);
+          setPoisDestacados([]);
         }
       } catch (err) {
         console.error(err);
@@ -601,11 +605,6 @@ export default function DetalleItinerarioPantalla() {
   }
 
   async function toggleFavoritoPoi(poi: PoiUi) {
-    if (!idUsuario) {
-      setError("Inicia sesión para guardar favoritos.");
-      return;
-    }
-
     if (!poi.idPoi || favoritoEnProceso === poi.idPoi) return;
 
     const estabaActivo = favoritosPoiIds.has(poi.idPoi);
@@ -630,6 +629,69 @@ export default function DetalleItinerarioPantalla() {
       setFavoritoEnProceso(null);
     }
   }
+
+  async function eliminarPoiDelDia(diaNumero: number, poi: PoiUi) {
+    if (!itinerario?.id_itinerario || !poi.idPoi || accionPoiEnProceso) return;
+
+    try {
+      setAccionPoiEnProceso(`remove-${diaNumero}-${poi.idPoi}`);
+      await aplicarAccionManualItinerario(itinerario.id_itinerario, {
+        action: "remove",
+        dayNumber: diaNumero,
+        poiId: poi.idPoi,
+        poiName: poi.nombre,
+      });
+      const actualizado = await getItinerarioDetalle(itinerario.id_itinerario);
+      setItinerario(actualizado);
+    } catch (error) {
+      console.error(error);
+      setError("No se pudo eliminar este POI del itinerario.");
+    } finally {
+      setAccionPoiEnProceso(null);
+    }
+  }
+
+  async function agregarPoiDestacado(poi: PoiDestacado, diaNumero: number) {
+    if (!itinerario?.id_itinerario || accionPoiEnProceso) return;
+
+    try {
+      setAccionPoiEnProceso(`add-${poi.id_poi_destacado_ccaa}`);
+      await aplicarAccionManualItinerario(itinerario.id_itinerario, {
+        action: "insert",
+        dayNumber: diaNumero,
+        poiId: poi.id_poi,
+        poiName: poi.poi?.nombre ?? poi.poi_canonico,
+        query: poi.poi?.nombre ?? poi.poi_canonico,
+      });
+      const actualizado = await getItinerarioDetalle(itinerario.id_itinerario);
+      setItinerario(actualizado);
+      setDiaAbierto(diaNumero);
+    } catch (error) {
+      console.error(error);
+      setError("No se pudo añadir este POI destacado al itinerario.");
+    } finally {
+      setAccionPoiEnProceso(null);
+    }
+  }
+
+  const poisDestacadosNoIncluidos = useMemo(() => {
+    const usados = new Set(
+      diasUi
+        .flatMap((dia) => dia.pois)
+        .map((poi) => String(poi.idPoi ?? poi.idGlobal ?? poi.nombre).toLowerCase()),
+    );
+
+    return poisDestacados.filter((item) => {
+      const keyId = String(item.id_poi).toLowerCase();
+      const keyNombre = String(item.poi?.nombre ?? item.poi_canonico ?? "").toLowerCase();
+      return !usados.has(keyId) && !usados.has(keyNombre);
+    });
+  }, [diasUi, poisDestacados]);
+
+  const diaSugeridoParaDestacados = useMemo(() => {
+    if (!diasUi.length) return 1;
+    return [...diasUi].sort((a, b) => a.pois.length - b.pois.length || a.numero - b.numero)[0]?.numero ?? 1;
+  }, [diasUi]);
 
   const poisFavoritosItinerario = useMemo(() => {
     return diasUi
@@ -971,6 +1033,45 @@ export default function DetalleItinerarioPantalla() {
           </section>
         )}
 
+        {poisDestacadosNoIncluidos.length > 0 && (
+          <section className="mt-5 rounded-[30px] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">POIs destacados</p>
+                <h2 className="mt-1 text-xl font-black text-[#111827]">Añade imprescindibles que no están en la ruta</h2>
+                <p className="mt-2 text-sm leading-6 text-[#667085]">
+                  Son recursos destacados del destino. Puedes añadirlos directamente al día con menos paradas y luego reorganizar desde el chat.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#f8fafc] px-3 py-2 text-xs font-black text-[#667085]">
+                Día sugerido {diaSugeridoParaDestacados}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {poisDestacadosNoIncluidos.slice(0, 6).map((item) => {
+                const nombre = item.poi?.nombre ?? item.poi_canonico;
+                const categoria = item.poi?.categoria_poi?.nombre ?? item.poi?.tipo ?? "Destacado";
+                return (
+                  <article key={item.id_poi_destacado_ccaa} className="rounded-[22px] border border-[#eef2f7] bg-[#fcfcfd] p-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#94a3b8]">{categoria}</p>
+                    <h3 className="mt-1 text-base font-black text-[#111827]">{nombre}</h3>
+                    {item.motivo && <p className="mt-2 line-clamp-2 text-sm leading-6 text-[#667085]">{item.motivo}</p>}
+                    <button
+                      type="button"
+                      onClick={() => void agregarPoiDestacado(item, diaSugeridoParaDestacados)}
+                      disabled={accionPoiEnProceso === `add-${item.id_poi_destacado_ccaa}`}
+                      className="mt-4 w-full rounded-full bg-[#111827] px-4 py-3 text-xs font-black text-white disabled:opacity-60"
+                    >
+                      {accionPoiEnProceso === `add-${item.id_poi_destacado_ccaa}` ? "Añadiendo..." : `Añadir al día ${diaSugeridoParaDestacados}`}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         <section className="mt-5 space-y-5">
           {diasUi.map((dia) => {
             const abierto = diaAbierto === dia.numero;
@@ -1215,12 +1316,12 @@ export default function DetalleItinerarioPantalla() {
                                   </p>
                                 )}
 
-                                <div className="mt-4 flex flex-wrap gap-2">
+                                <div className="mt-4 grid grid-cols-2 gap-2">
                                   <button
                                     type="button"
                                     onClick={() => void toggleFavoritoPoi(poi)}
                                     disabled={!poi.idPoi || favoritoEnProceso === poi.idPoi}
-                                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition ${
+                                    className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-xs font-bold transition ${
                                       favoritosPoiIds.has(poi.idPoi ?? -1)
                                         ? "bg-[#fff4ef] text-[#ff5a36]"
                                         : "bg-[#f8fafc] text-[#475467]"
@@ -1232,8 +1333,17 @@ export default function DetalleItinerarioPantalla() {
 
                                   <button
                                     type="button"
+                                    onClick={() => void eliminarPoiDelDia(dia.numero, poi)}
+                                    disabled={!poi.idPoi || accionPoiEnProceso === `remove-${dia.numero}-${poi.idPoi}`}
+                                    className="rounded-full bg-red-50 px-4 py-3 text-xs font-black text-red-600 transition hover:bg-red-100 disabled:opacity-60"
+                                  >
+                                    {accionPoiEnProceso === `remove-${dia.numero}-${poi.idPoi}` ? "Quitando..." : "Eliminar"}
+                                  </button>
+
+                                  <button
+                                    type="button"
                                     onClick={() => abrirPoiEnMapa(poi)}
-                                    className="rounded-full bg-[#111827] px-4 py-2 text-xs font-bold text-white"
+                                    className="rounded-full bg-[#111827] px-4 py-3 text-xs font-bold text-white"
                                   >
                                     Ver en mapa
                                   </button>
@@ -1241,7 +1351,7 @@ export default function DetalleItinerarioPantalla() {
                                   <button
                                     type="button"
                                     onClick={() => abrirGoogleMapsDesdeUbicacion(poi)}
-                                    className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36]"
+                                    className="rounded-full bg-[#fff4ef] px-4 py-3 text-xs font-bold text-[#ff5a36]"
                                   >
                                     Cómo llegar
                                   </button>

@@ -6,36 +6,47 @@ import {
   procesarMensajeChat,
   type Conversacion,
   type Mensaje,
+  type PoiRecomendadoChat,
 } from "@/app/servicios/conversacion";
 
 function normalizarTexto(value?: string | null): string {
   return (value ?? "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
 }
 
 function getDestinoDesdeConversacion(conversacion?: Conversacion | null): string {
   const titulo = conversacion?.titulo ?? "";
-  const key = normalizarTexto(titulo);
+  const limpio = titulo
+    .replace(/itinerario/gi, "")
+    .replace(/viaje/gi, "")
+    .replace(/spainway/gi, "")
+    .replace(/nuevo/gi, "")
+    .replace(/con/gi, "")
+    .replace(/[-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (key.includes("madrid")) return "Madrid";
-  if (key.includes("baleares") || key.includes("mallorca")) return "Baleares";
-  if (key.includes("canarias")) return "Canarias";
-  if (key.includes("valencia") || key.includes("valenciana")) return "Valencia";
-  if (key.includes("andalucia")) return "Andalucía";
-  if (key.includes("asturias")) return "Asturias";
-  if (key.includes("cantabria")) return "Cantabria";
-  if (key.includes("cataluna") || key.includes("cataluña") || key.includes("barcelona")) return "Cataluña";
-
-  return "este destino";
+  return limpio || "tu destino";
 }
 
 function getSugerenciasChat(conversacion?: Conversacion | null): string[] {
+  const idItinerario = conversacion?.id_itinerario_relacionado ?? conversacion?.id_itinerario ?? null;
   const destino = getDestinoDesdeConversacion(conversacion);
   const key = normalizarTexto(destino);
-  const tieneCosta = ["baleares", "canarias", "valencia", "andalucia", "cataluna", "cantabria", "asturias"].some((item) => key.includes(item));
+  const tieneCosta = ["baleares", "canarias", "valencia", "andalucia", "cataluna", "cantabria", "asturias", "malaga", "cadiz"].some((item) => key.includes(item));
+
+  if (!idItinerario) {
+    return [
+      "Estoy en Madrid y necesito dos sitios para ver hoy por la tarde",
+      "Estoy en Valencia y quiero un museo y algo de gastronomía cerca",
+      "Estoy en Tenerife y quiero ver el Teide o algo imprescindible",
+      "Estoy en Sevilla y quiero tres planes culturales para esta tarde",
+      "Estoy en Baleares y quiero una cala bonita y un paseo tranquilo",
+    ];
+  }
 
   return [
     "Añade 3 POIs destacados al día 3",
@@ -55,7 +66,6 @@ function formatHora(value?: string | null): string {
 
 function esMensajeTecnicoInicial(mensaje: Mensaje): boolean {
   const contenido = (mensaje.contenido ?? "").toLowerCase();
-
   return (
     mensaje.rol === "user" &&
     contenido.includes("quiero generar un itinerario") &&
@@ -78,6 +88,58 @@ function limpiarMensajes(mensajes: Mensaje[]): Mensaje[] {
   return mensajes.filter((mensaje) => !esMensajeTecnicoInicial(mensaje) && !esRespuestaTecnicaLarga(mensaje));
 }
 
+function getGoogleDirectionsUrl(poi: PoiRecomendadoChat): string | null {
+  const lat = Number(poi.latitud);
+  const lon = Number(poi.longitud);
+  const destination = Number.isFinite(lat) && Number.isFinite(lon)
+    ? `${lat},${lon}`
+    : [poi.nombre, poi.municipio?.nombre, poi.municipio?.provincia?.nombre, "España"].filter(Boolean).join(", ");
+
+  if (!destination.trim()) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+
+function getGoogleSearchUrl(poi: PoiRecomendadoChat): string {
+  if (poi.google_search_url) return poi.google_search_url;
+  const query = [poi.nombre, poi.municipio?.nombre, poi.municipio?.provincia?.nombre, "España"].filter(Boolean).join(" ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function PoiRecommendationCard({ poi }: { poi: PoiRecomendadoChat }) {
+  const categoria = poi.categoria_poi?.nombre ?? poi.tipo ?? poi.subcategoria ?? "POI recomendado";
+  const ubicacion = [poi.municipio?.nombre, poi.municipio?.provincia?.nombre].filter(Boolean).join(", ");
+  const directions = getGoogleDirectionsUrl(poi);
+
+  return (
+    <article className="rounded-[22px] border border-[#eef2f7] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#ff5a36]">{categoria}</p>
+      <h3 className="mt-1 text-base font-black leading-6 text-[#111827]">{poi.nombre}</h3>
+      {ubicacion && <p className="mt-1 text-xs font-bold text-[#667085]">{ubicacion}</p>}
+      {poi.descripcion && <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#667085]">{poi.descripcion}</p>}
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <a
+          href={getGoogleSearchUrl(poi)}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-2xl bg-[#111827] px-4 py-3 text-center text-xs font-black text-white"
+        >
+          Ver en Google
+        </a>
+        {directions && (
+          <a
+            href={directions}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-2xl bg-[#fff4ef] px-4 py-3 text-center text-xs font-black text-[#ff5a36]"
+          >
+            Cómo llegar
+          </a>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export default function ChatDetallePantalla() {
   const navigate = useNavigate();
   const { idConversacion } = useParams();
@@ -86,12 +148,14 @@ export default function ChatDetallePantalla() {
 
   const [conversacion, setConversacion] = useState<Conversacion | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
+  const [ultimosPois, setUltimosPois] = useState<PoiRecomendadoChat[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const idItinerarioRelacionado = conversacion?.id_itinerario_relacionado ?? conversacion?.id_itinerario ?? null;
+  const modoItinerario = Boolean(idItinerarioRelacionado);
 
   useEffect(() => {
     async function cargar() {
@@ -120,7 +184,7 @@ export default function ChatDetallePantalla() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensajes.length, sending]);
+  }, [mensajes.length, sending, ultimosPois.length]);
 
   async function enviarMensaje(textoForzado?: string) {
     const texto = (textoForzado ?? input).trim();
@@ -130,9 +194,11 @@ export default function ChatDetallePantalla() {
       setSending(true);
       setError(null);
       setInput("");
+      setUltimosPois([]);
 
       const result = await procesarMensajeChat(id, { contenido: texto });
       setMensajes((prev) => limpiarMensajes([...prev, result.user, result.assistant]));
+      setUltimosPois(Array.isArray(result.pois) ? result.pois : []);
     } catch (err) {
       console.error(err);
       setError("No se pudo procesar el mensaje. Revisa que el backend esté arrancado y que la ruta /api/chat-acciones esté registrada.");
@@ -152,12 +218,12 @@ export default function ChatDetallePantalla() {
     navigate(`/itinerarios/${idItinerarioRelacionado}?refresh=${Date.now()}`);
   }
 
-  const titulo = conversacion?.titulo || "Chat SpainWay";
+  const titulo = conversacion?.titulo || "Asistente SpainWay";
   const sugerencias = useMemo(() => getSugerenciasChat(conversacion), [conversacion]);
 
   return (
     <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
-      <div className="mx-auto flex min-h-[calc(100vh-86px)] w-full max-w-[920px] flex-col px-4 pb-24 pt-4">
+      <div className="mx-auto flex min-h-[calc(100vh-86px)] w-full max-w-[920px] flex-col px-4 pb-36 pt-4">
         <header className="rounded-[30px] bg-white px-4 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.08)]">
           <div className="flex items-center gap-3">
             <button
@@ -172,7 +238,7 @@ export default function ChatDetallePantalla() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#94a3b8]">
-                SpainWay Assistant
+                {modoItinerario ? "Editor de itinerario" : "Recomendador rápido"}
               </p>
               <h1 className="truncate text-lg font-black text-[#0f172a]">{titulo}</h1>
             </div>
@@ -194,7 +260,7 @@ export default function ChatDetallePantalla() {
           </div>
         )}
 
-        <main className="mt-4 flex min-h-[620px] flex-1 flex-col overflow-hidden rounded-[34px] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
+        <main className="mt-4 mb-6 flex min-h-[620px] flex-1 flex-col overflow-hidden rounded-[34px] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
           <section className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-[#f8fafc] p-5">
             {loading ? (
               <div className="rounded-[24px] bg-white p-4 text-sm font-semibold text-[#667085] shadow-sm">
@@ -202,17 +268,21 @@ export default function ChatDetallePantalla() {
               </div>
             ) : mensajes.length === 0 ? (
               <div className="rounded-[28px] bg-white p-5 shadow-sm">
-                <p className="text-lg font-black text-[#111827]">Empieza la conversación</p>
-                <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Puedes pedir cambios directos sobre el itinerario. Si se puede aplicar, se guarda en base de datos y el detalle se actualiza al instante.
+                <p className="text-lg font-black text-[#111827]">
+                  {modoItinerario ? "Modifica tu itinerario hablando" : "Pide una recomendación rápida"}
                 </p>
-                <div className="mt-4 flex flex-wrap gap-2">
+                <p className="mt-2 text-sm leading-6 text-[#667085]">
+                  {modoItinerario
+                    ? "Puedes pedir cambios directos sobre el itinerario: añadir, quitar, mover, sustituir o regenerar un día concreto."
+                    : "También puedes usar el chat sin itinerario: dime dónde estás, cuánto tiempo tienes y qué te apetece. SpainWay buscará POIs reales en la base de datos."}
+                </p>
+                <div className="mt-4 grid grid-cols-1 gap-2">
                   {sugerencias.map((item) => (
                     <button
                       key={item}
                       type="button"
                       onClick={() => void enviarMensaje(item)}
-                      className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-bold text-[#ff5a36] transition hover:bg-[#ffe7dc]"
+                      className="rounded-2xl bg-[#fff4ef] px-4 py-3 text-left text-xs font-bold leading-5 text-[#ff5a36] transition hover:bg-[#ffe7dc]"
                     >
                       {item}
                     </button>
@@ -226,15 +296,10 @@ export default function ChatDetallePantalla() {
                   const esUltimoMensaje = index === mensajes.length - 1;
 
                   return (
-                    <div
-                      key={mensaje.id_mensaje}
-                      className={`flex ${esUsuario ? "justify-end" : "justify-start"}`}
-                    >
+                    <div key={`${mensaje.id_mensaje}-${index}`} className={`flex ${esUsuario ? "justify-end" : "justify-start"}`}>
                       <div
                         className={`max-w-[92%] rounded-[28px] px-5 py-4 text-[14px] leading-7 shadow-sm md:max-w-[78%] ${
-                          esUsuario
-                            ? "rounded-br-md bg-[#ff5a36] text-white"
-                            : "rounded-bl-md bg-white text-[#344054]"
+                          esUsuario ? "rounded-br-md bg-[#ff5a36] text-white" : "rounded-bl-md bg-white text-[#344054]"
                         }`}
                       >
                         <div className="whitespace-pre-wrap break-words">{mensaje.contenido}</div>
@@ -249,11 +314,7 @@ export default function ChatDetallePantalla() {
                           </button>
                         )}
 
-                        <p
-                          className={`mt-2 text-right text-[10px] font-bold ${
-                            esUsuario ? "text-white/75" : "text-[#98a2b3]"
-                          }`}
-                        >
+                        <p className={`mt-2 text-right text-[10px] font-bold ${esUsuario ? "text-white/75" : "text-[#98a2b3]"}`}>
                           {formatHora(mensaje.creado)}
                         </p>
                       </div>
@@ -262,10 +323,20 @@ export default function ChatDetallePantalla() {
                 })}
               </div>
             )}
+
+            {ultimosPois.length > 0 && (
+              <div className="mt-5 space-y-3">
+                <p className="px-1 text-xs font-black uppercase tracking-[0.18em] text-[#94a3b8]">POIs recomendados</p>
+                {ultimosPois.map((poi) => (
+                  <PoiRecommendationCard key={poi.id_poi} poi={poi} />
+                ))}
+              </div>
+            )}
+
             {sending && (
               <div className="mt-4 flex justify-start">
                 <div className="rounded-[24px] rounded-bl-md bg-white px-4 py-3 text-sm font-semibold text-[#667085] shadow-sm">
-                  SpainWay está comprobando y guardando el cambio...
+                  {modoItinerario ? "SpainWay está comprobando y guardando el cambio..." : "SpainWay está buscando recomendaciones reales..."}
                 </div>
               </div>
             )}
@@ -284,10 +355,10 @@ export default function ChatDetallePantalla() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="border-t border-[#eef2f7] bg-white p-4">
-            <div className="flex items-end gap-3">
+          <form onSubmit={handleSubmit} className="border-t border-[#eef2f7] bg-white p-3 sm:p-4">
+            <div className="rounded-[26px] border border-[#d9dee8] bg-[#fcfcfd] p-2 shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
               <textarea
-                rows={1}
+                rows={2}
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
                 onKeyDown={(event) => {
@@ -296,16 +367,19 @@ export default function ChatDetallePantalla() {
                     void enviarMensaje();
                   }
                 }}
-                placeholder="Ej. añade 3 POIs al día 3, quita Plaza Mayor del día 2..."
-                className="max-h-32 min-h-[48px] flex-1 resize-none rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none placeholder:text-[#98a2b3]"
+                placeholder={modoItinerario ? "Ej. añade el Teide al día 1, elimina la última parada..." : "Ej. estoy en Madrid y necesito dos sitios para ver hoy por la tarde..."}
+                className="max-h-32 min-h-[62px] w-full resize-none bg-transparent px-3 py-2 text-sm leading-6 outline-none placeholder:text-[#98a2b3]"
               />
-              <button
-                type="submit"
-                disabled={!input.trim() || sending}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#ff5a36] text-lg font-black text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                ↑
-              </button>
+              <div className="flex items-center justify-between gap-3 px-1 pb-1">
+                <p className="text-[11px] font-semibold text-[#98a2b3]">Enter envía · Shift+Enter salta línea</p>
+                <button
+                  type="submit"
+                  disabled={!input.trim() || sending}
+                  className="flex h-11 min-w-[92px] shrink-0 items-center justify-center rounded-[18px] bg-[#ff5a36] px-4 text-sm font-black text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {sending ? "..." : "Enviar"}
+                </button>
+              </div>
             </div>
           </form>
         </main>
