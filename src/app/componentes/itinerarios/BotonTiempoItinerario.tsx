@@ -24,10 +24,14 @@ type TiempoResponse = {
   mensaje?: string;
   destino?: string;
   resumen?: string;
+  motivo?: string;
   dias?: DiaTiempo[];
   forecast?: DiaTiempo[];
-  clima_estacional?: string;
+  proximos_14_dias?: DiaTiempo[];
+  dias_itinerario?: DiaTiempo[];
+  clima_estacional?: string | { titulo?: string; rango?: string; descripcion?: string };
   orientacion_estacional?: string;
+  fuente?: string;
 };
 
 type Props = {
@@ -37,6 +41,7 @@ type Props = {
   inicio?: string | null;
   fin?: string | null;
   diaIso?: string | null;
+  diasIso?: string | null;
   label?: string;
   className?: string;
 };
@@ -60,10 +65,8 @@ function normalizarFecha(valor?: string | null): string | null {
 
 function formatoFecha(valor?: string | null): string {
   if (!valor) return "Fecha no disponible";
-
-  const fecha = new Date(valor);
+  const fecha = new Date(`${valor}T12:00:00`);
   if (Number.isNaN(fecha.getTime())) return valor;
-
   return fecha.toLocaleDateString("es-ES", {
     weekday: "short",
     day: "2-digit",
@@ -78,36 +81,40 @@ function numeroSeguro(valor: unknown): number | null {
 }
 
 function extraerDias(data: TiempoResponse): DiaTiempo[] {
-  if (Array.isArray(data.dias)) return data.dias;
-  if (Array.isArray(data.forecast)) return data.forecast;
+  if (Array.isArray(data.dias_itinerario) && data.dias_itinerario.length) return data.dias_itinerario;
+  if (Array.isArray(data.dias) && data.dias.length) return data.dias;
+  if (Array.isArray(data.forecast) && data.forecast.length) return data.forecast;
+  if (Array.isArray(data.proximos_14_dias) && data.proximos_14_dias.length) return data.proximos_14_dias;
   return [];
 }
 
 function textoTemperatura(dia: DiaTiempo): string {
   const min = numeroSeguro(dia.tempMin ?? dia.temperatura_min);
   const max = numeroSeguro(dia.tempMax ?? dia.temperatura_max);
-
   if (min === null && max === null) return "Temperatura no disponible";
-  if (min === null) return `Máx. ${max} ºC`;
-  if (max === null) return `Mín. ${min} ºC`;
-
+  if (min === null) return `Máx. ${Math.round(max ?? 0)} ºC`;
+  if (max === null) return `Mín. ${Math.round(min)} ºC`;
   return `${Math.round(min)} ºC / ${Math.round(max)} ºC`;
 }
 
 function textoLluvia(dia: DiaTiempo): string {
-  const lluvia = numeroSeguro(
-    dia.lluvia ?? dia.probabilidadLluvia ?? dia.precipitation_probability_max
-  );
-
+  const lluvia = numeroSeguro(dia.lluvia ?? dia.probabilidadLluvia ?? dia.precipitation_probability_max);
   if (lluvia === null) return "Lluvia no disponible";
   return `${Math.round(lluvia)}% lluvia`;
 }
 
 function textoViento(dia: DiaTiempo): string {
   const viento = numeroSeguro(dia.viento ?? dia.wind_speed);
-
   if (viento === null) return "Viento no disponible";
   return `${Math.round(viento)} km/h viento`;
+}
+
+function textoOrientacion(value: TiempoResponse["clima_estacional"], fallback?: string): string | null {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    return [value.titulo, value.rango, value.descripcion].filter(Boolean).join(" · ");
+  }
+  return fallback || null;
 }
 
 export default function BotonTiempoItinerario({
@@ -117,6 +124,7 @@ export default function BotonTiempoItinerario({
   inicio,
   fin,
   diaIso,
+  diasIso,
   label = "Ver tiempo",
   className = "",
 }: Props) {
@@ -126,15 +134,12 @@ export default function BotonTiempoItinerario({
   const [tiempo, setTiempo] = useState<TiempoResponse | null>(null);
 
   const idFinal = idItinerario ?? id_itinerario ?? null;
+  const diaFinal = diaIso ?? diasIso ?? null;
 
-  const titulo = useMemo(() => {
-    if (diaIso) return "Tiempo del día";
-    return "Tiempo del itinerario";
-  }, [diaIso]);
+  const titulo = useMemo(() => (diaFinal ? "Tiempo del día" : "Tiempo del itinerario"), [diaFinal]);
 
   async function cargarTiempo() {
     setAbierto(true);
-
     if (tiempo || cargando) return;
 
     try {
@@ -142,18 +147,15 @@ export default function BotonTiempoItinerario({
       setError(null);
 
       const params = new URLSearchParams();
-
       if (idFinal !== null && idFinal !== undefined && String(idFinal).trim() !== "") {
         params.set("idItinerario", String(idFinal));
       }
-
       if (destino) params.set("destino", destino);
       if (inicio) params.set("inicio", normalizarFecha(inicio) ?? inicio);
       if (fin) params.set("fin", normalizarFecha(fin) ?? fin);
-      if (diaIso) params.set("diaIso", normalizarFecha(diaIso) ?? diaIso);
+      if (diaFinal) params.set("diaIso", normalizarFecha(diaFinal) ?? diaFinal);
 
       const token = getToken();
-
       const response = await fetch(`${API_URL}/api/meteorologia/contexto?${params.toString()}`, {
         method: "GET",
         headers: {
@@ -163,22 +165,12 @@ export default function BotonTiempoItinerario({
       });
 
       const data = await response.json().catch(() => null);
-
       if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            data?.mensaje ||
-            "No se pudo cargar la información meteorológica."
-        );
+        throw new Error(data?.message || data?.mensaje || "No se pudo cargar la información meteorológica.");
       }
-
       setTiempo(data as TiempoResponse);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo cargar la información meteorológica."
-      );
+      setError(err instanceof Error ? err.message : "No se pudo cargar la información meteorológica.");
     } finally {
       setCargando(false);
     }
@@ -189,12 +181,9 @@ export default function BotonTiempoItinerario({
   const mensaje =
     tiempo?.mensaje ||
     tiempo?.resumen ||
-    (!disponible
-      ? "La previsión fiable solo está disponible para los próximos 14 días."
-      : null);
-
-  const orientacion =
-    tiempo?.clima_estacional || tiempo?.orientacion_estacional || null;
+    tiempo?.motivo ||
+    (!disponible ? "La previsión fiable solo está disponible para los próximos 14 días." : null);
+  const orientacion = textoOrientacion(tiempo?.clima_estacional, tiempo?.orientacion_estacional);
 
   return (
     <>
@@ -203,24 +192,20 @@ export default function BotonTiempoItinerario({
         onClick={cargarTiempo}
         className={
           className ||
-          "rounded-full bg-[#eef6ff] px-4 py-2 text-xs font-black text-[#2563eb] transition hover:bg-[#dbeafe]"
+          "mt-3 w-full rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(255,90,54,0.24)] transition hover:-translate-y-0.5 hover:bg-[#ff4320]"
         }
       >
         {label}
       </button>
 
       {abierto && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4">
-          <div className="max-h-[86vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/45 p-3 sm:items-center">
+          <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-white p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-[#ff5a36]">
-                  Meteorología
-                </p>
-                <h2 className="mt-1 text-2xl font-black text-[#0f172a]">{titulo}</h2>
-                <p className="mt-1 text-sm font-semibold text-[#64748b]">
-                  {destino || tiempo?.destino || "Destino del itinerario"}
-                </p>
+                <p className="text-xs font-black uppercase tracking-[0.25em] text-[#ff5a36]">Meteorología</p>
+                <h2 className="mt-1 text-2xl font-black tracking-[-0.03em] text-[#0f172a]">{titulo}</h2>
+                <p className="mt-1 text-sm font-semibold text-[#64748b]">{destino || tiempo?.destino || "Destino del itinerario"}</p>
               </div>
 
               <button
@@ -236,87 +221,40 @@ export default function BotonTiempoItinerario({
             {cargando && (
               <div className="rounded-3xl bg-[#f8fafc] p-5 text-center">
                 <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-[#ffe1d9] border-t-[#ff5a36]" />
-                <p className="text-sm font-bold text-[#64748b]">
-                  Consultando previsión meteorológica...
-                </p>
+                <p className="text-sm font-bold text-[#64748b]">Consultando previsión meteorológica...</p>
               </div>
             )}
 
             {!cargando && error && (
-              <div className="rounded-3xl bg-[#fff1f2] p-4 text-sm font-bold text-[#dc2626]">
-                {error}
-              </div>
+              <div className="rounded-3xl bg-[#fff1f2] p-4 text-sm font-bold leading-6 text-[#dc2626]">{error}</div>
             )}
 
             {!cargando && !error && tiempo && (
               <div className="space-y-4">
                 {mensaje && (
-                  <div
-                    className={`rounded-3xl p-4 text-sm font-bold ${
-                      disponible
-                        ? "bg-[#eff6ff] text-[#1d4ed8]"
-                        : "bg-[#fff7ed] text-[#c2410c]"
-                    }`}
-                  >
+                  <div className={`rounded-3xl p-4 text-sm font-bold leading-6 ${disponible ? "bg-[#eff6ff] text-[#1d4ed8]" : "bg-[#fff7ed] text-[#c2410c]"}`}>
                     {mensaje}
                   </div>
                 )}
 
-                {diaIso && dias.length > 0 && (
-                  <div className="rounded-3xl border border-[#e5e7eb] bg-white p-4">
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#94a3b8]">
-                      Día seleccionado
-                    </p>
-
-                    {dias.slice(0, 1).map((dia, index) => (
-                      <div key={index} className="mt-3">
-                        <h3 className="text-lg font-black text-[#0f172a]">
-                          {formatoFecha(dia.fecha ?? dia.date ?? dia.dia)}
-                        </h3>
-                        <p className="mt-2 text-sm font-bold text-[#334155]">
-                          {textoTemperatura(dia)}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[#64748b]">
-                          {textoLluvia(dia)} · {textoViento(dia)}
-                        </p>
-                        {dia.consejo && (
-                          <p className="mt-3 rounded-2xl bg-[#fff7ed] p-3 text-sm font-semibold text-[#9a3412]">
-                            {dia.consejo}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {!diaIso && dias.length > 0 && (
+                {dias.length > 0 && (
                   <div className="space-y-3">
-                    {dias.slice(0, 14).map((dia, index) => (
-                      <div
-                        key={`${dia.fecha ?? dia.date ?? dia.dia ?? index}`}
-                        className="rounded-3xl border border-[#e5e7eb] bg-white p-4"
-                      >
+                    {dias.slice(0, diaFinal ? 1 : 14).map((dia, index) => (
+                      <div key={`${dia.fecha ?? dia.date ?? dia.dia ?? index}`} className="rounded-3xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">
                               {formatoFecha(dia.fecha ?? dia.date ?? dia.dia)}
                             </p>
-                            <p className="mt-2 text-base font-black text-[#0f172a]">
-                              {textoTemperatura(dia)}
-                            </p>
+                            <p className="mt-2 text-base font-black text-[#0f172a]">{textoTemperatura(dia)}</p>
                           </div>
-
                           <div className="rounded-2xl bg-[#f8fafc] px-3 py-2 text-right text-xs font-black text-[#475569]">
                             {textoLluvia(dia)}
                           </div>
                         </div>
-
-                        <p className="mt-2 text-sm font-semibold text-[#64748b]">
-                          {textoViento(dia)}
-                        </p>
-
+                        <p className="mt-2 text-sm font-semibold text-[#64748b]">{textoViento(dia)}</p>
                         {(dia.descripcion || dia.consejo) && (
-                          <p className="mt-3 rounded-2xl bg-[#fff7ed] p-3 text-sm font-semibold text-[#9a3412]">
+                          <p className="mt-3 rounded-2xl bg-[#fff7ed] p-3 text-sm font-semibold leading-6 text-[#9a3412]">
                             {dia.consejo || dia.descripcion}
                           </p>
                         )}
@@ -327,12 +265,8 @@ export default function BotonTiempoItinerario({
 
                 {orientacion && (
                   <div className="rounded-3xl bg-[#f8fafc] p-4">
-                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#94a3b8]">
-                      Orientación estacional
-                    </p>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-[#475569]">
-                      {orientacion}
-                    </p>
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#94a3b8]">Orientación estacional</p>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-[#475569]">{orientacion}</p>
                   </div>
                 )}
 
@@ -345,10 +279,8 @@ export default function BotonTiempoItinerario({
                 <button
                   type="button"
                   onClick={() => {
-                    const query = encodeURIComponent(
-                      `tiempo ${destino || tiempo.destino || ""}`
-                    );
-                    window.open(`https://www.google.com/search?q=${query}`, "_blank");
+                    const query = encodeURIComponent(`tiempo ${destino || tiempo.destino || ""}`);
+                    window.open(`https://www.google.com/search?q=${query}`, "_blank", "noopener,noreferrer");
                   }}
                   className="w-full rounded-2xl bg-[#0f172a] px-5 py-3 text-sm font-black text-white"
                 >
