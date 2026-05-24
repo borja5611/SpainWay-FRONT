@@ -189,51 +189,45 @@ function contarPois(item: Itinerario): number {
   return item.dias?.reduce((acc, dia) => acc + (dia.elementos?.length ?? 0), 0) ?? 0;
 }
 
-function limpiarResumenTecnico(texto?: string | null): string {
-  const raw = (texto ?? "").trim();
+function limpiarTextoTecnico(value?: string | null): string {
+  const raw = (value ?? "").trim();
   if (!raw) return "";
 
-  const normalizado = normalizarTexto(raw);
-
-  const esTecnico =
-    normalizado.includes("itinerario hibrido") ||
-    normalizado.includes("calidad ia1") ||
-    normalizado.includes("ia2") ||
-    normalizado.includes("distribucion [") ||
-    normalizado.includes("actualizado:") ||
-    normalizado.startsWith("he anadido") ||
-    normalizado.startsWith("he eliminado") ||
-    normalizado.startsWith("dia ");
-
-  if (esTecnico) return "";
-
   return raw
+    .replace(/Itinerario\s+h[ií]brido\s+IA2\s*\+\s*calidad\s+IA1\s+para\s+/gi, "Ruta personalizada por ")
+    .replace(/cubriendo\s+\d+\s+zonas?\s+con\s+distribuci[oó]n\s+\[[^\]]+\]\.?/gi, "")
+    .replace(/La ruta usa la colocaci[oó]n territorial[^.]*\.?/gi, "")
+    .replace(/prioriza POIs curados[^.]*\.?/gi, "")
+    .replace(/He a[nñ]adido[^.]*\.?/gi, "Itinerario actualizado correctamente.")
+    .replace(/D[ií]a\s+\d+\s+actualizado:?/gi, "")
     .replace(/\s+/g, " ")
-    .replace(/\s*,\s*/g, ", ")
-    .replace(/\s*\.\s*/g, ". ")
     .trim();
 }
 
-function crearResumenPresentable(item: Itinerario, totalDias: number, totalPois: number): string {
-  const destino = item.destino ?? "tu destino";
-  const transporte = item.transporte ? `, movilidad ${item.transporte}` : "";
-  const base = item.base_nombre || item.base_direccion;
-  const diasTexto = totalDias > 0 ? `${totalDias} día${totalDias === 1 ? "" : "s"}` : "varios días";
-  const poisTexto = totalPois > 0 ? `${totalPois} lugar${totalPois === 1 ? "" : "es"}` : "lugares seleccionados";
-
-  if (base) {
-    return `Ruta personalizada por ${destino} durante ${diasTexto}, con ${poisTexto}${transporte} y base en ${base}.`;
-  }
-
-  return `Ruta personalizada por ${destino} durante ${diasTexto}, con ${poisTexto}${transporte} y propuesta organizada por jornadas.`;
+function tituloBonitoItinerario(item: Itinerario): string {
+  const destino = item.destino?.trim() || "tu destino";
+  return `Itinerario ${destino}`;
 }
 
-function getResumen(item: Itinerario, totalDias = 0, totalPois = 0): string {
-  const resumenLimpio = limpiarResumenTecnico(
-    item.ia_resumen || item.ia_json?.summary || item.ia_json?.resumen,
+function getResumen(item: Itinerario): string {
+  const itemSeguro = item as Itinerario & { ritmo?: string | null; transporte?: string | null };
+  const candidato = limpiarTextoTecnico(
+    item.ia_resumen || item.ia_json?.summary || item.ia_json?.resumen || ""
   );
 
-  return resumenLimpio || crearResumenPresentable(item, totalDias, totalPois);
+  if (
+    candidato &&
+    candidato.length >= 20 &&
+    !normalizarTexto(candidato).includes("hibrido ia2") &&
+    !normalizarTexto(candidato).includes("calidad ia1")
+  ) {
+    return candidato.length > 155 ? `${candidato.slice(0, 152).trim()}...` : candidato;
+  }
+
+  const dias = calcularDias(item.inicio, item.fin) || item.dias?.length || item.ia_json?.days || 0;
+  const transporte = itemSeguro.transporte ? `, movilidad ${itemSeguro.transporte.replace(/_/g, " ")}` : "";
+  const ritmo = itemSeguro.ritmo ? ` y ritmo ${itemSeguro.ritmo}` : "";
+  return `Ruta personalizada de ${dias || "varios"} días por ${item.destino ?? "tu destino"}${transporte}${ritmo}.`;
 }
 
 function normalizarTexto(texto?: string | null): string {
@@ -332,27 +326,6 @@ function getImagenItinerario(item: Itinerario): string {
   );
 }
 
-function deduplicarItinerariosVisuales(items: UserItinerary[]): UserItinerary[] {
-  const vistos = new Map<string, UserItinerary>();
-
-  for (const item of items) {
-    const clave = [
-      normalizarTexto(item.destino),
-      normalizarTexto(item.titulo.replace(/^itinerario\s+/i, "")),
-      item.dias,
-      normalizarTexto(item.base ?? ""),
-    ].join("|");
-
-    const previo = vistos.get(clave);
-
-    if (!previo || Number(item.idReal ?? 0) > Number(previo.idReal ?? 0)) {
-      vistos.set(clave, item);
-    }
-  }
-
-  return [...vistos.values()].sort((a, b) => Number(b.idReal ?? 0) - Number(a.idReal ?? 0));
-}
-
 function mapItinerarioReal(item: Itinerario): UserItinerary {
   const diasFechas = calcularDias(item.inicio, item.fin);
   const diasIa = item.ia_json?.days ?? 0;
@@ -362,8 +335,8 @@ function mapItinerarioReal(item: Itinerario): UserItinerary {
   return {
     id: String(item.id_itinerario),
     idReal: item.id_itinerario,
-    titulo: item.titulo ?? `Itinerario ${item.destino ?? ""}`,
-    subtitulo: getResumen(item, totalDias, totalPois),
+    titulo: tituloBonitoItinerario(item),
+    subtitulo: getResumen(item),
     destino: item.destino ?? "Destino sin definir",
     categoria: "Personalizado",
     dias: totalDias,
@@ -385,7 +358,7 @@ function mapItinerarioReal(item: Itinerario): UserItinerary {
 export default function ListaItinerariosPantalla() {
   const navigate = useNavigate();
   const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? null;
+  const idUsuario = usuario?.id_usuario ?? 1;
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroActivo, setFiltroActivo] = useState<
@@ -403,13 +376,8 @@ export default function ListaItinerariosPantalla() {
       setLoading(true);
       setError(null);
 
-      if (!idUsuario) {
-        setUserItineraries([]);
-        return;
-      }
-
       const data = await getItinerariosResumen(idUsuario);
-      setUserItineraries(Array.isArray(data) ? deduplicarItinerariosVisuales(data.map(mapItinerarioReal)) : []);
+      setUserItineraries(Array.isArray(data) ? data.map(mapItinerarioReal) : []);
     } catch (err) {
       console.error(err);
       setError("No se pudieron cargar tus itinerarios. Inténtalo de nuevo en unos segundos.");

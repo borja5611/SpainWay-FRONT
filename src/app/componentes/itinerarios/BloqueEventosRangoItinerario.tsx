@@ -292,7 +292,13 @@ function estaYaSeleccionado(event: EventoLive, selecciones: SeleccionEventoLive[
     const fakeEvent: EventoLive = {
       id: item.evento_turistico.external_id,
       provider:
-        item.evento_turistico.source === "predicthq" ? "predicthq" : "ticketmaster",
+        item.evento_turistico.source === "predicthq"
+          ? "predicthq"
+          : item.evento_turistico.source === "serpapi"
+            ? "serpapi"
+            : item.evento_turistico.source === "database"
+              ? "database"
+              : "ticketmaster",
       nombre: item.evento_turistico.nombre,
       descripcion: item.evento_turistico.descripcion,
       categoria: item.evento_turistico.categoria ?? "Evento",
@@ -338,6 +344,7 @@ export default function BloqueEventosRangoItinerario({
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<string | null>(null);
+  const [avisosFuentes, setAvisosFuentes] = useState<string[]>([]);
   const [yaBuscado, setYaBuscado] = useState(false);
 
   const mapaDias = useMemo(() => {
@@ -395,6 +402,7 @@ export default function BloqueEventosRangoItinerario({
       setError(null);
       setMensaje(null);
       setDetalle(null);
+      setAvisosFuentes([]);
       setResultados([]);
       setYaBuscado(true);
 
@@ -408,6 +416,7 @@ export default function BloqueEventosRangoItinerario({
       });
 
       const deduplicados = deduplicarEventos(response.events ?? []);
+      setAvisosFuentes(response.warnings ?? []);
 
       setResultados(deduplicados);
 
@@ -599,6 +608,12 @@ export default function BloqueEventosRangoItinerario({
               {detalle && (
                 <div className="mt-1 text-xs font-medium text-[#667085]">
                   {detalle}
+                </div>
+              )}
+
+              {avisosFuentes.length > 0 && (
+                <div className="mt-2 rounded-xl bg-[#fff7ed] px-3 py-2 text-xs font-semibold text-[#9a3412]">
+                  {avisosFuentes.join(" · ")}
                 </div>
               )}
             </div>
@@ -808,7 +823,7 @@ export default function BloqueEventosRangoItinerario({
             !error && (
               <div className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-4 text-sm text-[#667085]">
                 No hay eventos útiles para mostrar en el rango del viaje con la
-                búsqueda actual.
+                búsqueda actual. Revisa que Ticketmaster, PredictHQ o SerpApi estén configurados en Render y prueba a ampliar radio/categoría.
               </div>
             )
           )}

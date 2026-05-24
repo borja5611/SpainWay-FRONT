@@ -16,7 +16,6 @@ import {
 import {
   getItinerarioDetalle,
   aplicarAccionManualItinerario,
-  eliminarItinerario,
   regenerarItinerarioCompleto,
   type DiaItinerario,
   type ElementoItinerario,
@@ -75,6 +74,8 @@ type ItinerarioConBase = Itinerario & {
   base_longitud?: number | string | null;
   permite_excursiones?: boolean | null;
   radio_max_km?: number | string | null;
+  ritmo?: string | null;
+  transporte?: string | null;
 };
 
 function formatFecha(value?: string | null): string {
@@ -356,13 +357,45 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
   }));
 }
 
+function limpiarTextoTecnico(value?: string | null): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return "";
+
+  return raw
+    .replace(/Itinerario\s+h[ií]brido\s+IA2\s*\+\s*calidad\s+IA1\s+para\s+/gi, "Ruta personalizada por ")
+    .replace(/cubriendo\s+\d+\s+zonas?\s+con\s+distribuci[oó]n\s+\[[^\]]+\]\.?/gi, "")
+    .replace(/La ruta usa la colocaci[oó]n territorial[^.]*\.?/gi, "")
+    .replace(/prioriza POIs curados[^.]*\.?/gi, "")
+    .replace(/He a[nñ]adido[^.]*\.?/gi, "Itinerario actualizado correctamente.")
+    .replace(/D[ií]a\s+\d+\s+actualizado:?/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tituloBonitoItinerario(itinerario: Itinerario): string {
+  const destino = itinerario.destino?.trim() || "tu destino";
+  return `Itinerario ${destino}`;
+}
+
 function getResumen(itinerario: Itinerario): string {
-  return (
-    itinerario.ia_resumen ||
-    itinerario.ia_json?.summary ||
-    itinerario.ia_json?.resumen ||
-    `Itinerario generado para ${itinerario.destino ?? "tu destino"}.`
+  const itinerarioSeguro = itinerario as ItinerarioConBase;
+  const candidato = limpiarTextoTecnico(
+    itinerario.ia_resumen || itinerario.ia_json?.summary || itinerario.ia_json?.resumen || ""
   );
+
+  if (
+    candidato &&
+    candidato.length >= 20 &&
+    !normalizarTexto(candidato).includes("hibrido ia2") &&
+    !normalizarTexto(candidato).includes("calidad ia1")
+  ) {
+    return candidato.length > 260 ? `${candidato.slice(0, 257).trim()}...` : candidato;
+  }
+
+  const dias = getIaDayPlans(itinerario).length || itinerario.dias?.length || 0;
+  const transporte = itinerarioSeguro.transporte ? `, movilidad ${itinerarioSeguro.transporte.replace(/_/g, " ")}` : "";
+  const ritmo = itinerarioSeguro.ritmo ? ` y ritmo ${itinerarioSeguro.ritmo}` : "";
+  return `Ruta personalizada de ${dias || "varios"} días por ${itinerario.destino ?? "tu destino"}${transporte}${ritmo}.`;
 }
 
 function getAnchors(itinerario: Itinerario): string[] {
@@ -596,21 +629,7 @@ export default function DetalleItinerarioPantalla() {
         user_message: preferenciasRegeneracion.notes,
       });
 
-      // El endpoint de generación crea una propuesta nueva. Para que la regeneración
-      // se comporte como una actualización y no deje duplicados en la lista,
-      // eliminamos el itinerario anterior solo cuando la nueva versión ya existe.
-      if (respuesta.id_itinerario && respuesta.id_itinerario !== itinerario.id_itinerario) {
-        try {
-          await eliminarItinerario(itinerario.id_itinerario);
-        } catch (deleteError) {
-          console.warn(
-            "La nueva versión se creó, pero no se pudo eliminar la versión anterior:",
-            deleteError,
-          );
-        }
-      }
-
-      navigate(`/itinerarios/${respuesta.id_itinerario}`, { replace: true });
+      navigate(`/itinerarios/${respuesta.id_itinerario}`);
     } catch (error) {
       console.error(error);
       setError("No se pudo regenerar el itinerario con las nuevas preferencias.");
@@ -822,7 +841,7 @@ export default function DetalleItinerarioPantalla() {
             </p>
 
             <h1 className="mt-2 text-[32px] font-black tracking-[-0.04em] text-[#111827]">
-              {itinerario.titulo ?? `Itinerario ${itinerario.destino ?? ""}`}
+              {tituloBonitoItinerario(itinerario)}
             </h1>
 
             <p className="mt-3 max-w-[760px] text-sm leading-6 text-[#667085]">

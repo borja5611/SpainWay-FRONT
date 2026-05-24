@@ -1,8 +1,10 @@
 import { apiDelete, apiGet, apiPost } from "./api";
 
+export type EventoLiveProvider = "ticketmaster" | "predicthq" | "serpapi" | "database";
+
 export type EventoLive = {
   id: string;
-  provider: "ticketmaster" | "predicthq" | "serpapi";
+  provider: EventoLiveProvider;
   nombre: string;
   descripcion: string | null;
   categoria: string;
@@ -34,6 +36,19 @@ export type BuscarEventosLiveResponse = {
   total: number;
   events: EventoLive[];
   message?: string;
+  warnings?: string[];
+  providers_configured?: {
+    ticketmaster?: boolean;
+    predicthq?: boolean;
+    serpapi?: boolean;
+    database?: boolean;
+  };
+  providers?: {
+    ticketmaster?: number;
+    predicthq?: number;
+    serpapi?: number;
+    database?: number;
+  };
   search_strategy?: {
     success_attempt: string | null;
     success_label: string | null;
@@ -47,9 +62,10 @@ export type BuscarEventosLiveResponse = {
       from: string;
       to: string;
       radiusKm: number;
-      ticketmaster: number;
-      predicthq: number;
+      ticketmaster?: number;
+      predicthq?: number;
       serpapi?: number;
+      database?: number;
       total: number;
     }>;
   };
@@ -58,7 +74,7 @@ export type BuscarEventosLiveResponse = {
 export type SeleccionEventoLive = {
   id_itinerario_evento: number;
   id_itinerario: number;
-  id_dia_itinerario: number;
+  id_dia_itinerario: number | null;
   orden: number | null;
   inicio_sugerido: string | null;
   fin_sugerido: string | null;
@@ -99,37 +115,25 @@ function buildQuery(params: BuscarEventosLiveParams) {
 
   if (typeof params.lat === "number") search.set("lat", String(params.lat));
   if (typeof params.lng === "number") search.set("lng", String(params.lng));
-  if (typeof params.radiusKm === "number") {
-    search.set("radiusKm", String(params.radiusKm));
-  }
-
+  if (typeof params.radiusKm === "number") search.set("radiusKm", String(params.radiusKm));
   return search.toString();
 }
 
 export async function buscarEventosLive(params: BuscarEventosLiveParams) {
-  const query = buildQuery(params);
-  return apiGet<BuscarEventosLiveResponse>(`/api/eventos-live/search?${query}`);
+  return apiGet<BuscarEventosLiveResponse>(`/api/eventos-live/search?${buildQuery(params)}`);
 }
 
 export async function getSeleccionesEventosLive(idItinerario: number) {
-  return apiGet<SeleccionEventoLive[]>(
-    `/api/eventos-live/selecciones/${idItinerario}`
-  );
+  return apiGet<SeleccionEventoLive[]>(`/api/eventos-live/selecciones/${idItinerario}`);
 }
 
-export async function seleccionarEventoLive(
-  payload: SeleccionarEventoLivePayload
-) {
+export async function seleccionarEventoLive(payload: SeleccionarEventoLivePayload) {
   return apiPost<{ ok: boolean }, SeleccionarEventoLivePayload>(
     "/api/eventos-live/seleccionar",
-    payload
+    payload,
   );
 }
 
-export async function eliminarSeleccionEventoLive(
-  idItinerarioEvento: number
-) {
-  return apiDelete<{ ok: boolean }>(
-    `/api/eventos-live/seleccion/${idItinerarioEvento}`
-  );
+export async function eliminarSeleccionEventoLive(idItinerarioEvento: number) {
+  return apiDelete<{ ok: boolean }>(`/api/eventos-live/seleccion/${idItinerarioEvento}`);
 }
