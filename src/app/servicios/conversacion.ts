@@ -57,35 +57,54 @@ export const getMensajes = (idConversacion: number) =>
 export const crearMensaje = (payload: CrearMensajePayload) =>
   apiPost<Mensaje, CrearMensajePayload>("/api/mensajes", payload);
 
-
 export interface ProcesarMensajeChatPayload {
   contenido: string;
 }
 
-
 export interface PoiRecomendadoChat {
-  id_poi: number;
+  id_poi?: number | string | null;
+  id?: number | string | null;
+  idPoi?: number | string | null;
+  global_id?: string | null;
+  id_global?: string | null;
   nombre?: string | null;
+  name?: string | null;
+  titulo?: string | null;
+  title?: string | null;
   tipo?: string | null;
+  category?: string | null;
+  categoria?: string | null;
   subcategoria?: string | null;
   direccion?: string | null;
-  latitud?: number | null;
-  longitud?: number | null;
+  address?: string | null;
+  latitud?: number | string | null;
+  longitud?: number | string | null;
+  lat?: number | string | null;
+  lon?: number | string | null;
+  lng?: number | string | null;
   descripcion?: string | null;
+  description?: string | null;
+  reason?: string | null;
   google_search_url?: string | null;
+  googleUrl?: string | null;
+  url?: string | null;
+  municipality?: string | null;
   municipio?: {
     nombre?: string | null;
     provincia?: {
       nombre?: string | null;
       comunidad?: { nombre?: string | null } | null;
     } | null;
-  } | null;
+  } | string | null;
+  province?: string | null;
+  provincia?: string | null;
+  ccaa?: string | null;
   categoria_poi?: { nombre?: string | null } | null;
 }
 
 export interface EventoLiveChat {
   id: string;
-  provider: "ticketmaster" | "predicthq" | "serpapi";
+  provider: "ticketmaster" | "predicthq" | "serpapi" | string;
   nombre: string;
   descripcion: string | null;
   categoria: string;
@@ -113,6 +132,7 @@ export interface ProcesarMensajeChatResponse {
   destino?: string | null;
   query?: string | null;
   source?: string | null;
+  parsed?: unknown;
 }
 
 export const procesarMensajeChat = (
