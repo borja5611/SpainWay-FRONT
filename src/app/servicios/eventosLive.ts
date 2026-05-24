@@ -2,7 +2,7 @@ import { apiDelete, apiGet, apiPost } from "./api";
 
 export type EventoLive = {
   id: string;
-  provider: "ticketmaster" | "predicthq";
+  provider: "ticketmaster" | "predicthq" | "serpapi";
   nombre: string;
   descripcion: string | null;
   categoria: string;
@@ -49,6 +49,7 @@ export type BuscarEventosLiveResponse = {
       radiusKm: number;
       ticketmaster: number;
       predicthq: number;
+      serpapi?: number;
       total: number;
     }>;
   };

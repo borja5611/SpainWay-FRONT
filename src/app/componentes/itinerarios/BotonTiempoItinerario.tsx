@@ -1,222 +1,361 @@
 import { useMemo, useState } from "react";
-import {
-  getMeteorologiaItinerario,
-  type DiaMeteorologia,
-  type MeteorologiaItinerario,
-} from "@/app/servicios/meteorologia";
 
-type Props = {
-  idItinerario: number;
-  destino: string;
+type DiaTiempo = {
+  fecha?: string;
+  date?: string;
+  dia?: string;
+  tempMin?: number | null;
+  tempMax?: number | null;
+  temperatura_min?: number | null;
+  temperatura_max?: number | null;
+  lluvia?: number | null;
+  probabilidadLluvia?: number | null;
+  precipitation_probability_max?: number | null;
+  viento?: number | null;
+  wind_speed?: number | null;
+  descripcion?: string | null;
+  consejo?: string | null;
 };
 
-function formatearFecha(fecha: string): string {
-  const d = new Date(`${fecha}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return fecha;
-  return new Intl.DateTimeFormat("es-ES", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  }).format(d);
-}
+type TiempoResponse = {
+  ok?: boolean;
+  disponible?: boolean;
+  fiable?: boolean;
+  mensaje?: string;
+  destino?: string;
+  resumen?: string;
+  dias?: DiaTiempo[];
+  forecast?: DiaTiempo[];
+  clima_estacional?: string;
+  orientacion_estacional?: string;
+};
 
-function valorTemperatura(value: number | null): string {
-  return value === null || value === undefined ? "-" : `${Math.round(value)}º`;
-}
+type Props = {
+  idItinerario?: number | string | null;
+  id_itinerario?: number | string | null;
+  destino?: string | null;
+  inicio?: string | null;
+  fin?: string | null;
+  diaIso?: string | null;
+  label?: string;
+  className?: string;
+};
 
-function valorPorcentaje(value: number | null): string {
-  return value === null || value === undefined ? "-" : `${Math.round(value)}%`;
-}
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
-function abrirBusquedaTiempo(destino: string) {
-  const query = encodeURIComponent(`tiempo ${destino} próximos 14 días`);
-  window.open(`https://www.google.com/search?q=${query}`, "_blank", "noopener,noreferrer");
-}
-
-function DiaTiempoCard({ dia }: { dia: DiaMeteorologia }) {
+function getToken(): string | null {
   return (
-    <article className="rounded-[22px] border border-[#edf0f4] bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#94a3b8]">
-            {formatearFecha(dia.fecha)}
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-2xl">{dia.icono}</span>
-            <p className="text-sm font-bold text-[#111827]">{dia.estado}</p>
-          </div>
-        </div>
-
-        {dia.dentro_itinerario && (
-          <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-[11px] font-bold text-[#059669]">
-            viaje
-          </span>
-        )}
-      </div>
-
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <div className="rounded-2xl bg-[#f8fafc] p-3">
-          <p className="text-[11px] text-[#94a3b8]">Temp.</p>
-          <p className="mt-1 text-sm font-bold text-[#0f172a]">
-            {valorTemperatura(dia.temperatura_min)} / {valorTemperatura(dia.temperatura_max)}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-[#f8fafc] p-3">
-          <p className="text-[11px] text-[#94a3b8]">Lluvia</p>
-          <p className="mt-1 text-sm font-bold text-[#0f172a]">
-            {valorPorcentaje(dia.probabilidad_lluvia)}
-          </p>
-        </div>
-        <div className="rounded-2xl bg-[#f8fafc] p-3">
-          <p className="text-[11px] text-[#94a3b8]">Viento</p>
-          <p className="mt-1 text-sm font-bold text-[#0f172a]">
-            {dia.viento_max == null ? "-" : `${Math.round(dia.viento_max)} km/h`}
-          </p>
-        </div>
-      </div>
-
-      <p className="mt-3 text-sm leading-6 text-[#667085]">{dia.consejo}</p>
-    </article>
+    localStorage.getItem("spainway_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("access_token")
   );
 }
 
-export default function BotonTiempoItinerario({ idItinerario, destino }: Props) {
+function normalizarFecha(valor?: string | null): string | null {
+  if (!valor) return null;
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return valor;
+  return fecha.toISOString().slice(0, 10);
+}
+
+function formatoFecha(valor?: string | null): string {
+  if (!valor) return "Fecha no disponible";
+
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return valor;
+
+  return fecha.toLocaleDateString("es-ES", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+function numeroSeguro(valor: unknown): number | null {
+  if (valor === null || valor === undefined || valor === "") return null;
+  const n = Number(valor);
+  return Number.isFinite(n) ? n : null;
+}
+
+function extraerDias(data: TiempoResponse): DiaTiempo[] {
+  if (Array.isArray(data.dias)) return data.dias;
+  if (Array.isArray(data.forecast)) return data.forecast;
+  return [];
+}
+
+function textoTemperatura(dia: DiaTiempo): string {
+  const min = numeroSeguro(dia.tempMin ?? dia.temperatura_min);
+  const max = numeroSeguro(dia.tempMax ?? dia.temperatura_max);
+
+  if (min === null && max === null) return "Temperatura no disponible";
+  if (min === null) return `Máx. ${max} ºC`;
+  if (max === null) return `Mín. ${min} ºC`;
+
+  return `${Math.round(min)} ºC / ${Math.round(max)} ºC`;
+}
+
+function textoLluvia(dia: DiaTiempo): string {
+  const lluvia = numeroSeguro(
+    dia.lluvia ?? dia.probabilidadLluvia ?? dia.precipitation_probability_max
+  );
+
+  if (lluvia === null) return "Lluvia no disponible";
+  return `${Math.round(lluvia)}% lluvia`;
+}
+
+function textoViento(dia: DiaTiempo): string {
+  const viento = numeroSeguro(dia.viento ?? dia.wind_speed);
+
+  if (viento === null) return "Viento no disponible";
+  return `${Math.round(viento)} km/h viento`;
+}
+
+export default function BotonTiempoItinerario({
+  idItinerario,
+  id_itinerario,
+  destino,
+  inicio,
+  fin,
+  diaIso,
+  label = "Ver tiempo",
+  className = "",
+}: Props) {
   const [abierto, setAbierto] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<MeteorologiaItinerario | null>(null);
+  const [tiempo, setTiempo] = useState<TiempoResponse | null>(null);
 
-  const diasAMostrar = useMemo(() => {
-    if (!data) return [];
-    return data.prevision_fiable_para_itinerario && data.dias_itinerario.length > 0
-      ? data.dias_itinerario
-      : data.proximos_14_dias.slice(0, 5);
-  }, [data]);
+  const idFinal = idItinerario ?? id_itinerario ?? null;
 
-  async function abrirModal() {
+  const titulo = useMemo(() => {
+    if (diaIso) return "Tiempo del día";
+    return "Tiempo del itinerario";
+  }, [diaIso]);
+
+  async function cargarTiempo() {
     setAbierto(true);
-    if (data || loading) return;
+
+    if (tiempo || cargando) return;
 
     try {
-      setLoading(true);
+      setCargando(true);
       setError(null);
-      const respuesta = await getMeteorologiaItinerario(idItinerario);
-      setData(respuesta);
+
+      const params = new URLSearchParams();
+
+      if (idFinal !== null && idFinal !== undefined && String(idFinal).trim() !== "") {
+        params.set("idItinerario", String(idFinal));
+      }
+
+      if (destino) params.set("destino", destino);
+      if (inicio) params.set("inicio", normalizarFecha(inicio) ?? inicio);
+      if (fin) params.set("fin", normalizarFecha(fin) ?? fin);
+      if (diaIso) params.set("diaIso", normalizarFecha(diaIso) ?? diaIso);
+
+      const token = getToken();
+
+      const response = await fetch(`${API_URL}/api/meteorologia/contexto?${params.toString()}`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message ||
+            data?.mensaje ||
+            "No se pudo cargar la información meteorológica."
+        );
+      }
+
+      setTiempo(data as TiempoResponse);
     } catch (err) {
-      console.error(err);
-      setError("No se pudo cargar el tiempo para este itinerario. Inténtalo de nuevo en unos segundos.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo cargar la información meteorológica."
+      );
     } finally {
-      setLoading(false);
+      setCargando(false);
     }
   }
+
+  const dias = tiempo ? extraerDias(tiempo) : [];
+  const disponible = tiempo?.disponible ?? tiempo?.fiable ?? dias.length > 0;
+  const mensaje =
+    tiempo?.mensaje ||
+    tiempo?.resumen ||
+    (!disponible
+      ? "La previsión fiable solo está disponible para los próximos 14 días."
+      : null);
+
+  const orientacion =
+    tiempo?.clima_estacional || tiempo?.orientacion_estacional || null;
 
   return (
     <>
       <button
         type="button"
-        onClick={abrirModal}
-        className="mt-3 w-full rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-sm font-bold text-[#1d4ed8] shadow-[0_8px_20px_rgba(37,99,235,0.08)]"
+        onClick={cargarTiempo}
+        className={
+          className ||
+          "rounded-full bg-[#eef6ff] px-4 py-2 text-xs font-black text-[#2563eb] transition hover:bg-[#dbeafe]"
+        }
       >
-        Ver tiempo
+        {label}
       </button>
 
       {abierto && (
-        <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/45 p-3 sm:items-center">
-          <div className="max-h-[88vh] w-full max-w-[410px] overflow-hidden rounded-[30px] bg-[#f3f5f9] shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
-            <div className="sticky top-0 z-10 border-b border-[#e5e7eb] bg-white/95 px-5 py-4 backdrop-blur">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2563eb]">
-                    Meteorología
-                  </p>
-                  <h3 className="mt-1 text-xl font-black tracking-[-0.03em] text-[#111827]">
-                    Tiempo en {data?.destino || destino}
-                  </h3>
-                  <p className="mt-1 text-sm leading-5 text-[#667085]">
-                    Previsión disponible para los próximos 14 días.
-                  </p>
-                </div>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 px-4">
+          <div className="max-h-[86vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.25em] text-[#ff5a36]">
+                  Meteorología
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-[#0f172a]">{titulo}</h2>
+                <p className="mt-1 text-sm font-semibold text-[#64748b]">
+                  {destino || tiempo?.destino || "Destino del itinerario"}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAbierto(false)}
+                className="grid h-10 w-10 place-items-center rounded-full bg-[#f8fafc] text-lg font-black text-[#0f172a]"
+                aria-label="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+
+            {cargando && (
+              <div className="rounded-3xl bg-[#f8fafc] p-5 text-center">
+                <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-[#ffe1d9] border-t-[#ff5a36]" />
+                <p className="text-sm font-bold text-[#64748b]">
+                  Consultando previsión meteorológica...
+                </p>
+              </div>
+            )}
+
+            {!cargando && error && (
+              <div className="rounded-3xl bg-[#fff1f2] p-4 text-sm font-bold text-[#dc2626]">
+                {error}
+              </div>
+            )}
+
+            {!cargando && !error && tiempo && (
+              <div className="space-y-4">
+                {mensaje && (
+                  <div
+                    className={`rounded-3xl p-4 text-sm font-bold ${
+                      disponible
+                        ? "bg-[#eff6ff] text-[#1d4ed8]"
+                        : "bg-[#fff7ed] text-[#c2410c]"
+                    }`}
+                  >
+                    {mensaje}
+                  </div>
+                )}
+
+                {diaIso && dias.length > 0 && (
+                  <div className="rounded-3xl border border-[#e5e7eb] bg-white p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#94a3b8]">
+                      Día seleccionado
+                    </p>
+
+                    {dias.slice(0, 1).map((dia, index) => (
+                      <div key={index} className="mt-3">
+                        <h3 className="text-lg font-black text-[#0f172a]">
+                          {formatoFecha(dia.fecha ?? dia.date ?? dia.dia)}
+                        </h3>
+                        <p className="mt-2 text-sm font-bold text-[#334155]">
+                          {textoTemperatura(dia)}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#64748b]">
+                          {textoLluvia(dia)} · {textoViento(dia)}
+                        </p>
+                        {dia.consejo && (
+                          <p className="mt-3 rounded-2xl bg-[#fff7ed] p-3 text-sm font-semibold text-[#9a3412]">
+                            {dia.consejo}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!diaIso && dias.length > 0 && (
+                  <div className="space-y-3">
+                    {dias.slice(0, 14).map((dia, index) => (
+                      <div
+                        key={`${dia.fecha ?? dia.date ?? dia.dia ?? index}`}
+                        className="rounded-3xl border border-[#e5e7eb] bg-white p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">
+                              {formatoFecha(dia.fecha ?? dia.date ?? dia.dia)}
+                            </p>
+                            <p className="mt-2 text-base font-black text-[#0f172a]">
+                              {textoTemperatura(dia)}
+                            </p>
+                          </div>
+
+                          <div className="rounded-2xl bg-[#f8fafc] px-3 py-2 text-right text-xs font-black text-[#475569]">
+                            {textoLluvia(dia)}
+                          </div>
+                        </div>
+
+                        <p className="mt-2 text-sm font-semibold text-[#64748b]">
+                          {textoViento(dia)}
+                        </p>
+
+                        {(dia.descripcion || dia.consejo) && (
+                          <p className="mt-3 rounded-2xl bg-[#fff7ed] p-3 text-sm font-semibold text-[#9a3412]">
+                            {dia.consejo || dia.descripcion}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {orientacion && (
+                  <div className="rounded-3xl bg-[#f8fafc] p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-[#94a3b8]">
+                      Orientación estacional
+                    </p>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-[#475569]">
+                      {orientacion}
+                    </p>
+                  </div>
+                )}
+
+                {!dias.length && !orientacion && (
+                  <div className="rounded-3xl bg-[#f8fafc] p-4 text-sm font-bold text-[#64748b]">
+                    No hay previsión disponible para este itinerario.
+                  </div>
+                )}
 
                 <button
                   type="button"
-                  onClick={() => setAbierto(false)}
-                  className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-bold text-[#111827]"
+                  onClick={() => {
+                    const query = encodeURIComponent(
+                      `tiempo ${destino || tiempo.destino || ""}`
+                    );
+                    window.open(`https://www.google.com/search?q=${query}`, "_blank");
+                  }}
+                  className="w-full rounded-2xl bg-[#0f172a] px-5 py-3 text-sm font-black text-white"
                 >
-                  ✕
+                  Abrir tiempo externo
                 </button>
               </div>
-            </div>
-
-            <div className="max-h-[calc(88vh-96px)] overflow-y-auto px-5 py-5">
-              {loading && (
-                <div className="rounded-[24px] bg-white p-5 text-sm font-semibold text-[#667085]">
-                  Cargando previsión meteorológica...
-                </div>
-              )}
-
-              {error && (
-                <div className="rounded-[24px] bg-red-50 p-5 text-sm font-semibold leading-6 text-red-600">
-                  {error}
-                </div>
-              )}
-
-              {data && !loading && !error && (
-                <>
-                  <div
-                    className={`rounded-[24px] p-4 text-sm leading-6 ${
-                      data.prevision_fiable_para_itinerario
-                        ? "bg-[#ecfdf5] text-[#065f46]"
-                        : "bg-[#fff7ed] text-[#9a3412]"
-                    }`}
-                  >
-                    <p className="font-black">
-                      {data.prevision_fiable_para_itinerario
-                        ? "Previsión aplicable al itinerario"
-                        : "Tus fechas están fuera del rango fiable"}
-                    </p>
-                    <p className="mt-1">{data.motivo}</p>
-                    <p className="mt-2 text-xs font-semibold opacity-80">
-                      Rango consultado: {data.rango_prevision_inicio} → {data.rango_prevision_fin}
-                    </p>
-                  </div>
-
-                  {diasAMostrar.length > 0 && (
-                    <div className="mt-4 space-y-3">
-                      {diasAMostrar.map((dia) => (
-                        <DiaTiempoCard key={dia.fecha} dia={dia} />
-                      ))}
-                    </div>
-                  )}
-
-                  {!data.prevision_fiable_para_itinerario && (
-                    <div className="mt-4 rounded-[24px] bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#94a3b8]">
-                        {data.clima_estacional.titulo}
-                      </p>
-                      <p className="mt-2 text-lg font-black text-[#111827]">
-                        {data.clima_estacional.rango}
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-[#667085]">
-                        {data.clima_estacional.descripcion}
-                      </p>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => abrirBusquedaTiempo(data.destino || destino)}
-                    className="mt-4 w-full rounded-2xl bg-[#111827] px-4 py-3 text-sm font-bold text-white"
-                  >
-                    Abrir tiempo externo
-                  </button>
-
-                  <p className="mt-3 text-center text-[11px] leading-5 text-[#98a2b3]">
-                    Fuente: {data.fuente}. La previsión meteorológica se usa como apoyo contextual,
-                    no como garantía absoluta.
-                  </p>
-                </>
-              )}
-            </div>
+            )}
           </div>
         </div>
       )}

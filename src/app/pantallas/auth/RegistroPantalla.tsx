@@ -7,7 +7,7 @@ import { SocialLogin } from "@/app/componentes/auth/SocialLogin";
 import { AuthInfoModal } from "@/app/componentes/auth/AuthInfoModal";
 import { EmailIcon, LockIcon, EyeIcon } from "@/app/componentes/auth/icons";
 import { RUTAS_APP } from "@/app/utilidades/rutas";
-import { getSocialAuthUrl, register } from "@/app/servicios/auth";
+import { comprobarDisponibilidadRegistro, getSocialAuthUrl, register } from "@/app/servicios/auth";
 import { useAuthStore } from "@/app/store/useAuthStore";
 
 const PREFIJOS_PAISES = [
@@ -114,6 +114,27 @@ export default function RegistroPantalla() {
       const telefonoCompleto = formData.phone.trim()
         ? `${formData.countryCode}${telefonoLimpio}`
         : undefined;
+
+      const disponibilidad = await comprobarDisponibilidadRegistro({
+        email,
+        nombre_usuario: username,
+        telefono: telefonoCompleto,
+      });
+
+      if (!disponibilidad.email.available) {
+        mostrarError("Ese correo ya está registrado. Inicia sesión o utiliza otro email.");
+        return;
+      }
+
+      if (!disponibilidad.nombre_usuario.available) {
+        mostrarError("Ese nombre de usuario ya está en uso. Prueba con otro diferente.");
+        return;
+      }
+
+      if (telefonoCompleto && !disponibilidad.telefono.available) {
+        mostrarError("Ese teléfono ya está asociado a otra cuenta.");
+        return;
+      }
 
       const auth = await register({
         nombre,

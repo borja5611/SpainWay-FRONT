@@ -76,6 +76,31 @@ function usuarioDesdeToken(token: string | null): UsuarioAuth | null {
   };
 }
 
+
+export interface RegistroAvailabilityResponse {
+  email: { value: string; available: boolean };
+  nombre_usuario: { value: string; available: boolean };
+  telefono: { value: string | null; available: boolean };
+}
+
+export async function comprobarDisponibilidadRegistro(params: {
+  email?: string;
+  nombre_usuario?: string;
+  telefono?: string;
+}): Promise<RegistroAvailabilityResponse> {
+  const query = new URLSearchParams();
+  if (params.email) query.set("email", params.email);
+  if (params.nombre_usuario) query.set("nombre_usuario", params.nombre_usuario);
+  if (params.telefono) query.set("telefono", params.telefono);
+
+  const response = await fetch(`${API_URL}/api/auth/availability?${query.toString()}`);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Error comprobando disponibilidad: ${response.status} ${text}`);
+  }
+  return response.json() as Promise<RegistroAvailabilityResponse>;
+}
+
 export async function register(payload: RegisterPayload): Promise<AuthResponse> {
   const response = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",

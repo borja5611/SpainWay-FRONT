@@ -27,6 +27,7 @@ import {
 import { itinerariosMock } from "../../datos/mock/itinerariosMock";
 import { crearFavorito, eliminarFavorito, getFavoritos } from "@/app/servicios/favoritos";
 import { searchPoisDestacados, type PoiDestacado } from "@/app/servicios/poisDestacados";
+import BotonTiempoItinerario from "@/app/componentes/itinerarios/BotonTiempoItinerario";
 
 type DiaUi = {
   numero: number;
@@ -404,7 +405,7 @@ export default function DetalleItinerarioPantalla() {
   const navigate = useNavigate();
   const { itinerarioId } = useParams();
   const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const idUsuario = usuario?.id_usuario ?? null;
 
   const idParam = itinerarioId ?? "";
   const id = Number(idParam);
@@ -475,7 +476,7 @@ export default function DetalleItinerarioPantalla() {
 
         const [data, favoritos] = await Promise.all([
           getItinerarioDetalle(id),
-          getFavoritos(idUsuario).catch(() => []),
+          (idUsuario ? getFavoritos(idUsuario) : Promise.resolve([])).catch(() => []),
         ]);
         setItinerario(data);
         const preferenciasGuardadas = getPreferenciasJson(data);
@@ -527,17 +528,16 @@ export default function DetalleItinerarioPantalla() {
   const diasUi = useMemo(() => (itinerario ? buildDiasUi(itinerario) : []), [itinerario]);
   const totalPois = diasUi.reduce((acc, dia) => acc + dia.pois.length, 0);
 
-  function abrirPoiEnMapa(poi: PoiUi) {
+  function abrirDetallePoi(poi: PoiUi) {
     if (poi.idPoi) {
-      sessionStorage.setItem(
-        "spainway_selected_poi_mapa",
-        JSON.stringify({ id: String(poi.idPoi), nombre: poi.nombre })
-      );
-      navigate(`/mapa?poi=${poi.idPoi}`);
+      navigate(`/poi/${poi.idPoi}`);
       return;
     }
-
     window.open(buildGoogleMapsDirectionsUrl(poi), "_blank", "noopener,noreferrer");
+  }
+
+  function abrirPoiEnMapa(poi: PoiUi) {
+    abrirDetallePoi(poi);
   }
 
   function abrirGoogleMapsDesdeUbicacion(poi: PoiUi) {
@@ -605,7 +605,7 @@ export default function DetalleItinerarioPantalla() {
   }
 
   async function toggleFavoritoPoi(poi: PoiUi) {
-    if (!poi.idPoi || favoritoEnProceso === poi.idPoi) return;
+    if (!idUsuario || !poi.idPoi || favoritoEnProceso === poi.idPoi) return;
 
     const estabaActivo = favoritosPoiIds.has(poi.idPoi);
 
@@ -1120,6 +1120,17 @@ export default function DetalleItinerarioPantalla() {
 
                 {abierto && (
                   <div className="border-t border-[#eef2f7] p-5">
+                    {itinerario.id_itinerario && (
+                      <div className="mb-5">
+                        <BotonTiempoItinerario
+                          idItinerario={itinerario.id_itinerario}
+                          inicio={itinerario.inicio}
+                          fin={itinerario.fin}
+                          diaIso={dia.fecha}
+                          label="Ver tiempo de este día"
+                        />
+                      </div>
+                    )}
                     {dia.tips.length > 0 && (
                       <div className="mb-5 rounded-2xl bg-[#fff7f3] p-4">
                         <p className="text-sm font-black text-[#7a271a]">Consejos del día</p>
@@ -1342,10 +1353,10 @@ export default function DetalleItinerarioPantalla() {
 
                                   <button
                                     type="button"
-                                    onClick={() => abrirPoiEnMapa(poi)}
+                                    onClick={() => abrirDetallePoi(poi)}
                                     className="rounded-full bg-[#111827] px-4 py-3 text-xs font-bold text-white"
                                   >
-                                    Ver en mapa
+                                    Ver detalle POI
                                   </button>
 
                                   <button

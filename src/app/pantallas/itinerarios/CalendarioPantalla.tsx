@@ -453,6 +453,7 @@ export default function CalendarioPantalla() {
 
   function clearRange() {
     saveRange({ start: null, end: null });
+    setDisplayMonth(new Date());
   }
 
   return (

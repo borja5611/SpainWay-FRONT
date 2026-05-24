@@ -7,6 +7,7 @@ import {
   type Conversacion,
   type Mensaje,
   type PoiRecomendadoChat,
+  type EventoLiveChat,
 } from "@/app/servicios/conversacion";
 
 function normalizarTexto(value?: string | null): string {
@@ -41,6 +42,7 @@ function getSugerenciasChat(conversacion?: Conversacion | null): string[] {
   if (!idItinerario) {
     return [
       "Estoy en Madrid y necesito dos sitios para ver hoy por la tarde",
+      "Qué conciertos o eventos hay en Madrid este fin de semana",
       "Estoy en Valencia y quiero un museo y algo de gastronomía cerca",
       "Estoy en Tenerife y quiero ver el Teide o algo imprescindible",
       "Estoy en Sevilla y quiero tres planes culturales para esta tarde",
@@ -49,6 +51,7 @@ function getSugerenciasChat(conversacion?: Conversacion | null): string[] {
   }
 
   return [
+    "Qué eventos hay cerca durante mi viaje",
     "Añade 3 POIs destacados al día 3",
     "Quita el POI que menos encaje del día 1",
     tieneCosta ? "Añade una playa o cala al día 2" : "Añade un parque o mirador al día 2",
@@ -140,6 +143,65 @@ function PoiRecommendationCard({ poi }: { poi: PoiRecomendadoChat }) {
   );
 }
 
+
+function formatEventoFecha(value?: string | null): string {
+  if (!value) return "Fecha pendiente";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Fecha pendiente";
+  return date.toLocaleString("es-ES", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function getEventoDirectionsUrl(evento: EventoLiveChat): string | null {
+  const lat = Number(evento.latitud);
+  const lon = Number(evento.longitud);
+  const destination = Number.isFinite(lat) && Number.isFinite(lon)
+    ? `${lat},${lon}`
+    : [evento.recinto, evento.direccion, evento.ciudad, "España"].filter(Boolean).join(", ");
+
+  if (!destination.trim()) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+}
+
+function EventoLiveCard({ evento }: { evento: EventoLiveChat }) {
+  const directions = getEventoDirectionsUrl(evento);
+  const fuente = evento.provider === "serpapi" ? "Google Events" : evento.provider === "predicthq" ? "PredictHQ" : "Ticketmaster";
+
+  return (
+    <article className="overflow-hidden rounded-[22px] border border-[#eef2f7] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+      {evento.imagen && (
+        <img src={evento.imagen} alt={evento.nombre} className="h-36 w-full object-cover" />
+      )}
+      <div className="p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-[#fff4ef] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#ff5a36]">{fuente}</span>
+          <span className="rounded-full bg-[#f8fafc] px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#475569]">{evento.categoria || "Evento"}</span>
+        </div>
+        <h3 className="mt-3 text-base font-black leading-6 text-[#111827]">{evento.nombre}</h3>
+        <p className="mt-2 text-xs font-black text-[#ff5a36]">{formatEventoFecha(evento.fechaInicio)}</p>
+        {[evento.recinto, evento.ciudad].filter(Boolean).length > 0 && (
+          <p className="mt-1 text-xs font-bold text-[#667085]">{[evento.recinto, evento.ciudad].filter(Boolean).join(" · ")}</p>
+        )}
+        {evento.descripcion && <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#667085]">{evento.descripcion}</p>}
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {evento.url && (
+            <a href={evento.url} target="_blank" rel="noreferrer" className="rounded-2xl bg-[#111827] px-4 py-3 text-center text-xs font-black text-white">
+              Ver evento
+            </a>
+          )}
+          {directions && (
+            <a href={directions} target="_blank" rel="noreferrer" className="rounded-2xl bg-[#fff4ef] px-4 py-3 text-center text-xs font-black text-[#ff5a36]">
+              Cómo llegar
+            </a>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function ChatDetallePantalla() {
   const navigate = useNavigate();
   const { idConversacion } = useParams();
@@ -149,6 +211,7 @@ export default function ChatDetallePantalla() {
   const [conversacion, setConversacion] = useState<Conversacion | null>(null);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [ultimosPois, setUltimosPois] = useState<PoiRecomendadoChat[]>([]);
+  const [ultimosEventos, setUltimosEventos] = useState<EventoLiveChat[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -184,7 +247,7 @@ export default function ChatDetallePantalla() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensajes.length, sending, ultimosPois.length]);
+  }, [mensajes.length, sending, ultimosPois.length, ultimosEventos.length]);
 
   async function enviarMensaje(textoForzado?: string) {
     const texto = (textoForzado ?? input).trim();
@@ -195,10 +258,12 @@ export default function ChatDetallePantalla() {
       setError(null);
       setInput("");
       setUltimosPois([]);
+      setUltimosEventos([]);
 
       const result = await procesarMensajeChat(id, { contenido: texto });
       setMensajes((prev) => limpiarMensajes([...prev, result.user, result.assistant]));
       setUltimosPois(Array.isArray(result.pois) ? result.pois : []);
+      setUltimosEventos(Array.isArray(result.eventos) ? result.eventos : []);
     } catch (err) {
       console.error(err);
       setError("No se pudo procesar el mensaje. Revisa que el backend esté arrancado y que la ruta /api/chat-acciones esté registrada.");
@@ -333,10 +398,19 @@ export default function ChatDetallePantalla() {
               </div>
             )}
 
+            {ultimosEventos.length > 0 && (
+              <div className="mt-5 space-y-3">
+                <p className="px-1 text-xs font-black uppercase tracking-[0.18em] text-[#94a3b8]">Eventos en directo</p>
+                {ultimosEventos.map((evento) => (
+                  <EventoLiveCard key={evento.id} evento={evento} />
+                ))}
+              </div>
+            )}
+
             {sending && (
               <div className="mt-4 flex justify-start">
                 <div className="rounded-[24px] rounded-bl-md bg-white px-4 py-3 text-sm font-semibold text-[#667085] shadow-sm">
-                  {modoItinerario ? "SpainWay está comprobando y guardando el cambio..." : "SpainWay está buscando recomendaciones reales..."}
+                  {modoItinerario ? "SpainWay está comprobando y guardando el cambio..." : "SpainWay está buscando recomendaciones y eventos reales..."}
                 </div>
               </div>
             )}

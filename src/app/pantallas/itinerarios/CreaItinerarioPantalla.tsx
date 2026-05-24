@@ -613,7 +613,7 @@ export default function CrearItinerarioPantalla() {
   const [range, setRange] = useState(() => readStoredRange());
   const [calendarioAbierto, setCalendarioAbierto] = useState(false);
   const [fechaInicioTemp, setFechaInicioTemp] = useState(getTomorrowIso());
-  const [fechaFinTemp, setFechaFinTemp] = useState(getTomorrowIso());
+  const [fechaFinTemp, setFechaFinTemp] = useState("");
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [avisoValidacion, setAvisoValidacion] = useState<string | null>(null);
   const [generando, setGenerando] = useState(false);
@@ -794,9 +794,10 @@ export default function CrearItinerarioPantalla() {
   }
 
   function abrirCalendarioPopup() {
+    const today = toIsoDate(new Date());
     const minDate = getTomorrowIso();
-    const start = range.start && !isBeforeIsoDate(range.start, minDate) ? range.start : minDate;
-    const end = range.end && range.end >= start ? range.end : start;
+    const start = range.start && !isBeforeIsoDate(range.start, minDate) ? range.start : today;
+    const end = range.end && range.end >= start ? range.end : "";
 
     setFechaInicioTemp(start);
     setFechaFinTemp(end);
@@ -808,6 +809,11 @@ export default function CrearItinerarioPantalla() {
 
     if (fechaInicioTemp < minDate) {
       setErrorFormulario("La fecha de inicio debe ser como mínimo mañana.");
+      return;
+    }
+
+    if (!fechaFinTemp) {
+      setErrorFormulario("Selecciona una fecha final o pulsa Sin fecha.");
       return;
     }
 
@@ -1429,6 +1435,10 @@ export default function CrearItinerarioPantalla() {
 
       localStorage.removeItem(STORAGE_KEY_FORM_DRAFT);
       localStorage.removeItem(STORAGE_KEY_BASE_COORDS);
+      localStorage.removeItem(STORAGE_KEY_RANGE);
+      setForm(FORM_INICIAL);
+      setRange({ start: null, end: null });
+      setBaseCoords(null);
 
       setProgresoGeneracion(100);
 
@@ -1469,7 +1479,14 @@ export default function CrearItinerarioPantalla() {
 
             <button
               type="button"
-              onClick={() => navigate("/itinerarios")}
+              onClick={() => {
+                localStorage.removeItem(STORAGE_KEY_FORM_DRAFT);
+                localStorage.removeItem(STORAGE_KEY_BASE_COORDS);
+                localStorage.removeItem(STORAGE_KEY_RANGE);
+                setForm(FORM_INICIAL);
+                setRange({ start: null, end: null });
+                navigate("/itinerarios");
+              }}
               className="shrink-0 rounded-2xl bg-white px-4 py-2 text-xs font-semibold text-[#111827] shadow-sm"
             >
               Cerrar
@@ -1894,7 +1911,14 @@ export default function CrearItinerarioPantalla() {
             <div className="mt-2 flex gap-3">
               <button
                 type="button"
-                onClick={() => navigate("/itinerarios")}
+                onClick={() => {
+                localStorage.removeItem(STORAGE_KEY_FORM_DRAFT);
+                localStorage.removeItem(STORAGE_KEY_BASE_COORDS);
+                localStorage.removeItem(STORAGE_KEY_RANGE);
+                setForm(FORM_INICIAL);
+                setRange({ start: null, end: null });
+                navigate("/itinerarios");
+              }}
                 className="flex-1 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
               >
                 Cancelar
@@ -1923,7 +1947,7 @@ export default function CrearItinerarioPantalla() {
                   Seleccionar fechas
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  El inicio mínimo es mañana. También puedes cerrar esto y escribir solo los días.
+                  Al abrir el calendario se propone hoy como inicio visual. Para generar un viaje futuro, selecciona una fecha válida o escribe solo los días.
                 </p>
               </div>
 
@@ -1941,12 +1965,12 @@ export default function CrearItinerarioPantalla() {
                 <label className="mb-2 block text-sm font-semibold text-[#111827]">Fecha de inicio</label>
                 <input
                   type="date"
-                  min={getTomorrowIso()}
+                  min={toIsoDate(new Date())}
                   value={fechaInicioTemp}
                   onChange={(event) => {
                     const nextStart = event.target.value;
                     setFechaInicioTemp(nextStart);
-                    if (fechaFinTemp < nextStart) setFechaFinTemp(nextStart);
+                    if (fechaFinTemp && fechaFinTemp < nextStart) setFechaFinTemp("");
                   }}
                   className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
                 />
@@ -1964,7 +1988,7 @@ export default function CrearItinerarioPantalla() {
               </div>
 
               <div className="rounded-[18px] bg-[#fff7f4] px-4 py-3 text-sm font-semibold text-[#9a3412]">
-                Duración calculada: {getDaysPlaceholder(fechaInicioTemp, fechaFinTemp)} días
+                Duración calculada: {fechaInicioTemp && fechaFinTemp ? getDaysPlaceholder(fechaInicioTemp, fechaFinTemp) : "pendiente"}
               </div>
             </div>
 

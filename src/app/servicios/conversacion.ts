@@ -83,6 +83,24 @@ export interface PoiRecomendadoChat {
   categoria_poi?: { nombre?: string | null } | null;
 }
 
+export interface EventoLiveChat {
+  id: string;
+  provider: "ticketmaster" | "predicthq" | "serpapi";
+  nombre: string;
+  descripcion: string | null;
+  categoria: string;
+  fechaInicio: string;
+  fechaFin: string | null;
+  ciudad: string;
+  recinto: string | null;
+  direccion: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  imagen: string | null;
+  url: string | null;
+  score: number;
+}
+
 export interface ProcesarMensajeChatResponse {
   user: Mensaje;
   assistant: Mensaje;
@@ -91,6 +109,7 @@ export interface ProcesarMensajeChatResponse {
   itinerario?: unknown;
   poi?: unknown;
   pois?: PoiRecomendadoChat[];
+  eventos?: EventoLiveChat[];
   destino?: string | null;
   query?: string | null;
   source?: string | null;

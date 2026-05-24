@@ -1,39 +1,34 @@
+
 import { apiGet } from "./api";
 
-export interface DiaMeteorologia {
-  fecha: string;
-  codigo: number | null;
-  icono: string;
-  estado: string;
-  temperatura_max: number | null;
-  temperatura_min: number | null;
-  probabilidad_lluvia: number | null;
-  viento_max: number | null;
-  consejo: string;
-  dentro_itinerario: boolean;
+export interface WeatherDay {
+  date: string;
+  temp_min: number | null;
+  temp_max: number | null;
+  rain_probability: number | null;
+  wind_max: number | null;
+  weather_code: number | null;
+  label: string;
+  advice: string;
 }
 
-export interface ClimaEstacional {
-  titulo: string;
-  descripcion: string;
-  rango: string;
+export interface WeatherForecastResponse {
+  ok: boolean;
+  provider: string;
+  generated_at: string;
+  reliable_for_trip: boolean;
+  message: string;
+  forecast_days: WeatherDay[];
+  trip_days: WeatherDay[];
 }
 
-export interface MeteorologiaItinerario {
-  destino: string;
-  latitud: number;
-  longitud: number;
-  inicio_itinerario: string | null;
-  fin_itinerario: string | null;
-  rango_prevision_inicio: string;
-  rango_prevision_fin: string;
-  prevision_fiable_para_itinerario: boolean;
-  motivo: string;
-  dias_itinerario: DiaMeteorologia[];
-  proximos_14_dias: DiaMeteorologia[];
-  clima_estacional: ClimaEstacional;
-  fuente: string;
+export function getForecastItinerario(params: {
+  id_itinerario: number;
+  start?: string | null;
+  end?: string | null;
+}) {
+  const query = new URLSearchParams({ id_itinerario: String(params.id_itinerario) });
+  if (params.start) query.set("start", params.start.slice(0, 10));
+  if (params.end) query.set("end", params.end.slice(0, 10));
+  return apiGet<WeatherForecastResponse>(`/api/meteorologia/forecast?${query.toString()}`);
 }
-
-export const getMeteorologiaItinerario = (idItinerario: number) =>
-  apiGet<MeteorologiaItinerario>(`/api/meteorologia/itinerario/${idItinerario}`);
