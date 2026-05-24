@@ -35,13 +35,40 @@ type PoiMockRecord = {
 
 type PoiRecordSafe = Record<string, unknown>;
 
-const BLANK_IMAGE =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900">
-      <rect width="100%" height="100%" fill="white"/>
-    </svg>
-  `);
+function crearImagenFallbackPoi(nombre: string, categoria: string, icono: string): string {
+  const titulo = (nombre || "Lugar de interés").slice(0, 46);
+  const etiqueta = (categoria || "SpainWay").slice(0, 28).toUpperCase();
+
+  return (
+    "data:image/svg+xml;utf8," +
+    encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+        <defs>
+          <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stop-color="#fff7ed"/>
+            <stop offset="0.48" stop-color="#f1f5f9"/>
+            <stop offset="1" stop-color="#e0f2fe"/>
+          </linearGradient>
+          <radialGradient id="r" cx="78%" cy="18%" r="70%">
+            <stop offset="0" stop-color="#ff5a36" stop-opacity="0.35"/>
+            <stop offset="1" stop-color="#ff5a36" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <rect width="1600" height="900" fill="url(#g)"/>
+        <rect width="1600" height="900" fill="url(#r)"/>
+        <circle cx="1270" cy="175" r="220" fill="#ffffff" opacity="0.42"/>
+        <circle cx="250" cy="735" r="260" fill="#ffffff" opacity="0.32"/>
+        <g transform="translate(128 120)">
+          <rect x="0" y="0" width="260" height="260" rx="70" fill="#ffffff" opacity="0.82"/>
+          <text x="130" y="168" text-anchor="middle" font-size="104" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${icono}</text>
+        </g>
+        <text x="128" y="470" font-size="34" font-weight="800" letter-spacing="8" fill="#ff5a36" font-family="Inter, Arial, sans-serif">${etiqueta}</text>
+        <text x="128" y="570" font-size="76" font-weight="900" fill="#0f172a" font-family="Inter, Arial, sans-serif">${titulo}</text>
+        <text x="128" y="650" font-size="34" font-weight="600" fill="#475569" font-family="Inter, Arial, sans-serif">Imagen no disponible · vista generada por SpainWay</text>
+      </svg>
+    `)
+  );
+}
 
 function normalizarTexto(value: string): string {
   return value
@@ -550,13 +577,15 @@ export default function DetallePoiPantalla() {
       destinoSeleccionado
     );
 
+    const icono = getIconoPoi(tipoRaw, categoriaRaw);
+
     const imagen =
       poiDestacado?.imagen_url ||
       poi.image_url ||
       poiDestacado?.poi?.image_url ||
-      BLANK_IMAGE;
+      crearImagenFallbackPoi(nombre, categoriaTraducida, icono);
 
-    const icono = getIconoPoi(tipoRaw, categoriaRaw);
+    const imagenFallback = crearImagenFallbackPoi(nombre, categoriaTraducida, icono);
 
     const puntosClave = crearPuntosClave({
       tipoTraducido,
@@ -582,6 +611,7 @@ export default function DetallePoiPantalla() {
       icono,
       puntosClave,
       destinoVisual,
+      imagenFallback,
     };
   }, [poi, poiDestacado, destinoSeleccionado]);
 
@@ -642,6 +672,9 @@ export default function DetallePoiPantalla() {
               src={datosVista.imagen}
               alt={datosVista.nombre}
               className="block h-full w-full object-cover object-center"
+              onError={(event) => {
+                event.currentTarget.src = datosVista.imagenFallback;
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/22 to-transparent" />
 

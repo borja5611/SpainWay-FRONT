@@ -189,13 +189,51 @@ function contarPois(item: Itinerario): number {
   return item.dias?.reduce((acc, dia) => acc + (dia.elementos?.length ?? 0), 0) ?? 0;
 }
 
-function getResumen(item: Itinerario): string {
-  return (
-    item.ia_resumen ||
-    item.ia_json?.summary ||
-    item.ia_json?.resumen ||
-    `Itinerario generado para ${item.destino ?? "tu destino"}.`
+function limpiarResumenTecnico(texto?: string | null): string {
+  const raw = (texto ?? "").trim();
+  if (!raw) return "";
+
+  const normalizado = normalizarTexto(raw);
+
+  const esTecnico =
+    normalizado.includes("itinerario hibrido") ||
+    normalizado.includes("calidad ia1") ||
+    normalizado.includes("ia2") ||
+    normalizado.includes("distribucion [") ||
+    normalizado.includes("actualizado:") ||
+    normalizado.startsWith("he anadido") ||
+    normalizado.startsWith("he eliminado") ||
+    normalizado.startsWith("dia ");
+
+  if (esTecnico) return "";
+
+  return raw
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s*\.\s*/g, ". ")
+    .trim();
+}
+
+function crearResumenPresentable(item: Itinerario, totalDias: number, totalPois: number): string {
+  const destino = item.destino ?? "tu destino";
+  const transporte = item.transporte ? `, movilidad ${item.transporte}` : "";
+  const base = item.base_nombre || item.base_direccion;
+  const diasTexto = totalDias > 0 ? `${totalDias} día${totalDias === 1 ? "" : "s"}` : "varios días";
+  const poisTexto = totalPois > 0 ? `${totalPois} lugar${totalPois === 1 ? "" : "es"}` : "lugares seleccionados";
+
+  if (base) {
+    return `Ruta personalizada por ${destino} durante ${diasTexto}, con ${poisTexto}${transporte} y base en ${base}.`;
+  }
+
+  return `Ruta personalizada por ${destino} durante ${diasTexto}, con ${poisTexto}${transporte} y propuesta organizada por jornadas.`;
+}
+
+function getResumen(item: Itinerario, totalDias = 0, totalPois = 0): string {
+  const resumenLimpio = limpiarResumenTecnico(
+    item.ia_resumen || item.ia_json?.summary || item.ia_json?.resumen,
   );
+
+  return resumenLimpio || crearResumenPresentable(item, totalDias, totalPois);
 }
 
 function normalizarTexto(texto?: string | null): string {
@@ -294,6 +332,27 @@ function getImagenItinerario(item: Itinerario): string {
   );
 }
 
+function deduplicarItinerariosVisuales(items: UserItinerary[]): UserItinerary[] {
+  const vistos = new Map<string, UserItinerary>();
+
+  for (const item of items) {
+    const clave = [
+      normalizarTexto(item.destino),
+      normalizarTexto(item.titulo.replace(/^itinerario\s+/i, "")),
+      item.dias,
+      normalizarTexto(item.base ?? ""),
+    ].join("|");
+
+    const previo = vistos.get(clave);
+
+    if (!previo || Number(item.idReal ?? 0) > Number(previo.idReal ?? 0)) {
+      vistos.set(clave, item);
+    }
+  }
+
+  return [...vistos.values()].sort((a, b) => Number(b.idReal ?? 0) - Number(a.idReal ?? 0));
+}
+
 function mapItinerarioReal(item: Itinerario): UserItinerary {
   const diasFechas = calcularDias(item.inicio, item.fin);
   const diasIa = item.ia_json?.days ?? 0;
@@ -304,7 +363,7 @@ function mapItinerarioReal(item: Itinerario): UserItinerary {
     id: String(item.id_itinerario),
     idReal: item.id_itinerario,
     titulo: item.titulo ?? `Itinerario ${item.destino ?? ""}`,
-    subtitulo: getResumen(item),
+    subtitulo: getResumen(item, totalDias, totalPois),
     destino: item.destino ?? "Destino sin definir",
     categoria: "Personalizado",
     dias: totalDias,
@@ -326,7 +385,7 @@ function mapItinerarioReal(item: Itinerario): UserItinerary {
 export default function ListaItinerariosPantalla() {
   const navigate = useNavigate();
   const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? 1;
+  const idUsuario = usuario?.id_usuario ?? null;
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroActivo, setFiltroActivo] = useState<
@@ -344,8 +403,13 @@ export default function ListaItinerariosPantalla() {
       setLoading(true);
       setError(null);
 
+      if (!idUsuario) {
+        setUserItineraries([]);
+        return;
+      }
+
       const data = await getItinerariosResumen(idUsuario);
-      setUserItineraries(Array.isArray(data) ? data.map(mapItinerarioReal) : []);
+      setUserItineraries(Array.isArray(data) ? deduplicarItinerariosVisuales(data.map(mapItinerarioReal)) : []);
     } catch (err) {
       console.error(err);
       setError("No se pudieron cargar tus itinerarios. Inténtalo de nuevo en unos segundos.");

@@ -16,6 +16,7 @@ import {
 import {
   getItinerarioDetalle,
   aplicarAccionManualItinerario,
+  eliminarItinerario,
   regenerarItinerarioCompleto,
   type DiaItinerario,
   type ElementoItinerario,
@@ -27,7 +28,6 @@ import {
 import { itinerariosMock } from "../../datos/mock/itinerariosMock";
 import { crearFavorito, eliminarFavorito, getFavoritos } from "@/app/servicios/favoritos";
 import { searchPoisDestacados, type PoiDestacado } from "@/app/servicios/poisDestacados";
-import BotonTiempoItinerario from "@/app/componentes/itinerarios/BotonTiempoItinerario";
 
 type DiaUi = {
   numero: number;
@@ -405,7 +405,7 @@ export default function DetalleItinerarioPantalla() {
   const navigate = useNavigate();
   const { itinerarioId } = useParams();
   const usuario = useAuthStore((state) => state.usuario);
-  const idUsuario = usuario?.id_usuario ?? null;
+  const idUsuario = usuario?.id_usuario ?? 1;
 
   const idParam = itinerarioId ?? "";
   const id = Number(idParam);
@@ -476,7 +476,7 @@ export default function DetalleItinerarioPantalla() {
 
         const [data, favoritos] = await Promise.all([
           getItinerarioDetalle(id),
-          (idUsuario ? getFavoritos(idUsuario) : Promise.resolve([])).catch(() => []),
+          getFavoritos(idUsuario).catch(() => []),
         ]);
         setItinerario(data);
         const preferenciasGuardadas = getPreferenciasJson(data);
@@ -528,16 +528,17 @@ export default function DetalleItinerarioPantalla() {
   const diasUi = useMemo(() => (itinerario ? buildDiasUi(itinerario) : []), [itinerario]);
   const totalPois = diasUi.reduce((acc, dia) => acc + dia.pois.length, 0);
 
-  function abrirDetallePoi(poi: PoiUi) {
+  function abrirPoiEnMapa(poi: PoiUi) {
     if (poi.idPoi) {
-      navigate(`/poi/${poi.idPoi}`);
+      sessionStorage.setItem(
+        "spainway_selected_poi_mapa",
+        JSON.stringify({ id: String(poi.idPoi), nombre: poi.nombre })
+      );
+      navigate(`/mapa?poi=${poi.idPoi}`);
       return;
     }
-    window.open(buildGoogleMapsDirectionsUrl(poi), "_blank", "noopener,noreferrer");
-  }
 
-  function abrirPoiEnMapa(poi: PoiUi) {
-    abrirDetallePoi(poi);
+    window.open(buildGoogleMapsDirectionsUrl(poi), "_blank", "noopener,noreferrer");
   }
 
   function abrirGoogleMapsDesdeUbicacion(poi: PoiUi) {
@@ -595,7 +596,21 @@ export default function DetalleItinerarioPantalla() {
         user_message: preferenciasRegeneracion.notes,
       });
 
-      navigate(`/itinerarios/${respuesta.id_itinerario}`);
+      // El endpoint de generación crea una propuesta nueva. Para que la regeneración
+      // se comporte como una actualización y no deje duplicados en la lista,
+      // eliminamos el itinerario anterior solo cuando la nueva versión ya existe.
+      if (respuesta.id_itinerario && respuesta.id_itinerario !== itinerario.id_itinerario) {
+        try {
+          await eliminarItinerario(itinerario.id_itinerario);
+        } catch (deleteError) {
+          console.warn(
+            "La nueva versión se creó, pero no se pudo eliminar la versión anterior:",
+            deleteError,
+          );
+        }
+      }
+
+      navigate(`/itinerarios/${respuesta.id_itinerario}`, { replace: true });
     } catch (error) {
       console.error(error);
       setError("No se pudo regenerar el itinerario con las nuevas preferencias.");
@@ -605,7 +620,7 @@ export default function DetalleItinerarioPantalla() {
   }
 
   async function toggleFavoritoPoi(poi: PoiUi) {
-    if (!idUsuario || !poi.idPoi || favoritoEnProceso === poi.idPoi) return;
+    if (!poi.idPoi || favoritoEnProceso === poi.idPoi) return;
 
     const estabaActivo = favoritosPoiIds.has(poi.idPoi);
 
@@ -1120,17 +1135,6 @@ export default function DetalleItinerarioPantalla() {
 
                 {abierto && (
                   <div className="border-t border-[#eef2f7] p-5">
-                    {itinerario.id_itinerario && (
-                      <div className="mb-5">
-                        <BotonTiempoItinerario
-                          idItinerario={itinerario.id_itinerario}
-                          inicio={itinerario.inicio}
-                          fin={itinerario.fin}
-                          diaIso={dia.fecha}
-                          label="Ver tiempo de este día"
-                        />
-                      </div>
-                    )}
                     {dia.tips.length > 0 && (
                       <div className="mb-5 rounded-2xl bg-[#fff7f3] p-4">
                         <p className="text-sm font-black text-[#7a271a]">Consejos del día</p>
@@ -1353,10 +1357,10 @@ export default function DetalleItinerarioPantalla() {
 
                                   <button
                                     type="button"
-                                    onClick={() => abrirDetallePoi(poi)}
+                                    onClick={() => abrirPoiEnMapa(poi)}
                                     className="rounded-full bg-[#111827] px-4 py-3 text-xs font-bold text-white"
                                   >
-                                    Ver detalle POI
+                                    Ver en mapa
                                   </button>
 
                                   <button
