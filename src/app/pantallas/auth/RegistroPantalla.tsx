@@ -155,14 +155,13 @@ export default function RegistroPantalla() {
     }
   }
 
-  function loginSocial(provider: "google" | "facebook" | "linkedin") {
-    const nombreProveedor =
-      provider === "google" ? "Google" : provider === "facebook" ? "Facebook" : "LinkedIn";
-
+  function loginSocial(_provider: "google" | "facebook" | "linkedin") {
+    console.log(_provider);
     setModal({
       tipo: "info",
       titulo: "Registro social en preparación",
-      mensaje: `El registro con ${nombreProveedor} todavía no está disponible. Puedes crear tu cuenta con email y contraseña mientras terminamos esta integración.`,
+      mensaje:
+        "El registro con Google, Facebook y LinkedIn todavía no está disponible. Puedes crear tu cuenta con email y contraseña.",
     });
   }
 

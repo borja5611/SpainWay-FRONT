@@ -18,6 +18,39 @@ function authHeaders(token?: string): HeadersInit {
     : {};
 }
 
+function limpiarHtmlErrorServidor(text: string): string {
+  const raw = text.trim();
+
+  if (!raw) {
+    return "El servidor no devolvió detalle del error.";
+  }
+
+  try {
+    const json = JSON.parse(raw) as { message?: unknown; error?: unknown };
+    const message = typeof json.message === "string" ? json.message : "";
+    const error = typeof json.error === "string" ? json.error : "";
+
+    if (message || error) {
+      const detalle = [message, error]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/<!DOCTYPE[\s\S]*$/i, "")
+        .replace(/<html[\s\S]*$/i, "")
+        .trim();
+
+      return detalle || "El servicio ha devuelto un error temporal.";
+    }
+  } catch {
+    // Si no es JSON seguimos limpiando como texto plano.
+  }
+
+  if (raw.startsWith("<!DOCTYPE") || raw.startsWith("<html") || raw.includes("<title>502</title>")) {
+    return "El servicio está arrancando en Render. Espera unos segundos y vuelve a intentarlo.";
+  }
+
+  return raw.slice(0, 700);
+}
+
 async function handleResponse<T>(response: Response, url: string, method: string): Promise<T> {
   if (response.status === 401) {
     // Si el backend dice no autorizado, la sesión local ya no vale.
@@ -27,7 +60,8 @@ async function handleResponse<T>(response: Response, url: string, method: string
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Error ${method} ${url}: ${response.status} ${text}`);
+    const detalle = limpiarHtmlErrorServidor(text);
+    throw new Error(`Error ${method} ${url}: ${response.status}. ${detalle}`);
   }
 
   if (response.status === 204) {

@@ -247,9 +247,9 @@ export default function BloqueEventosDia({
       <button
         type="button"
         onClick={() => setAbierto((value) => !value)}
-        className="flex w-full items-center justify-between gap-4 bg-gradient-to-br from-[#eef6ff] via-white to-[#f8fafc] p-5 text-left"
+        className="flex w-full flex-col items-stretch justify-between gap-4 bg-gradient-to-br from-[#eef6ff] via-white to-[#f8fafc] p-5 text-left sm:flex-row sm:items-center"
       >
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#2563eb]">
             Eventos en vivo
           </p>
@@ -257,12 +257,11 @@ export default function BloqueEventosDia({
             Cargar conciertos, teatro y planes para el día {diaNumero}
           </h3>
           <p className="mt-1 text-sm leading-6 text-[#667085]">
-            Busca eventos del rango del viaje y muestra primero los que caen en
-            este día.
+            Usa la misma búsqueda en vivo de Inicio, filtra resultados flojos y muestra primero los planes que encajan con este día.
           </p>
         </div>
 
-        <span className="rounded-full bg-[#111827] px-4 py-2 text-xs font-black text-white">
+        <span className="inline-flex w-full shrink-0 items-center justify-center rounded-full bg-[#2563eb] px-4 py-3 text-xs font-black text-white shadow-[0_12px_26px_rgba(37,99,235,0.22)] sm:w-auto">
           {abierto ? "Cerrar" : "Buscar eventos"}
         </span>
       </button>
@@ -371,7 +370,7 @@ export default function BloqueEventosDia({
               type="button"
               onClick={buscar}
               disabled={cargando}
-              className="rounded-full bg-[#111827] px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+              className="rounded-full bg-[#2563eb] px-5 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(37,99,235,0.22)] disabled:opacity-60"
             >
               {cargando ? "Buscando..." : "Buscar eventos live"}
             </button>

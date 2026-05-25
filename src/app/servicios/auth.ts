@@ -234,7 +234,7 @@ export async function despertarServicioIA(): Promise<void> {
       keepalive: true,
     });
   } catch (error) {
-    // El login no debe fallar si Render todavía está despertando la IA.
+    // El login/registro no debe fallar si Render todavía está despertando la IA.
     console.info("Wake-up IA lanzado, pero todavía no respondió:", error);
   }
 }

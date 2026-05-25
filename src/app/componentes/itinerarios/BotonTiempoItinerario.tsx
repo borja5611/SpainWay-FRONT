@@ -192,7 +192,7 @@ export default function BotonTiempoItinerario({
         onClick={cargarTiempo}
         className={
           className ||
-          "mt-3 w-full rounded-2xl bg-[#87CEFA] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(255,90,54,0.24)] transition hover:-translate-y-0.5 hover:bg-[#ff4320]"
+          "mt-3 w-full rounded-2xl bg-[#2563eb] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(37,99,235,0.24)] transition hover:-translate-y-0.5 hover:bg-[#1d4ed8]"
         }
       >
         {label}
@@ -203,7 +203,7 @@ export default function BotonTiempoItinerario({
           <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-white p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-[#ff5a36]">Meteorología</p>
+                <p className="text-xs font-black uppercase tracking-[0.25em] text-[#2563eb]">Meteorología</p>
                 <h2 className="mt-1 text-2xl font-black tracking-[-0.03em] text-[#0f172a]">{titulo}</h2>
                 <p className="mt-1 text-sm font-semibold text-[#64748b]">{destino || tiempo?.destino || "Destino del itinerario"}</p>
               </div>
@@ -220,7 +220,7 @@ export default function BotonTiempoItinerario({
 
             {cargando && (
               <div className="rounded-3xl bg-[#f8fafc] p-5 text-center">
-                <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-[#ffe1d9] border-t-[#ff5a36]" />
+                <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-[#ffe1d9] border-t-[#2563eb]" />
                 <p className="text-sm font-bold text-[#64748b]">Consultando previsión meteorológica...</p>
               </div>
             )}
@@ -243,7 +243,7 @@ export default function BotonTiempoItinerario({
                       <div key={`${dia.fecha ?? dia.date ?? dia.dia ?? index}`} className="rounded-3xl border border-[#e5e7eb] bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#2563eb]">
                               {formatoFecha(dia.fecha ?? dia.date ?? dia.dia)}
                             </p>
                             <p className="mt-2 text-base font-black text-[#0f172a]">{textoTemperatura(dia)}</p>

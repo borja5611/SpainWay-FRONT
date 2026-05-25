@@ -86,14 +86,13 @@ export default function LoginPantalla() {
     }
   }
 
-  function loginSocial(provider: "google" | "facebook" | "linkedin") {
-    const nombreProveedor =
-      provider === "google" ? "Google" : provider === "facebook" ? "Facebook" : "LinkedIn";
-
+  function loginSocial(_provider: "google" | "facebook" | "linkedin") {
+    console.log(_provider);
     setModal({
       tipo: "info",
       titulo: "Acceso social en preparación",
-      mensaje: `El acceso con ${nombreProveedor} todavía no está disponible. Puedes entrar con email y contraseña mientras terminamos esta integración.`,
+      mensaje:
+        "El acceso con Google, Facebook y LinkedIn todavía no está disponible. Puedes entrar con email y contraseña mientras terminamos estas integraciones.",
     });
   }
 

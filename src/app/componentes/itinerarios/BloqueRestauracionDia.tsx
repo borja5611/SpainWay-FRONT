@@ -192,9 +192,9 @@ export default function BloqueRestauracionDia({
       <button
         type="button"
         onClick={() => setAbierto((value) => !value)}
-        className="flex w-full items-center justify-between gap-4 bg-gradient-to-br from-[#fff8f4] via-white to-[#f8fafc] p-5 text-left"
+        className="flex w-full flex-col items-stretch justify-between gap-4 bg-gradient-to-br from-[#fff8f4] via-white to-[#f8fafc] p-5 text-left sm:flex-row sm:items-center"
       >
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">
             Restauración inteligente
           </p>
@@ -202,11 +202,11 @@ export default function BloqueRestauracionDia({
             Añadir desayuno, comida o cena al día {diaNumero}
           </h3>
           <p className="mt-1 text-sm leading-6 text-[#667085]">
-            Busca locales cerca de tus POIs usando Foursquare Pro sin gastar campos Premium.
+            Busca restaurantes reales cerca de tus POIs con la misma idea de resultados limpios que en Inicio, priorizando cercanía, contacto y calidad.
           </p>
         </div>
 
-        <span className="rounded-full bg-[#111827] px-4 py-2 text-xs font-black text-white">
+        <span className="inline-flex w-full shrink-0 items-center justify-center rounded-full bg-[#111827] px-4 py-3 text-xs font-black text-white sm:w-auto">
           {abierto ? "Cerrar" : "Buscar comida"}
         </span>
       </button>
@@ -384,7 +384,7 @@ export default function BloqueRestauracionDia({
             type="button"
             onClick={buscar}
             disabled={cargando || !poiReferencia}
-            className="w-full rounded-[22px] bg-[#ff5a36] px-5 py-4 text-sm font-black text-white shadow-[0_16px_32px_rgba(255,90,54,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-[22px] bg-[#ff5a36] px-5 py-4 text-sm font-black text-white shadow-[0_16px_32px_rgba(255,90,54,0.25)] transition hover:-translate-y-0.5 hover:bg-[#ff4320] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {cargando ? "Buscando restaurantes..." : "Buscar recomendaciones cerca del POI"}
           </button>
@@ -406,9 +406,9 @@ export default function BloqueRestauracionDia({
               {resultados.map((lugar, index) => (
                 <article
                   key={lugar.id_lugar_restauracion}
-                  className="overflow-hidden rounded-[26px] border border-[#eef2f7] bg-[#fcfcfd] shadow-[0_10px_26px_rgba(15,23,42,0.05)]"
+                  className="overflow-hidden rounded-[28px] border border-[#eef2f7] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
                 >
-                  <div className="flex h-[110px] items-center justify-center bg-gradient-to-br from-[#fff7ed] to-[#f8fafc] text-4xl">
+                  <div className="flex h-[116px] items-center justify-center bg-gradient-to-br from-[#fff4ef] via-[#f8fafc] to-[#eef2ff] text-4xl">
                     🍽️
                   </div>
 
@@ -418,7 +418,7 @@ export default function BloqueRestauracionDia({
                         <p className="text-xs font-black uppercase tracking-[0.16em] text-[#ff5a36]">
                           Recomendación #{index + 1}
                         </p>
-                        <h4 className="mt-2 text-lg font-black leading-tight text-[#111827]">
+                        <h4 className="mt-2 line-clamp-2 text-lg font-black leading-tight text-[#111827]">
                           {lugar.nombre}
                         </h4>
                       </div>
@@ -454,12 +454,12 @@ export default function BloqueRestauracionDia({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 border-t border-[#eef2f7] p-4">
+                  <div className="grid grid-cols-1 gap-2 border-t border-[#eef2f7] p-4 sm:grid-cols-3">
                     <button
                       type="button"
                       onClick={() => seleccionar(lugar)}
                       disabled={guardandoId === lugar.id_lugar_restauracion}
-                      className="rounded-full bg-[#111827] px-4 py-2 text-xs font-black text-white disabled:opacity-60"
+                      className="rounded-2xl bg-[#111827] px-4 py-3 text-xs font-black text-white disabled:opacity-60"
                     >
                       {guardandoId === lugar.id_lugar_restauracion
                         ? "Guardando..."
@@ -469,7 +469,7 @@ export default function BloqueRestauracionDia({
                     <button
                       type="button"
                       onClick={() => abrirDetalle(lugar)}
-                      className="rounded-full bg-[#f8fafc] px-4 py-2 text-xs font-black text-[#111827]"
+                      className="rounded-2xl bg-[#f8fafc] px-4 py-3 text-xs font-black text-[#111827]"
                     >
                       Ver info
                     </button>
@@ -479,7 +479,7 @@ export default function BloqueRestauracionDia({
                         href={lugar.googleUrl ?? lugar.url ?? "#"}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-full bg-[#fff4ef] px-4 py-2 text-xs font-black text-[#ff5a36]"
+                        className="rounded-2xl bg-[#fff4ef] px-4 py-3 text-center text-xs font-black text-[#ff5a36]"
                       >
                         Google
                       </a>
@@ -513,7 +513,7 @@ export default function BloqueRestauracionDia({
                 <button
                   type="button"
                   onClick={() => setDetalle(null)}
-                  className="rounded-full bg-[#f8fafc] px-4 py-2 text-xs font-black text-[#111827]"
+                  className="rounded-2xl bg-[#f8fafc] px-4 py-3 text-xs font-black text-[#111827]"
                 >
                   Cerrar
                 </button>

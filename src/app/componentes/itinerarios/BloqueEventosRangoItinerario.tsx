@@ -498,7 +498,7 @@ export default function BloqueEventosRangoItinerario({
   }
 
   return (
-    <div className="mt-5 rounded-[28px] border border-[#dbeafe] bg-gradient-to-br from-[#eff6ff] via-white to-[#f8fafc] p-5">
+    <div className="mt-5 rounded-[28px] border border-[#dbeafe] bg-gradient-to-br from-[#eff6ff] via-white to-[#f8fafc] p-5 shadow-[0_14px_34px_rgba(37,99,235,0.08)]">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-[#2563eb]">
@@ -510,15 +510,14 @@ export default function BloqueEventosRangoItinerario({
           </h3>
 
           <p className="mt-2 text-sm leading-6 text-[#667085]">
-            Busca conciertos, teatro, festivales y planes del rango completo del
-            viaje. Se agrupan por día y puedes añadir solo los que te interesen.
+            Busca conciertos, teatro, festivales y planes del rango completo. Se agrupan por día y solo añades los que te interesen.
           </p>
         </div>
 
         <button
           type="button"
           onClick={() => setAbierto((value) => !value)}
-          className="rounded-full bg-[#111827] px-5 py-3 text-sm font-black text-white"
+          className="inline-flex w-full shrink-0 items-center justify-center rounded-full bg-[#2563eb] px-5 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(37,99,235,0.22)] sm:w-auto"
         >
           {abierto ? "Cerrar eventos del viaje" : "Ver eventos del viaje"}
         </button>
@@ -581,7 +580,7 @@ export default function BloqueEventosRangoItinerario({
               type="button"
               onClick={cargarEventosRango}
               disabled={cargando}
-              className="rounded-full bg-[#111827] px-5 py-3 text-sm font-black text-white disabled:opacity-60"
+              className="rounded-full bg-[#2563eb] px-5 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(37,99,235,0.22)] disabled:opacity-60"
             >
               {cargando ? "Buscando..." : "Cargar todos los eventos del viaje"}
             </button>
