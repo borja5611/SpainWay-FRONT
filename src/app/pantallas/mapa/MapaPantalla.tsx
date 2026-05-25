@@ -548,7 +548,7 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
             </div>
 
             {cardsDestacadas.length > 0 ? (
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {cardsDestacadas.map((item) => {
                   const puedeEnfocar =
                     typeof item.lat === "number" &&
@@ -557,86 +557,90 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
                     Number.isFinite(item.lng);
                   const googleUrl = buildGoogleUrl(item.titulo, item.direccion);
 
+                  const abrirDetalle = () => {
+                    if (item.real) {
+                      navigate(`/poi/${item.id}`);
+                    }
+                  };
+
                   return (
                     <article
                       key={item.id}
-                      className="overflow-hidden rounded-[24px] bg-white text-left shadow-sm"
+                      className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[28px] border border-[#eef2f7] bg-white text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
                     >
-                      <div className="flex h-[440px] flex-col">
+                      <button
+                        type="button"
+                        onClick={abrirDetalle}
+                        disabled={!item.real}
+                        className="block w-full text-left disabled:cursor-default"
+                        aria-label={`Abrir detalle de ${item.titulo}`}
+                      >
+                        <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#f3f4f6]">
+                          <img
+                            src={item.imagen}
+                            alt={item.titulo}
+                            loading="lazy"
+                            className="block h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.03]"
+                          />
+                          <div className="absolute left-4 top-4 max-w-[calc(100%-2rem)] rounded-full bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#ff5a36] shadow-sm backdrop-blur">
+                            <span className="block truncate">{item.categoria}</span>
+                          </div>
+                        </div>
+                      </button>
+
+                      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5">
                         <button
                           type="button"
-                          onClick={() => {
-                            if (item.real) {
-                              navigate(`/poi/${item.id}`);
-                            }
-                          }}
-                          className="block w-full text-left"
+                          onClick={abrirDetalle}
+                          disabled={!item.real}
+                          className="min-w-0 text-left disabled:cursor-default"
                         >
-                          <div className="h-[220px] w-full overflow-hidden bg-[#f3f4f6]">
-                            <img
-                              src={item.imagen}
-                              alt={item.titulo}
-                              loading="lazy"
-                              className="block h-full w-full object-cover object-center"
-                            />
-                          </div>
+                          <h4 className="line-clamp-2 break-words text-[18px] font-black leading-[1.25] text-[#0f172a] sm:text-[19px]">
+                            {item.titulo}
+                          </h4>
                         </button>
 
-                        <div className="flex min-h-0 flex-1 flex-col border-t border-[#eef0f3] p-5">
-                          <div className="w-fit rounded-full bg-[#fff4ef] px-3 py-1 text-[11px] font-semibold text-[#ff5a36]">
-                            {item.categoria}
-                          </div>
+                        {item.direccion && (
+                          <p className="mt-2 line-clamp-1 break-words text-[12px] font-semibold leading-5 text-[#98a2b3]">
+                            {item.direccion}
+                          </p>
+                        )}
 
+                        <p className="mt-3 line-clamp-3 break-words text-[14px] leading-[23px] text-[#667085] sm:line-clamp-4">
+                          {item.descripcion}
+                        </p>
+
+                        <div className="mt-auto grid grid-cols-1 gap-2 pt-5 min-[420px]:grid-cols-2">
                           <button
                             type="button"
+                            disabled={!puedeEnfocar}
                             onClick={() => {
-                              if (item.real) {
-                                navigate(`/poi/${item.id}`);
-                              }
+                              if (!puedeEnfocar || item.lat == null || item.lng == null) return;
+                              setPoiEnfocado({
+                                id: item.id,
+                                nombre: item.titulo,
+                                categoria: item.categoria,
+                                descripcion: item.descripcion,
+                                imagen: item.imagen,
+                                lat: item.lat,
+                                lng: item.lng,
+                                direccion: item.direccion ?? undefined,
+                              });
+                              mapaSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                             }}
-                            className="mt-3 text-left"
+                            className="min-h-[44px] rounded-full bg-[#111827] px-4 py-2 text-center text-[12px] font-black leading-4 text-white transition hover:bg-[#020617] disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            <h4 className="line-clamp-2 min-h-[56px] text-[18px] font-semibold leading-[28px] text-black">
-                              {item.titulo}
-                            </h4>
+                            Ver en mapa
                           </button>
 
-                          <p className="mt-3 line-clamp-3 text-[14px] leading-[26px] text-[#667085]">
-                            {item.descripcion}
-                          </p>
-
-                          <div className="mt-auto flex flex-wrap gap-2 pt-4">
-                            <button
-                              type="button"
-                              disabled={!puedeEnfocar}
-                              onClick={() => {
-                                if (!puedeEnfocar || item.lat == null || item.lng == null) return;
-                                setPoiEnfocado({
-                                  id: item.id,
-                                  nombre: item.titulo,
-                                  categoria: item.categoria,
-                                  descripcion: item.descripcion,
-                                  imagen: item.imagen,
-                                  lat: item.lat,
-                                  lng: item.lng,
-                                  direccion: item.direccion ?? undefined,
-                                });
-                                mapaSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                              }}
-                              className="rounded-full bg-[#111827] px-4 py-2 text-[13px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              Ver solo en mapa
-                            </button>
-
-                            <a
-                              href={googleUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-full bg-[#fff4ef] px-4 py-2 text-[13px] font-semibold text-[#ff5a36] transition hover:bg-[#ffe6dc]"
-                            >
-                              Buscar en Google
-                            </a>
-                          </div>
+                          <a
+                            href={googleUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex min-h-[44px] items-center justify-center rounded-full bg-[#fff4ef] px-4 py-2 text-center text-[12px] font-black leading-4 text-[#ff5a36] transition hover:bg-[#ffe6dc]"
+                          >
+                            Buscar en Google
+                          </a>
                         </div>
                       </div>
                     </article>
