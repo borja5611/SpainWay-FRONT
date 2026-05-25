@@ -1,32 +1,40 @@
 import { apiGet } from "./api";
 
-export type TipoLugarLocal = "comer_bien" | "cenar" | "tapas" | "cafe_brunch" | "tipico_local" | "rapido" | "restaurante" | "todos";
 export type FuenteLugarLocal = "all" | "google_local" | "google_maps" | "tripadvisor" | "cache";
+export type TipoLugarLocal =
+  | "comer_bien"
+  | "cenar"
+  | "tapas"
+  | "cafe_brunch"
+  | "tipico_local"
+  | "rapido"
+  | "restaurante"
+  | "todos";
 
-export type LugarLocal = {
+export interface LugarLocal {
   id: string;
-  externalId?: string;
+  externalId: string;
   provider: "google_local" | "google_maps" | "tripadvisor" | "cache" | string;
-  fuente?: string;
+  fuente: string;
   nombre: string;
-  categoria?: string | null;
-  direccion?: string | null;
-  ciudad?: string | null;
-  latitud?: number | null;
-  longitud?: number | null;
-  rating?: number | null;
-  reviews?: number | null;
-  precio?: string | null;
-  telefono?: string | null;
-  descripcion?: string | null;
-  imagen?: string | null;
-  url?: string | null;
+  categoria: string | null;
+  direccion: string | null;
+  ciudad: string | null;
+  latitud: number | null;
+  longitud: number | null;
+  rating: number | null;
+  reviews: number | null;
+  precio: string | null;
+  telefono: string | null;
+  descripcion: string | null;
+  imagen: string | null;
+  url: string | null;
   googleUrl: string;
   directionsUrl: string;
-  score?: number;
-};
+  score: number;
+}
 
-export type BuscarLugaresLocalesParams = {
+export interface BuscarLugaresLocalesParams {
   ciudad: string;
   fecha?: string;
   tipo?: TipoLugarLocal;
@@ -35,34 +43,38 @@ export type BuscarLugaresLocalesParams = {
   lon?: number | null;
   radiusKm?: number;
   limit?: number;
-};
+}
 
-export type BuscarLugaresLocalesResponse = {
+export interface BuscarLugaresLocalesResponse {
   ok: boolean;
   ciudad: string;
-  fecha?: string | null;
+  fecha: string | null;
   tipo: TipoLugarLocal;
   fuente: FuenteLugarLocal;
   total: number;
-  providers?: Record<string, number>;
-  fuentes_usadas?: string[];
-  warnings?: string[];
+  providers: Record<string, number>;
+  fuentes_usadas: string[];
+  warnings: string[];
   items: LugarLocal[];
-};
+}
 
 const STORAGE_KEY = "spainway_restaurantes_guardados";
 
-function buildQuery(params: BuscarLugaresLocalesParams) {
-  const search = new URLSearchParams();
-  search.set("ciudad", params.ciudad);
-  if (params.fecha) search.set("fecha", params.fecha);
-  if (params.tipo) search.set("tipo", params.tipo);
-  if (params.fuente) search.set("fuente", params.fuente);
-  if (typeof params.lat === "number") search.set("lat", String(params.lat));
-  if (typeof params.lon === "number") search.set("lon", String(params.lon));
-  if (typeof params.radiusKm === "number") search.set("radiusKm", String(params.radiusKm));
-  if (typeof params.limit === "number") search.set("limit", String(params.limit));
-  return search.toString();
+function buildQuery(params: BuscarLugaresLocalesParams): string {
+  const query = new URLSearchParams();
+  query.set("ciudad", params.ciudad);
+  if (params.fecha) query.set("fecha", params.fecha);
+  if (params.tipo) query.set("tipo", params.tipo);
+  if (params.fuente) query.set("fuente", params.fuente);
+  if (params.lat !== null && params.lat !== undefined) query.set("lat", String(params.lat));
+  if (params.lon !== null && params.lon !== undefined) query.set("lon", String(params.lon));
+  if (params.radiusKm) query.set("radiusKm", String(params.radiusKm));
+  if (params.limit) query.set("limit", String(params.limit));
+  return query.toString();
+}
+
+export function buscarLugaresLocales(params: BuscarLugaresLocalesParams) {
+  return apiGet<BuscarLugaresLocalesResponse>(`/api/lugares-locales/buscar?${buildQuery(params)}`);
 }
 
 function safeParse<T>(raw: string | null, fallback: T): T {
@@ -74,10 +86,6 @@ function safeParse<T>(raw: string | null, fallback: T): T {
   }
 }
 
-export async function buscarLugaresLocales(params: BuscarLugaresLocalesParams) {
-  return apiGet<BuscarLugaresLocalesResponse>(`/api/lugares-locales/buscar?${buildQuery(params)}`);
-}
-
 export function getRestaurantesGuardados(): LugarLocal[] {
   return safeParse<LugarLocal[]>(localStorage.getItem(STORAGE_KEY), []);
 }
@@ -87,9 +95,8 @@ export function isRestauranteGuardado(id: string): boolean {
 }
 
 export function guardarRestauranteLocal(lugar: LugarLocal): LugarLocal[] {
-  const current = getRestaurantesGuardados();
-  const exists = current.some((item) => item.id === lugar.id);
-  const next = exists ? current : [lugar, ...current].slice(0, 60);
+  const actuales = getRestaurantesGuardados();
+  const next = [lugar, ...actuales.filter((item) => item.id !== lugar.id)].slice(0, 50);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   return next;
 }
