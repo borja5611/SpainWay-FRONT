@@ -227,15 +227,29 @@ export function obtenerUsuarioGuardado(): UsuarioAuth | null {
 }
 
 
-export async function despertarServicioIA(): Promise<void> {
+const IA_WAKE_KEY = "spainway_ia_last_wake_at";
+const IA_WAKE_MIN_INTERVAL_MS = 45_000;
+
+export async function despertarServicioIA(options?: { force?: boolean }): Promise<void> {
+  const force = options?.force === true;
+  const now = Date.now();
+  const lastWake = Number(localStorage.getItem(IA_WAKE_KEY) ?? "0");
+
+  if (!force && Number.isFinite(lastWake) && now - lastWake < IA_WAKE_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  localStorage.setItem(IA_WAKE_KEY, String(now));
+
   try {
     await fetch(`${API_URL}/api/health/wake-ia`, {
       method: "GET",
       keepalive: true,
+      cache: "no-store",
     });
   } catch (error) {
     // El login/registro no debe fallar si Render todavía está despertando la IA.
-    console.info("Wake-up IA lanzado, pero todavía no respondió:", error);
+    console.info("Wake-up IA lanzado en segundo plano:", error);
   }
 }
 

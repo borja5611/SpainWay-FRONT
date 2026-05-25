@@ -9,6 +9,7 @@ import {
 } from "@/app/servicios/recomendador";
 import { useAuthStore } from "@/app/store/useAuthStore";
 import { getPreferencias } from "@/app/servicios/preferencias";
+import { despertarServicioIA } from "@/app/servicios/auth";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
@@ -82,6 +83,19 @@ function getTomorrowIso(): string {
   date.setDate(date.getDate() + 1);
   date.setHours(0, 0, 0, 0);
   return toIsoDate(date);
+}
+
+function formatFechaVisible(value: string): string {
+  if (!value) return "Seleccionar fecha";
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day));
 }
 
 function isBeforeIsoDate(value: string | null, min: string): boolean {
@@ -651,6 +665,11 @@ export default function CrearItinerarioPantalla() {
 
     return () => window.clearInterval(intervalId);
   }, [generando]);
+
+  useEffect(() => {
+    // Calienta Render mientras el usuario rellena el formulario. No bloquea la pantalla.
+    void despertarServicioIA({ force: true });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_FORM_DRAFT, JSON.stringify(form));
@@ -2002,53 +2021,68 @@ export default function CrearItinerarioPantalla() {
       </div>
 
       {calendarioAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-5 backdrop-blur-sm">
-          <div className="w-full max-w-[430px] rounded-[30px] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.28)]">
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/45 px-4 pb-[calc(116px+env(safe-area-inset-bottom))] pt-[calc(18px+env(safe-area-inset-top))] backdrop-blur-sm sm:px-5">
+          <div className="mx-auto w-full max-w-[430px] rounded-[30px] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.28)] sm:p-6">
             <div className="flex items-start justify-between gap-4">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-xs uppercase tracking-[0.18em] text-[#ff5a36]">Calendario</p>
-                <h2 className="mt-2 text-[22px] font-bold tracking-[-0.03em] text-[#111827]">
+                <h2 className="mt-2 text-[22px] font-bold tracking-[-0.03em] text-[#111827] sm:text-[24px]">
                   Seleccionar fechas
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Al abrir el calendario se propone hoy como inicio visual. Para generar un viaje futuro, selecciona una fecha válida o escribe solo los días.
+                <p className="mt-2 text-sm leading-6 text-[#667085] sm:text-[15px]">
+                  Selecciona el rango del viaje. Los campos están optimizados para iPhone y no hacen zoom ni se salen de la ventana.
                 </p>
               </div>
 
               <button
                 type="button"
+                aria-label="Cerrar calendario"
                 onClick={() => setCalendarioAbierto(false)}
-                className="rounded-full bg-[#f3f4f6] px-3 py-2 text-sm font-bold text-[#111827]"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f3f4f6] text-xl font-black leading-none text-[#111827] active:scale-95"
               >
                 ×
               </button>
             </div>
 
-            <div className="mt-5 grid grid-cols-1 gap-4">
-              <div>
+            <div className="mt-5 grid min-w-0 grid-cols-1 gap-4">
+              <div className="min-w-0">
                 <label className="mb-2 block text-sm font-semibold text-[#111827]">Fecha de inicio</label>
-                <input
-                  type="date"
-                  min={toIsoDate(new Date())}
-                  value={fechaInicioTemp}
-                  onChange={(event) => {
-                    const nextStart = event.target.value;
-                    setFechaInicioTemp(nextStart);
-                    if (fechaFinTemp && fechaFinTemp < nextStart) setFechaFinTemp("");
-                  }}
-                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
-                />
+                <div className="relative min-w-0 overflow-hidden rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] focus-within:border-[#ff5a36] focus-within:ring-4 focus-within:ring-[#ff5a36]/10">
+                  <div className="pointer-events-none flex min-h-[58px] w-full items-center px-4 text-[16px] font-semibold leading-6 text-[#111827]">
+                    {formatFechaVisible(fechaInicioTemp)}
+                  </div>
+                  <input
+                    aria-label="Fecha de inicio"
+                    type="date"
+                    min={getTomorrowIso()}
+                    value={fechaInicioTemp}
+                    onChange={(event) => {
+                      const nextStart = event.target.value;
+                      setFechaInicioTemp(nextStart);
+                      if (fechaFinTemp && fechaFinTemp < nextStart) setFechaFinTemp("");
+                    }}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    style={{ fontSize: "16px" }}
+                  />
+                </div>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <label className="mb-2 block text-sm font-semibold text-[#111827]">Fecha final</label>
-                <input
-                  type="date"
-                  min={fechaInicioTemp || getTomorrowIso()}
-                  value={fechaFinTemp}
-                  onChange={(event) => setFechaFinTemp(event.target.value)}
-                  className="w-full rounded-[18px] border border-[#d9dee8] bg-[#fcfcfd] px-4 py-3 text-sm outline-none"
-                />
+                <div className="relative min-w-0 overflow-hidden rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] focus-within:border-[#ff5a36] focus-within:ring-4 focus-within:ring-[#ff5a36]/10">
+                  <div className="pointer-events-none flex min-h-[58px] w-full items-center px-4 text-[16px] font-semibold leading-6 text-[#111827]">
+                    {formatFechaVisible(fechaFinTemp)}
+                  </div>
+                  <input
+                    aria-label="Fecha final"
+                    type="date"
+                    min={fechaInicioTemp || getTomorrowIso()}
+                    value={fechaFinTemp}
+                    onChange={(event) => setFechaFinTemp(event.target.value)}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    style={{ fontSize: "16px" }}
+                  />
+                </div>
               </div>
 
               <div className="rounded-[18px] bg-[#fff7f4] px-4 py-3 text-sm font-semibold text-[#9a3412]">
@@ -2056,11 +2090,11 @@ export default function CrearItinerarioPantalla() {
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-3">
+            <div className="mt-5 grid grid-cols-1 gap-3 min-[380px]:grid-cols-3">
               <button
                 type="button"
                 onClick={limpiarRangoFechas}
-                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+                className="min-h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827] active:scale-[0.99]"
               >
                 Sin fecha
               </button>
@@ -2068,7 +2102,7 @@ export default function CrearItinerarioPantalla() {
               <button
                 type="button"
                 onClick={() => setCalendarioAbierto(false)}
-                className="rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827]"
+                className="min-h-12 rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm font-semibold text-[#111827] active:scale-[0.99]"
               >
                 Cancelar
               </button>
@@ -2076,7 +2110,7 @@ export default function CrearItinerarioPantalla() {
               <button
                 type="button"
                 onClick={guardarRangoFechas}
-                className="rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)]"
+                className="min-h-12 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] active:scale-[0.99]"
               >
                 Guardar
               </button>
@@ -2109,9 +2143,9 @@ export default function CrearItinerarioPantalla() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 px-5 backdrop-blur-sm">
           <div className="w-full max-w-[360px] rounded-[30px] bg-white p-6 text-center shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
             <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#ffe0d6] border-t-[#ff5a36]" />
-            <h2 className="mt-5 text-xl font-bold text-[#111827]">Generando itinerario</h2>
+            <h2 className="mt-5 text-xl font-bold text-[#111827]">Creando tu ruta</h2>
             <p className="mt-2 text-sm leading-6 text-[#667085]">
-              Estamos preparando la ruta con tus preferencias. No cierres esta pantalla.
+              Estamos generando el itinerario con la IA. Si Render estaba en reposo, SpainWay lo despierta automáticamente.
             </p>
             <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#f3f4f6]">
               <div
