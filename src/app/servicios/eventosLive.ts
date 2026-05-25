@@ -34,6 +34,7 @@ export type BuscarEventosLiveResponse = {
   to: string;
   total: number;
   events: EventoLive[];
+  warnings?: string[];
   message?: string;
   search_strategy?: {
     success_attempt: string | null;
