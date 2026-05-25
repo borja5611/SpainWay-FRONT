@@ -1,6 +1,6 @@
 import { apiDelete, apiGet, apiPost } from "./api";
 
-export type EventoLiveProvider = "ticketmaster" | "predicthq" | "serpapi" | "database";
+export type EventoLiveProvider = "ticketmaster" | "predicthq" | "serpapi" | "google_local" | "google_maps" | "database";
 
 export type EventoLive = {
   id: string;

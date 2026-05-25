@@ -21,4 +21,6 @@ export const CIUDADES_SPAINWAY = [
   "Alicante",
   "Valencia",
   "Castellón",
-];
+] as const;
+
+export type CiudadSpainWay = (typeof CIUDADES_SPAINWAY)[number];

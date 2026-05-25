@@ -5,7 +5,6 @@ import { ciudadesInicio } from "@/app/datos/mock/inicioDescubrimiento";
 import ContenedorPantallaPrincipal from "@/app/componentes/layout/ContenedorPantallaPrincipal";
 import ModalRestauracionLocal from "@/app/componentes/inicio/ModalRestauracionLocal";
 import ModalEventosLiveInicio from "@/app/componentes/inicio/ModalEventosLiveInicio";
-import ModalCalendarioInicio from "@/app/componentes/inicio/ModalCalendarioInicio";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
 const detallesComunidad: Record<string, { resumen: string; apoyo: string }> = {
@@ -78,8 +77,7 @@ export default function InicioPantalla() {
   const navigate = useNavigate();
   const setDestinoSeleccionado = useDestinoStore((state) => state.setDestinoSeleccionado);
   const [restauracionAbierta, setRestauracionAbierta] = useState(false);
-  const [eventosAbiertos, setEventosAbiertos] = useState(false);
-  const [calendarioAbierto, setCalendarioAbierto] = useState(false);
+  const [eventosLiveAbiertos, setEventosLiveAbiertos] = useState(false);
 
   const seleccionarDestino = (destinoId: DestinoId) => {
     setDestinoSeleccionado(destinoId);
@@ -101,27 +99,41 @@ export default function InicioPantalla() {
           </div>
         </section>
 
-        <section className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <section className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <AccionInicioCard
+            etiqueta="Crear"
+            titulo="Nuevo itinerario"
+            descripcion="Genera una ruta personalizada con fechas, ritmo, transporte y zona base."
+            icono="✦"
+            onClick={() => navigate("/itinerarios/crear")}
+          />
+          <AccionInicioCard
+            etiqueta="Favoritos"
+            titulo="POIs guardados"
+            descripcion="Revisa los lugares que has marcado y vuelve a abrirlos en mapa o detalle."
+            icono="☆"
+            onClick={() => navigate("/favoritos")}
+          />
+          <AccionInicioCard
+            etiqueta="Agenda"
+            titulo="Calendario"
+            descripcion="Consulta tus viajes por fecha y prepara mejor cada tramo del itinerario."
+            icono="📅"
+            onClick={() => navigate("/calendario")}
+          />
           <AccionInicioCard
             etiqueta="Restauración"
             titulo="Dónde comer"
-            descripcion="Busca restaurantes reales por ciudad, fecha y tipo de plan con Google Local, Maps y Tripadvisor."
+            descripcion="Busca restaurantes por ciudad, fecha y tipo usando Google Local, Maps y Tripadvisor."
             icono="🍽️"
             onClick={() => setRestauracionAbierta(true)}
           />
           <AccionInicioCard
             etiqueta="Eventos live"
-            titulo="Planes en directo"
-            descripcion="Consulta conciertos, teatro, festivales y fiestas locales por ciudad y fechas."
-            icono="🎟️"
-            onClick={() => setEventosAbiertos(true)}
-          />
-          <AccionInicioCard
-            etiqueta="Agenda"
-            titulo="Calendario"
-            descripcion="Abre el calendario para revisar tus viajes y organizar mejor las fechas."
-            icono="📅"
-            onClick={() => setCalendarioAbierto(true)}
+            titulo="Planes nocturnos"
+            descripcion="Encuentra conciertos, fiestas locales, discotecas premium y planes de noche con filtro de calidad."
+            icono="🌙"
+            onClick={() => setEventosLiveAbiertos(true)}
           />
         </section>
 
@@ -167,8 +179,7 @@ export default function InicioPantalla() {
       </ContenedorPantallaPrincipal>
 
       <ModalRestauracionLocal abierto={restauracionAbierta} onClose={() => setRestauracionAbierta(false)} />
-      <ModalEventosLiveInicio abierto={eventosAbiertos} onClose={() => setEventosAbiertos(false)} />
-      <ModalCalendarioInicio abierto={calendarioAbierto} onClose={() => setCalendarioAbierto(false)} />
+      <ModalEventosLiveInicio abierto={eventosLiveAbiertos} onClose={() => setEventosLiveAbiertos(false)} />
     </div>
   );
 }
