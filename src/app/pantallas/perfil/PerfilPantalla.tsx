@@ -5,6 +5,7 @@ import { me, type UsuarioAuth } from "@/app/servicios/auth";
 import { useAuthStore } from "@/app/store/useAuthStore";
 import { getFavoritos } from "@/app/servicios/favoritos";
 import { getItinerarios } from "@/app/servicios/itinerarios";
+import ModalPreferenciasCuenta from "@/app/componentes/perfil/ModalPreferenciasCuenta";
 
 function IconoEditar() {
   return (
@@ -168,6 +169,7 @@ export default function PerfilPantalla() {
   const [error, setError] = useState("");
   const [totalFavoritos, setTotalFavoritos] = useState(0);
   const [totalItinerarios, setTotalItinerarios] = useState(0);
+  const [preferenciasAbiertas, setPreferenciasAbiertas] = useState(false);
 
   useEffect(() => {
     async function cargarPerfil() {
@@ -223,7 +225,7 @@ export default function PerfilPantalla() {
     }
 
     if (accion === "configuracion") {
-      navigate("/perfil");
+      setPreferenciasAbiertas(true);
     }
   }
 
@@ -437,6 +439,12 @@ export default function PerfilPantalla() {
           </div>
         </section>
       </div>
+
+      <ModalPreferenciasCuenta
+        abierto={preferenciasAbiertas}
+        idUsuario={perfil.id_usuario}
+        onClose={() => setPreferenciasAbiertas(false)}
+      />
     </div>
   );
 }

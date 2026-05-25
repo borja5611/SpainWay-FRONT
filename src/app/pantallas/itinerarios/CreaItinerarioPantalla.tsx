@@ -8,6 +8,7 @@ import {
   type PayloadRecomendador,
 } from "@/app/servicios/recomendador";
 import { useAuthStore } from "@/app/store/useAuthStore";
+import { getPreferencias } from "@/app/servicios/preferencias";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
@@ -592,6 +593,8 @@ export default function CrearItinerarioPantalla() {
   const usuario = useAuthStore((state) => state.usuario);
   const setDestinoSeleccionado = useDestinoStore((state) => state.setDestinoSeleccionado);
   const idUsuario = usuario?.id_usuario ?? null;
+  const [usarPreferenciasGuardadas, setUsarPreferenciasGuardadas] = useState(false);
+  const [estadoPreferencias, setEstadoPreferencias] = useState<string | null>(null);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -744,6 +747,41 @@ export default function CrearItinerarioPantalla() {
       ...prev,
       [key]: value,
     }));
+  }
+
+  function presupuestoDesdePreferencia(value: number | null | undefined): string {
+    if (value === 1) return "Bajo";
+    if (value === 3) return "Alto";
+    return "Medio";
+  }
+
+  async function aplicarPreferenciasGuardadas() {
+    if (!idUsuario) {
+      setEstadoPreferencias("Inicia sesión para aplicar tus preferencias guardadas.");
+      setUsarPreferenciasGuardadas(false);
+      return;
+    }
+
+    try {
+      setEstadoPreferencias("Cargando preferencias guardadas...");
+      const preferencias = await getPreferencias(idUsuario);
+      setForm((prev) => ({
+        ...prev,
+        presupuesto: presupuestoDesdePreferencia(preferencias.presupuesto),
+        ritmo: preferencias.estilo_viaje || prev.ritmo,
+        transporte: preferencias.modo_transporte || prev.transporte,
+        intereses: preferencias.intereses || prev.intereses,
+        compania: preferencias.con_ninos ? "Familia" : prev.compania,
+        restricciones: [prev.restricciones, preferencias.accesibilidad]
+          .filter(Boolean)
+          .join(prev.restricciones && preferencias.accesibilidad ? "\n" : ""),
+      }));
+      setEstadoPreferencias("Preferencias aplicadas. Destino, fechas y zona base no se modifican.");
+    } catch (err) {
+      console.error(err);
+      setEstadoPreferencias("No se pudieron aplicar las preferencias guardadas.");
+      setUsarPreferenciasGuardadas(false);
+    }
   }
 
   function updateDestino(nombreDestino: string) {
@@ -1724,6 +1762,32 @@ export default function CrearItinerarioPantalla() {
               >
                 Abrir calendario
               </button>
+            </div>
+
+            <div className="rounded-[24px] border border-[#e5e7eb] bg-[#fcfcfd] p-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={usarPreferenciasGuardadas}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setUsarPreferenciasGuardadas(checked);
+                    if (checked) {
+                      void aplicarPreferenciasGuardadas();
+                    } else {
+                      setEstadoPreferencias(null);
+                    }
+                  }}
+                  className="mt-1 h-5 w-5 accent-[#ff5a36]"
+                />
+                <span>
+                  <span className="block text-sm font-black text-[#111827]">Aplicar mis preferencias de cuenta</span>
+                  <span className="mt-1 block text-xs leading-5 text-[#667085]">
+                    Rellena presupuesto, ritmo, transporte, compañía, intereses y restricciones habituales. No cambia destino, fechas ni zona base.
+                  </span>
+                </span>
+              </label>
+              {estadoPreferencias && <p className="mt-3 text-xs font-semibold leading-5 text-[#ff5a36]">{estadoPreferencias}</p>}
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

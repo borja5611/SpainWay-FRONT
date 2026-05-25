@@ -1,6 +1,6 @@
 import { apiDelete, apiGet, apiPost } from "./api";
 
-export type EventoLiveProvider = "ticketmaster" | "predicthq" | "serpapi" | "google_local" | "google_maps" | "database";
+export type EventoLiveProvider = "ticketmaster" | "predicthq" | "serpapi" | "database" | "google_local" | "google_maps" | string;
 
 export type EventoLive = {
   id: string;
@@ -27,7 +27,7 @@ export type BuscarEventosLiveParams = {
   lat?: number | null;
   lng?: number | null;
   radiusKm?: number;
-  category?: string | null;
+  category?: string;
 };
 
 export type BuscarEventosLiveResponse = {
@@ -138,4 +138,37 @@ export async function seleccionarEventoLive(payload: SeleccionarEventoLivePayloa
 
 export async function eliminarSeleccionEventoLive(idItinerarioEvento: number) {
   return apiDelete<{ ok: boolean }>(`/api/eventos-live/seleccion/${idItinerarioEvento}`);
+}
+
+
+const STORAGE_EVENTOS_LIVE_GUARDADOS = "spainway_eventos_live_guardados";
+
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function getEventosLiveGuardados(): EventoLive[] {
+  return safeParse<EventoLive[]>(localStorage.getItem(STORAGE_EVENTOS_LIVE_GUARDADOS), []);
+}
+
+export function isEventoLiveGuardado(id: string): boolean {
+  return getEventosLiveGuardados().some((item) => item.id === id);
+}
+
+export function guardarEventoLiveLocal(evento: EventoLive): EventoLive[] {
+  const actuales = getEventosLiveGuardados();
+  const next = [evento, ...actuales.filter((item) => item.id !== evento.id)].slice(0, 80);
+  localStorage.setItem(STORAGE_EVENTOS_LIVE_GUARDADOS, JSON.stringify(next));
+  return next;
+}
+
+export function quitarEventoLiveLocal(id: string): EventoLive[] {
+  const next = getEventosLiveGuardados().filter((item) => item.id !== id);
+  localStorage.setItem(STORAGE_EVENTOS_LIVE_GUARDADOS, JSON.stringify(next));
+  return next;
 }
