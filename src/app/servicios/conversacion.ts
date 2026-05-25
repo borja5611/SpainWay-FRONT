@@ -57,20 +57,20 @@ export const getMensajes = (idConversacion: number) =>
 export const crearMensaje = (payload: CrearMensajePayload) =>
   apiPost<Mensaje, CrearMensajePayload>("/api/mensajes", payload);
 
+
 export interface ProcesarMensajeChatPayload {
   contenido: string;
 }
 
+
 export interface PoiRecomendadoChat {
   id_poi?: number | string | null;
   id?: number | string | null;
-  idPoi?: number | string | null;
-  global_id?: string | null;
   id_global?: string | null;
+  global_id?: string | null;
   nombre?: string | null;
   name?: string | null;
   titulo?: string | null;
-  title?: string | null;
   tipo?: string | null;
   category?: string | null;
   categoria?: string | null;
@@ -78,8 +78,8 @@ export interface PoiRecomendadoChat {
   direccion?: string | null;
   address?: string | null;
   latitud?: number | string | null;
-  longitud?: number | string | null;
   lat?: number | string | null;
+  longitud?: number | string | null;
   lon?: number | string | null;
   lng?: number | string | null;
   descripcion?: string | null;
@@ -87,37 +87,20 @@ export interface PoiRecomendadoChat {
   reason?: string | null;
   google_search_url?: string | null;
   googleUrl?: string | null;
-  url?: string | null;
-  municipality?: string | null;
+  google_url?: string | null;
+  directionsUrl?: string | null;
+  directions_url?: string | null;
   municipio?: {
     nombre?: string | null;
     provincia?: {
       nombre?: string | null;
       comunidad?: { nombre?: string | null } | null;
     } | null;
-  } | string | null;
+  } | null;
+  municipality?: string | null;
   province?: string | null;
-  provincia?: string | null;
   ccaa?: string | null;
   categoria_poi?: { nombre?: string | null } | null;
-}
-
-export interface EventoLiveChat {
-  id: string;
-  provider: "ticketmaster" | "predicthq" | "serpapi" | string;
-  nombre: string;
-  descripcion: string | null;
-  categoria: string;
-  fechaInicio: string;
-  fechaFin: string | null;
-  ciudad: string;
-  recinto: string | null;
-  direccion: string | null;
-  latitud: number | null;
-  longitud: number | null;
-  imagen: string | null;
-  url: string | null;
-  score: number;
 }
 
 export interface ProcesarMensajeChatResponse {
@@ -128,11 +111,9 @@ export interface ProcesarMensajeChatResponse {
   itinerario?: unknown;
   poi?: unknown;
   pois?: PoiRecomendadoChat[];
-  eventos?: EventoLiveChat[];
   destino?: string | null;
   query?: string | null;
   source?: string | null;
-  parsed?: unknown;
 }
 
 export const procesarMensajeChat = (
