@@ -8,7 +8,7 @@ import { AuthInfoModal } from "@/app/componentes/auth/AuthInfoModal";
 import { EmailIcon, LockIcon, EyeIcon } from "@/app/componentes/auth/icons";
 import { RUTAS_APP } from "@/app/utilidades/rutas";
 import {
-  getSocialAuthUrl,
+  despertarServicioIA,
   guardarSesion,
   login,
   type UsuarioAuth,
@@ -41,6 +41,7 @@ export default function LoginPantalla() {
         const usuario = JSON.parse(decodeURIComponent(user)) as UsuarioAuth;
         guardarSesion({ token, usuario });
         setSesion(token, usuario);
+        void despertarServicioIA();
 
         window.history.replaceState({}, document.title, window.location.pathname);
         navigate(RUTAS_APP.inicio);
@@ -75,6 +76,7 @@ export default function LoginPantalla() {
       });
 
       setSesion(auth.token, auth.usuario);
+      void despertarServicioIA();
       navigate(RUTAS_APP.inicio);
     } catch (err) {
       console.error(err);
@@ -85,24 +87,14 @@ export default function LoginPantalla() {
   }
 
   function loginSocial(provider: "google" | "facebook" | "linkedin") {
-    if (provider !== "google") {
-      setModal({
-        tipo: "info",
-        titulo: "Acceso social en preparación",
-        mensaje: "El acceso con Facebook y LinkedIn todavía no está disponible. Puedes entrar con email y contraseña mientras terminamos estas integraciones.",
-      });
-      return;
-    }
+    const nombreProveedor =
+      provider === "google" ? "Google" : provider === "facebook" ? "Facebook" : "LinkedIn";
 
-    try {
-      window.location.href = getSocialAuthUrl("google");
-    } catch {
-      setModal({
-        tipo: "info",
-        titulo: "Google estará disponible pronto",
-        mensaje: "Estamos preparando el acceso con Google. De momento puedes iniciar sesión con tu email o nombre de usuario.",
-      });
-    }
+    setModal({
+      tipo: "info",
+      titulo: "Acceso social en preparación",
+      mensaje: `El acceso con ${nombreProveedor} todavía no está disponible. Puedes entrar con email y contraseña mientras terminamos esta integración.`,
+    });
   }
 
   return (

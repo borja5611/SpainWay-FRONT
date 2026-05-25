@@ -7,7 +7,7 @@ import { SocialLogin } from "@/app/componentes/auth/SocialLogin";
 import { AuthInfoModal } from "@/app/componentes/auth/AuthInfoModal";
 import { EmailIcon, LockIcon, EyeIcon } from "@/app/componentes/auth/icons";
 import { RUTAS_APP } from "@/app/utilidades/rutas";
-import { comprobarDisponibilidadRegistro, getSocialAuthUrl, register } from "@/app/servicios/auth";
+import { comprobarDisponibilidadRegistro, despertarServicioIA, register } from "@/app/servicios/auth";
 import { useAuthStore } from "@/app/store/useAuthStore";
 
 const PREFIJOS_PAISES = [
@@ -145,6 +145,7 @@ export default function RegistroPantalla() {
       });
 
       setSesion(auth.token, auth.usuario);
+      void despertarServicioIA();
       navigate(RUTAS_APP.inicio);
     } catch (err) {
       console.error(err);
@@ -155,24 +156,14 @@ export default function RegistroPantalla() {
   }
 
   function loginSocial(provider: "google" | "facebook" | "linkedin") {
-    if (provider !== "google") {
-      setModal({
-        tipo: "info",
-        titulo: "Registro social en preparación",
-        mensaje: "El registro con Facebook y LinkedIn todavía no está disponible. Puedes crear tu cuenta con email y contraseña.",
-      });
-      return;
-    }
+    const nombreProveedor =
+      provider === "google" ? "Google" : provider === "facebook" ? "Facebook" : "LinkedIn";
 
-    try {
-      window.location.href = getSocialAuthUrl("google");
-    } catch {
-      setModal({
-        tipo: "info",
-        titulo: "Google estará disponible pronto",
-        mensaje: "Estamos preparando el registro con Google. De momento puedes crear tu cuenta con email y contraseña.",
-      });
-    }
+    setModal({
+      tipo: "info",
+      titulo: "Registro social en preparación",
+      mensaje: `El registro con ${nombreProveedor} todavía no está disponible. Puedes crear tu cuenta con email y contraseña mientras terminamos esta integración.`,
+    });
   }
 
   return (

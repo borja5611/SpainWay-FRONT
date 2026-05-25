@@ -165,16 +165,63 @@ function contenidoVisibleChat(mensaje: Mensaje, esUltimoMensaje: boolean, hayPoi
   return contenido.replace(/\bnan\b/gi, "").replace(/\bundefined\b/gi, "").replace(/\bnull\b/gi, "").trim();
 }
 
+
+function extraerPoisDesdeTexto(contenido?: string | null): PoiRecomendadoChat[] {
+  const texto = (contenido ?? "").replace(/\r/g, "").trim();
+  if (!texto || !/\n?\s*\d+\.\s+/.test(texto)) return [];
+
+  const bloques = texto
+    .split(/(?=\n?\s*\d+\.\s+)/g)
+    .map((bloque) => bloque.trim())
+    .filter((bloque) => /^\d+\.\s+/.test(bloque));
+
+  const pois = bloques.map((bloque) => {
+    const lineas = bloque
+      .split(/\n+/g)
+      .map((linea) => linea.trim())
+      .filter(Boolean);
+
+    const primeraLinea = lineas[0]?.replace(/^\d+\.\s+/, "").trim() ?? "";
+    const nombre = primeraLinea.replace(/[.:]$/, "").trim();
+    let categoria: string | null = null;
+    let municipio: string | null = null;
+    const descripcion: string[] = [];
+
+    for (const linea of lineas.slice(1)) {
+      const tipo = linea.match(/^Tipo:\s*(.+?)(?:\s*[·•-]\s*(.+))?$/i);
+      if (tipo) {
+        categoria = cleanText(tipo[1]) ?? categoria;
+        municipio = cleanText(tipo[2]) ?? municipio;
+        continue;
+      }
+
+      descripcion.push(linea.replace(/^[-•]\s*/, ""));
+    }
+
+    return {
+      nombre,
+      categoria,
+      municipality: municipio,
+      descripcion: cleanText(descripcion.join(" ")),
+    } satisfies PoiRecomendadoChat;
+  });
+
+  return pois.filter((poi) => cleanText(poi.nombre));
+}
+
 function PoiRecommendationCard({ poi }: { poi: PoiRecomendadoChat }) {
-  const navigate = useNavigate();
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
   const id = poiId(poi);
   const nombre = poiNombre(poi);
   const categoria = poiCategoria(poi);
   const ubicacion = poiUbicacion(poi);
   const descripcion = poiDescripcion(poi);
   const directions = getGoogleDirectionsUrl(poi);
+  const lat = poiLat(poi);
+  const lon = poiLon(poi);
+  const direccion = cleanText(poi.direccion ?? poi.address);
 
   async function guardar() {
     if (!id || guardando) return;
@@ -197,6 +244,22 @@ function PoiRecommendationCard({ poi }: { poi: PoiRecomendadoChat }) {
       <h3 className="mt-1 text-base font-black leading-6 text-[#111827]">{nombre}</h3>
       {ubicacion && <p className="mt-1 text-xs font-bold text-[#667085]">{ubicacion}</p>}
       {descripcion && <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#667085]">{descripcion}</p>}
+
+      {detalleAbierto && (
+        <div className="mt-4 rounded-2xl bg-[#f8fafc] p-4 text-sm leading-6 text-[#475467]">
+          <p className="font-black text-[#111827]">Detalle del POI</p>
+          <div className="mt-2 space-y-1">
+            <p><strong>Categoría:</strong> {categoria}</p>
+            {ubicacion && <p><strong>Ubicación:</strong> {ubicacion}</p>}
+            {direccion && <p><strong>Dirección:</strong> {direccion}</p>}
+            {lat !== null && lon !== null && (
+              <p><strong>Coordenadas:</strong> {lat.toFixed(5)}, {lon.toFixed(5)}</p>
+            )}
+            {descripcion && <p><strong>Descripción:</strong> {descripcion}</p>}
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <button
           type="button"
@@ -208,11 +271,10 @@ function PoiRecommendationCard({ poi }: { poi: PoiRecomendadoChat }) {
         </button>
         <button
           type="button"
-          disabled={!id}
-          onClick={() => id && navigate(`/poi/${id}`)}
-          className="rounded-2xl bg-[#f8fafc] px-4 py-3 text-center text-xs font-black text-[#0f172a] disabled:opacity-60"
+          onClick={() => setDetalleAbierto((prev) => !prev)}
+          className="rounded-2xl bg-[#f8fafc] px-4 py-3 text-center text-xs font-black text-[#0f172a]"
         >
-          Ver detalle
+          {detalleAbierto ? "Ocultar detalle" : "Ver detalle"}
         </button>
         <a href={getGoogleSearchUrl(poi)} target="_blank" rel="noreferrer" className="rounded-2xl bg-[#111827] px-4 py-3 text-center text-xs font-black text-white">
           Ver en Google
@@ -222,6 +284,7 @@ function PoiRecommendationCard({ poi }: { poi: PoiRecomendadoChat }) {
     </article>
   );
 }
+
 
 export default function ChatDetallePantalla() {
   const navigate = useNavigate();
@@ -377,6 +440,10 @@ export default function ChatDetallePantalla() {
                 {mensajes.map((mensaje, index) => {
                   const esUsuario = mensaje.rol === "user" || mensaje.rol === "usuario";
                   const esUltimoMensaje = index === mensajes.length - 1;
+                  const poisExtraidos = !esUsuario && !(esUltimoMensaje && ultimosPois.length > 0)
+                    ? extraerPoisDesdeTexto(mensaje.contenido)
+                    : [];
+                  const hayPoisMensaje = poisExtraidos.length > 0 || (esUltimoMensaje && ultimosPois.length > 0);
 
                   return (
                     <div key={`${mensaje.id_mensaje}-${index}`} className={`flex ${esUsuario ? "justify-end" : "justify-start"}`}>
@@ -385,7 +452,16 @@ export default function ChatDetallePantalla() {
                           esUsuario ? "rounded-br-md bg-[#ff5a36] text-white" : "rounded-bl-md bg-white text-[#344054]"
                         }`}
                       >
-                        <div className="whitespace-pre-wrap break-words">{contenidoVisibleChat(mensaje, esUltimoMensaje, ultimosPois.length > 0)}</div>
+                        <div className="whitespace-pre-wrap break-words">{contenidoVisibleChat(mensaje, esUltimoMensaje, hayPoisMensaje)}</div>
+
+                        {poisExtraidos.length > 0 && (
+                          <div className="mt-4 space-y-3">
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#94a3b8]">POIs recomendados</p>
+                            {poisExtraidos.map((poi, poiIndex) => (
+                              <PoiRecommendationCard key={`${mensaje.id_mensaje}-poi-${poiIndex}-${poiNombre(poi)}`} poi={poi} />
+                            ))}
+                          </div>
+                        )}
 
                         {!esUsuario && idItinerarioRelacionado && esUltimoMensaje && (
                           <button

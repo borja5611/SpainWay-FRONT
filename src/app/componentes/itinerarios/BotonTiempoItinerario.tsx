@@ -192,7 +192,7 @@ export default function BotonTiempoItinerario({
         onClick={cargarTiempo}
         className={
           className ||
-          "mt-3 w-full rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(255,90,54,0.24)] transition hover:-translate-y-0.5 hover:bg-[#ff4320]"
+          "mt-3 w-full rounded-2xl bg-[#87CEFA] px-4 py-3 text-sm font-black text-white shadow-[0_12px_26px_rgba(255,90,54,0.24)] transition hover:-translate-y-0.5 hover:bg-[#ff4320]"
         }
       >
         {label}

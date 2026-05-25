@@ -226,6 +226,19 @@ export function obtenerUsuarioGuardado(): UsuarioAuth | null {
   return usuarioDesdeToken(obtenerTokenGuardado());
 }
 
+
+export async function despertarServicioIA(): Promise<void> {
+  try {
+    await fetch(`${API_URL}/api/health/wake-ia`, {
+      method: "GET",
+      keepalive: true,
+    });
+  } catch (error) {
+    // El login no debe fallar si Render todavía está despertando la IA.
+    console.info("Wake-up IA lanzado, pero todavía no respondió:", error);
+  }
+}
+
 export interface SolicitarResetResponse {
   ok: boolean;
   message: string;

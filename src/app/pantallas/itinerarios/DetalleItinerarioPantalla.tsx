@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuthStore } from "@/app/store/useAuthStore";
 import BloqueRestauracionDia from "@/app/componentes/itinerarios/BloqueRestauracionDia";
@@ -49,6 +49,65 @@ function IconoFavorito({ activo }: { activo: boolean }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+
+function ChevronDesplegable({ abierto }: { abierto: boolean }) {
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f8fafc] text-lg font-black text-[#111827]">
+      {abierto ? "−" : "+"}
+    </span>
+  );
+}
+
+type SeccionDesplegableProps = {
+  eyebrow: string;
+  titulo: string;
+  resumen?: string;
+  contador?: number | string;
+  abierto: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  accent?: "orange" | "muted";
+};
+
+function SeccionDesplegable({
+  eyebrow,
+  titulo,
+  resumen,
+  contador,
+  abierto,
+  onToggle,
+  children,
+  accent = "muted",
+}: SeccionDesplegableProps) {
+  const eyebrowColor = accent === "orange" ? "text-[#ff5a36]" : "text-[#94a3b8]";
+
+  return (
+    <section className="mt-5 overflow-hidden rounded-[28px] bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start justify-between gap-4 p-5 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <p className={`text-xs font-bold uppercase tracking-[0.16em] ${eyebrowColor}`}>{eyebrow}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h2 className="text-[22px] font-black tracking-[-0.02em] text-[#111827]">{titulo}</h2>
+            {contador !== undefined && (
+              <span className="rounded-full bg-[#fff4ef] px-3 py-1 text-sm font-semibold text-[#ff5a36]">
+                {contador}
+              </span>
+            )}
+          </div>
+          {resumen && <p className="mt-2 text-sm leading-6 text-[#667085]">{resumen}</p>}
+        </div>
+        <ChevronDesplegable abierto={abierto} />
+      </button>
+
+      {abierto && <div className="border-t border-[#eef2f7] p-5 pt-4">{children}</div>}
+    </section>
   );
 }
 
@@ -465,6 +524,16 @@ export default function DetalleItinerarioPantalla() {
     transport: "mixto",
     notes: "",
   });
+  const [seccionesAbiertas, setSeccionesAbiertas] = useState({
+    regeneracion: false,
+    favoritos: false,
+    anclas: false,
+    destacados: false,
+  });
+
+  function toggleSeccion(key: keyof typeof seccionesAbiertas) {
+    setSeccionesAbiertas((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   async function recargarSeleccionesRestauracion() {
     if (!Number.isInteger(id)) return;
@@ -898,20 +967,19 @@ export default function DetalleItinerarioPantalla() {
           </div>
         </section>
 
-        <section className="mt-5 rounded-[28px] bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#ff5a36]">
-                Regeneración inteligente
-              </p>
-              <h2 className="mt-2 text-[22px] font-black text-[#111827]">
-                Regenerar con nuevas preferencias
-              </h2>
-              <p className="mt-2 max-w-[680px] text-sm leading-6 text-[#667085]">
-                Crea una nueva versión del itinerario usando la IA2 actual, el contexto guardado del usuario,
-                favoritos, mensajes recientes y la meteorología del destino. La versión actual no se borra.
-              </p>
-            </div>
+        <SeccionDesplegable
+          eyebrow="Regeneración inteligente"
+          titulo="Regenerar con nuevas preferencias"
+          resumen="Crea una nueva versión sin borrar la actual. Despliega este bloque solo cuando quieras cambiar ritmo, tipo de viaje, transporte o notas."
+          abierto={seccionesAbiertas.regeneracion}
+          onToggle={() => toggleSeccion("regeneracion")}
+          accent="orange"
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <p className="max-w-[680px] text-sm leading-6 text-[#667085]">
+              La nueva versión usa la IA2 actual, el contexto guardado del usuario, favoritos,
+              mensajes recientes y la meteorología del destino. La versión actual no se borra.
+            </p>
 
             <button
               type="button"
@@ -986,25 +1054,22 @@ export default function DetalleItinerarioPantalla() {
               className="mt-2 min-h-[96px] w-full resize-none rounded-2xl border border-[#e5e7eb] bg-white px-4 py-3 text-sm outline-none focus:border-[#ff5a36]"
             />
           </label>
-        </section>
+        </SeccionDesplegable>
 
-        <section className="mt-5 rounded-[28px] bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-[#94a3b8]">Favoritos</p>
-              <h2 className="mt-2 text-[22px] font-bold text-[#111827]">POIs favoritos de este itinerario</h2>
-            </div>
-            <span className="rounded-full bg-[#fff4ef] px-3 py-1 text-sm font-semibold text-[#ff5a36]">
-              {poisFavoritosItinerario.length}
-            </span>
-          </div>
-
+        <SeccionDesplegable
+          eyebrow="Favoritos"
+          titulo="POIs favoritos de este itinerario"
+          resumen="Marca la estrella de cualquier parada y este apartado se rellenará automáticamente."
+          contador={poisFavoritosItinerario.length}
+          abierto={seccionesAbiertas.favoritos}
+          onToggle={() => toggleSeccion("favoritos")}
+        >
           {poisFavoritosItinerario.length === 0 ? (
-            <p className="mt-4 text-sm leading-6 text-[#667085]">
-              Marca la estrella de cualquier parada y este apartado se rellenará automáticamente.
+            <p className="text-sm leading-6 text-[#667085]">
+              Todavía no hay favoritos en este itinerario.
             </p>
           ) : (
-            <div className="mt-5 flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {poisFavoritosItinerario.map((poi) => (
                 <article
                   key={`fav-${poi.key}`}
@@ -1013,7 +1078,7 @@ export default function DetalleItinerarioPantalla() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#ff5a36]">
-                        {poi.categoria ?? 'POI'}
+                        {poi.categoria ?? "POI"}
                       </p>
                       <h3 className="mt-2 text-lg font-black text-[#111827]">{poi.nombre}</h3>
                     </div>
@@ -1046,15 +1111,17 @@ export default function DetalleItinerarioPantalla() {
               ))}
             </div>
           )}
-        </section>
+        </SeccionDesplegable>
 
         {anchors.length > 0 && (
-          <section className="mt-5 rounded-[28px] bg-white p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#94a3b8]">
-              Anclas usadas por el modelo
-            </p>
-
-            <div className="mt-3 flex flex-wrap gap-2">
+          <SeccionDesplegable
+            eyebrow="Anclas usadas por el modelo"
+            titulo="Zonas y referencias usadas"
+            contador={anchors.length}
+            abierto={seccionesAbiertas.anclas}
+            onToggle={() => toggleSeccion("anclas")}
+          >
+            <div className="flex flex-wrap gap-2">
               {anchors.map((anchor) => (
                 <span
                   key={anchor}
@@ -1064,25 +1131,20 @@ export default function DetalleItinerarioPantalla() {
                 </span>
               ))}
             </div>
-          </section>
+          </SeccionDesplegable>
         )}
 
         {poisDestacadosNoIncluidos.length > 0 && (
-          <section className="mt-5 rounded-[30px] bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#ff5a36]">POIs destacados</p>
-                <h2 className="mt-1 text-xl font-black text-[#111827]">Añade imprescindibles que no están en la ruta</h2>
-                <p className="mt-2 text-sm leading-6 text-[#667085]">
-                  Son recursos destacados del destino. Puedes añadirlos directamente al día con menos paradas y luego reorganizar desde el chat.
-                </p>
-              </div>
-              <span className="rounded-full bg-[#f8fafc] px-3 py-2 text-xs font-black text-[#667085]">
-                Día sugerido {diaSugeridoParaDestacados}
-              </span>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <SeccionDesplegable
+            eyebrow="POIs destacados"
+            titulo="Añade imprescindibles que no están en la ruta"
+            resumen="Son recursos destacados del destino. Puedes añadirlos al día con menos paradas y reorganizar después desde el chat."
+            contador={`Día sugerido ${diaSugeridoParaDestacados}`}
+            abierto={seccionesAbiertas.destacados}
+            onToggle={() => toggleSeccion("destacados")}
+            accent="orange"
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {poisDestacadosNoIncluidos.slice(0, 6).map((item) => {
                 const nombre = item.poi?.nombre ?? item.poi_canonico;
                 const categoria = item.poi?.categoria_poi?.nombre ?? item.poi?.tipo ?? "Destacado";
@@ -1103,7 +1165,7 @@ export default function DetalleItinerarioPantalla() {
                 );
               })}
             </div>
-          </section>
+          </SeccionDesplegable>
         )}
 
         <section className="mt-5 space-y-5">
