@@ -2047,42 +2047,46 @@ export default function CrearItinerarioPantalla() {
             <div className="mt-5 grid min-w-0 grid-cols-1 gap-4">
               <div className="min-w-0">
                 <label className="mb-2 block text-sm font-semibold text-[#111827]">Fecha de inicio</label>
-                <div className="relative min-w-0 overflow-hidden rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] focus-within:border-[#ff5a36] focus-within:ring-4 focus-within:ring-[#ff5a36]/10">
-                  <div className="pointer-events-none flex min-h-[58px] w-full items-center px-4 text-[16px] font-semibold leading-6 text-[#111827]">
-                    {formatFechaVisible(fechaInicioTemp)}
-                  </div>
-                  <input
-                    aria-label="Fecha de inicio"
-                    type="date"
-                    min={getTomorrowIso()}
-                    value={fechaInicioTemp}
-                    onChange={(event) => {
-                      const nextStart = event.target.value;
-                      setFechaInicioTemp(nextStart);
-                      if (fechaFinTemp && fechaFinTemp < nextStart) setFechaFinTemp("");
-                    }}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    style={{ fontSize: "16px" }}
-                  />
-                </div>
+                <input
+                  aria-label="Fecha de inicio"
+                  type="date"
+                  min={getTomorrowIso()}
+                  value={fechaInicioTemp}
+                  onChange={(event) => {
+                    const nextStart = event.target.value;
+                    setFechaInicioTemp(nextStart);
+                    if (fechaFinTemp && fechaFinTemp < nextStart) setFechaFinTemp("");
+                  }}
+                  className="block h-[58px] w-full max-w-full appearance-none rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] px-4 text-[16px] font-semibold leading-none text-[#111827] outline-none transition focus:border-[#ff5a36] focus:ring-4 focus:ring-[#ff5a36]/10"
+                  style={{
+                    fontSize: "16px",
+                    WebkitTextSizeAdjust: "100%",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <p className="mt-1 text-xs font-medium text-[#98a2b3]">
+                  {fechaInicioTemp ? formatFechaVisible(fechaInicioTemp) : "Sin fecha de inicio"}
+                </p>
               </div>
 
               <div className="min-w-0">
                 <label className="mb-2 block text-sm font-semibold text-[#111827]">Fecha final</label>
-                <div className="relative min-w-0 overflow-hidden rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] focus-within:border-[#ff5a36] focus-within:ring-4 focus-within:ring-[#ff5a36]/10">
-                  <div className="pointer-events-none flex min-h-[58px] w-full items-center px-4 text-[16px] font-semibold leading-6 text-[#111827]">
-                    {formatFechaVisible(fechaFinTemp)}
-                  </div>
-                  <input
-                    aria-label="Fecha final"
-                    type="date"
-                    min={fechaInicioTemp || getTomorrowIso()}
-                    value={fechaFinTemp}
-                    onChange={(event) => setFechaFinTemp(event.target.value)}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    style={{ fontSize: "16px" }}
-                  />
-                </div>
+                <input
+                  aria-label="Fecha final"
+                  type="date"
+                  min={fechaInicioTemp || getTomorrowIso()}
+                  value={fechaFinTemp}
+                  onChange={(event) => setFechaFinTemp(event.target.value)}
+                  className="block h-[58px] w-full max-w-full appearance-none rounded-[20px] border border-[#d9dee8] bg-[#fcfcfd] px-4 text-[16px] font-semibold leading-none text-[#111827] outline-none transition focus:border-[#ff5a36] focus:ring-4 focus:ring-[#ff5a36]/10"
+                  style={{
+                    fontSize: "16px",
+                    WebkitTextSizeAdjust: "100%",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <p className="mt-1 text-xs font-medium text-[#98a2b3]">
+                  {fechaFinTemp ? formatFechaVisible(fechaFinTemp) : "Toca el campo para elegir la fecha final"}
+                </p>
               </div>
 
               <div className="rounded-[18px] bg-[#fff7f4] px-4 py-3 text-sm font-semibold text-[#9a3412]">
