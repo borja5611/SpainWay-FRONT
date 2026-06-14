@@ -277,3 +277,41 @@ export const regenerarItinerarioCompleto = (payload: RegenerarItinerarioPayload)
     "/api/recomendador/generar",
     payload
   );
+
+export interface PoiMapaItinerario {
+  id_poi: number;
+  nombre: string;
+  categoria: string;
+  descripcion: string | null;
+  direccion: string | null;
+  latitud: number;
+  longitud: number;
+  orden: number | null;
+  inicio: string | null;
+  fin: string | null;
+  google_search_url: string | null;
+  imagen_url: string | null;
+  municipio: {
+    id_municipio: number;
+    nombre: string;
+  } | null;
+}
+
+export interface DiaMapaItinerario {
+  id_dia_itinerario: number;
+  numero_dia: number;
+  fecha: string | null;
+  pois: PoiMapaItinerario[];
+}
+
+export interface ItinerarioMapa {
+  id_itinerario: number;
+  titulo: string | null;
+  destino: string | null;
+  inicio: string | null;
+  fin: string | null;
+  dias: DiaMapaItinerario[];
+}
+
+export const getItinerariosMapa = (idUsuario: number) =>
+  apiGet<ItinerarioMapa[]>(`/api/itinerarios/mapa/${idUsuario}`);

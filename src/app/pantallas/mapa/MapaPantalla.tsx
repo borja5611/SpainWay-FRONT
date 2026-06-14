@@ -13,6 +13,13 @@ import {
 } from "@/app/servicios/poisDestacados";
 import { DESTINO_TO_CCAA } from "@/app/datos/poisDestacadosVisuales";
 import { getPoiById, type PoiDetalle } from "@/app/servicios/pois";
+import { useAuthStore } from "@/app/store/useAuthStore";
+import {
+  getItinerariosMapa,
+  type ItinerarioMapa,
+  type DiaMapaItinerario,
+} from "@/app/servicios/itinerarios";
+
 type PoiMapaUi = {
   id: string;
   nombre: string;
@@ -59,7 +66,7 @@ const BLANK_IMAGE =
 function normalizarTexto(value: string): string {
   return value
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .trim();
 }
@@ -144,6 +151,7 @@ export default function MapaPantalla() {
   const navigate = useNavigate();
   const location = useLocation();
   const destinoSeleccionado = useDestinoStore((state) => state.destinoSeleccionado);
+  const { isAuthenticated, usuario } = useAuthStore();
 
   const [poisReales, setPoisReales] = useState<PoiDestacado[]>([]);
   const [loading, setLoading] = useState(false);
@@ -152,6 +160,12 @@ export default function MapaPantalla() {
   const [poiSeleccionado, setPoiSeleccionado] = useState<PoiDetalleMapa | null>(null);
   const [cargandoPoiSeleccionado, setCargandoPoiSeleccionado] = useState(false);
   const [poiEnfocado, setPoiEnfocado] = useState<PoiMapaUi | null>(null);
+
+  const [itinerariosMapa, setItinerariosMapa] = useState<ItinerarioMapa[]>([]);
+  const [cargandoItinerariosMapa, setCargandoItinerariosMapa] = useState(false);
+  const [errorItinerariosMapa, setErrorItinerariosMapa] = useState<string | null>(null);
+  const [idItinerarioSeleccionado, setIdItinerarioSeleccionado] = useState<number | null>(null);
+  const [idDiaSeleccionado, setIdDiaSeleccionado] = useState<number | null>(null);
 
   const poiIdParam = useMemo(() => {
     const value = new URLSearchParams(location.search).get("poi");
@@ -168,7 +182,7 @@ export default function MapaPantalla() {
 
       try {
         setCargandoPoiSeleccionado(true);
-const poi: PoiDetalle = await getPoiById(poiIdParam);
+        const poi: PoiDetalle = await getPoiById(poiIdParam);
         setPoiSeleccionado({
           id: poi.id_poi,
           nombre: poi.nombre,
@@ -229,6 +243,49 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     void cargar();
   }, [destinoSeleccionado, poiIdParam]);
 
+  useEffect(() => {
+    if (!isAuthenticated || !usuario || poiIdParam) {
+      setItinerariosMapa([]);
+      setErrorItinerariosMapa(null);
+      return;
+    }
+
+    async function cargarItinerariosMapa() {
+      if (!usuario) return;
+      try {
+        setCargandoItinerariosMapa(true);
+        setErrorItinerariosMapa(null);
+        const data = await getItinerariosMapa(usuario.id_usuario);
+        setItinerariosMapa(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error(error);
+        setErrorItinerariosMapa("No se pudieron cargar los itinerarios.");
+        setItinerariosMapa([]);
+      } finally {
+        setCargandoItinerariosMapa(false);
+      }
+    }
+
+    void cargarItinerariosMapa();
+  }, [isAuthenticated, usuario, poiIdParam]);
+
+  useEffect(() => {
+    if (!idItinerarioSeleccionado) {
+      setIdDiaSeleccionado(null);
+      return;
+    }
+    const it = itinerariosMapa.find((i) => i.id_itinerario === idItinerarioSeleccionado);
+    if (it && it.dias.length > 0) {
+      setIdDiaSeleccionado(it.dias[0].id_dia_itinerario);
+    } else {
+      setIdDiaSeleccionado(null);
+    }
+  }, [idItinerarioSeleccionado, itinerariosMapa]);
+
+  useEffect(() => {
+    setPoiEnfocado(null);
+  }, [idDiaSeleccionado]);
+
   const config = useMemo(() => {
     if (!destinoSeleccionado || poiIdParam) return null;
     return mapaPorDestino[destinoSeleccionado] ?? null;
@@ -242,6 +299,40 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     if (!destinoSeleccionado || poiIdParam) return null;
     return mapaInteractivoPorDestino[destinoSeleccionado] ?? null;
   }, [destinoSeleccionado, poiIdParam]);
+
+  const itinerarioSeleccionado = useMemo((): ItinerarioMapa | null => {
+    if (!idItinerarioSeleccionado) return null;
+    return itinerariosMapa.find((i) => i.id_itinerario === idItinerarioSeleccionado) ?? null;
+  }, [itinerariosMapa, idItinerarioSeleccionado]);
+
+  const diaSeleccionado = useMemo((): DiaMapaItinerario | null => {
+    if (!itinerarioSeleccionado || !idDiaSeleccionado) return null;
+    return (
+      itinerarioSeleccionado.dias.find((d) => d.id_dia_itinerario === idDiaSeleccionado) ?? null
+    );
+  }, [itinerarioSeleccionado, idDiaSeleccionado]);
+
+  const poisDiaSeleccionado: PoiMapaUi[] = useMemo(() => {
+    if (!diaSeleccionado) return [];
+    return diaSeleccionado.pois
+      .filter(
+        (p) =>
+          typeof p.latitud === "number" &&
+          typeof p.longitud === "number" &&
+          Number.isFinite(p.latitud) &&
+          Number.isFinite(p.longitud)
+      )
+      .map((p) => ({
+        id: String(p.id_poi),
+        nombre: p.nombre,
+        categoria: traducirCategoriaPoi(p.categoria),
+        descripcion: p.descripcion ?? "Lugar incluido en tu itinerario.",
+        imagen: p.imagen_url ?? BLANK_IMAGE,
+        lat: p.latitud,
+        lng: p.longitud,
+        direccion: p.direccion ?? undefined,
+      }));
+  }, [diaSeleccionado]);
 
   const poisMapa: PoiMapaUi[] = useMemo(() => {
     if (poiEnfocado) {
@@ -261,6 +352,10 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
           direccion: poiSeleccionado.direccion ?? undefined,
         },
       ];
+    }
+
+    if (idItinerarioSeleccionado) {
+      return poisDiaSeleccionado;
     }
 
     if (!destinoSeleccionado) return [];
@@ -298,7 +393,14 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
         };
       })
       .filter((item): item is PoiMapaUi => item !== null);
-  }, [destinoSeleccionado, poiEnfocado, poiSeleccionado, poisReales]);
+  }, [
+    destinoSeleccionado,
+    idItinerarioSeleccionado,
+    poiEnfocado,
+    poiSeleccionado,
+    poisDiaSeleccionado,
+    poisReales,
+  ]);
 
   const cardsDestacadas: CardDestacadaUi[] = useMemo(() => {
     if (!destinoSeleccionado || !config) return [];
@@ -365,6 +467,14 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
       };
     }
 
+    if (idItinerarioSeleccionado && poisDiaSeleccionado.length > 0) {
+      return {
+        latitude: poisDiaSeleccionado[0].lat,
+        longitude: poisDiaSeleccionado[0].lng,
+        zoom: 13,
+      };
+    }
+
     if (configInteractivo) {
       return {
         latitude: configInteractivo.latitude,
@@ -373,8 +483,12 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
       };
     }
 
-    return null;
-  }, [configInteractivo, poiEnfocado, poiSeleccionado]);
+    return {
+      latitude: 40.4168,
+      longitude: -3.7038,
+      zoom: 6,
+    };
+  }, [configInteractivo, idItinerarioSeleccionado, poiEnfocado, poiSeleccionado, poisDiaSeleccionado]);
 
   if (poiIdParam && cargandoPoiSeleccionado) {
     return (
@@ -386,7 +500,10 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     );
   }
 
-  if (poiIdParam && (!poiSeleccionado || !centroMapa)) {
+  if (
+    poiIdParam &&
+    (!poiSeleccionado || poiSeleccionado.lat === null || poiSeleccionado.lng === null)
+  ) {
     return (
       <div className="min-h-screen bg-[#f6f6f3] px-5 py-6">
         <div className="mx-auto max-w-[430px] rounded-[24px] bg-white p-6 shadow-sm">
@@ -406,7 +523,7 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     );
   }
 
-  if (!poiIdParam && !destinoSeleccionado) {
+  if (!poiIdParam && !destinoSeleccionado && !isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white px-6">
         <div className="text-center">
@@ -426,58 +543,110 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
     );
   }
 
-  if (!poiIdParam && !config) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f6f6f3] px-6">
-        <div className="rounded-[24px] bg-white p-6 text-center shadow-sm">
-          <h1 className="mb-3 text-[22px] font-semibold text-black">
-            Este destino todavía no tiene configuración de mapa
-          </h1>
+  const tituloMapa = poiSeleccionado
+    ? poiSeleccionado.nombre
+    : idItinerarioSeleccionado && itinerarioSeleccionado
+    ? (itinerarioSeleccionado.titulo ?? `Itinerario #${idItinerarioSeleccionado}`)
+    : config?.titulo ?? "Mapa de España";
 
-          <button
-            type="button"
-            onClick={() => navigate("/inicio")}
-            className="rounded-[10px] bg-[#e12414] px-6 py-3 text-white"
-          >
-            Volver a inicio
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const subtituloMapa = poiSeleccionado
+    ? "Ubicación exacta del POI seleccionado."
+    : poiEnfocado
+    ? "Mapa centrado en el lugar que acabas de seleccionar."
+    : idItinerarioSeleccionado && diaSeleccionado
+    ? `Día ${diaSeleccionado.numero_dia}${diaSeleccionado.fecha ? ` · ${diaSeleccionado.fecha}` : ""}`
+    : config?.subtitulo ?? "Explora el mapa interactivo.";
+
+  const limpiarItinerario = () => {
+    setIdItinerarioSeleccionado(null);
+    setIdDiaSeleccionado(null);
+    setPoiEnfocado(null);
+  };
 
   return (
     <div className="min-h-screen bg-[#f6f6f3]">
       <ContenedorPantallaPrincipal className="pt-3">
         <div className="rounded-[28px] bg-white p-5 shadow-sm">
-          <h2 className="text-[22px] font-semibold text-black">
-            {poiSeleccionado ? poiSeleccionado.nombre : config?.titulo}
-          </h2>
+          <h2 className="text-[22px] font-semibold text-black">{tituloMapa}</h2>
 
-          <p className="mt-2 text-[14px] leading-[24px] text-[#7c6b69]">
-            {poiSeleccionado
-              ? "Ubicación exacta del POI seleccionado."
-              : poiEnfocado
-              ? "Mapa centrado en el lugar que acabas de seleccionar."
-              : config?.subtitulo}
-          </p>
+          <p className="mt-2 text-[14px] leading-[24px] text-[#7c6b69]">{subtituloMapa}</p>
+
+          {!poiIdParam && !poiSeleccionado && isAuthenticated && (
+            <div className="mt-4 rounded-[20px] border border-[#eef2f7] bg-[#f9f9f7] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#667085]">
+                Ver POIs de un itinerario
+              </p>
+
+              {cargandoItinerariosMapa ? (
+                <p className="mt-2 text-[13px] text-[#7c6b69]">Cargando itinerarios…</p>
+              ) : errorItinerariosMapa ? (
+                <p className="mt-2 text-[13px] text-[#667085]">{errorItinerariosMapa}</p>
+              ) : itinerariosMapa.length === 0 ? (
+                <p className="mt-2 text-[13px] text-[#7c6b69]">
+                  Todavía no tienes itinerarios guardados para visualizar en el mapa.
+                </p>
+              ) : (
+                <>
+                  <select
+                    value={idItinerarioSeleccionado ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setIdItinerarioSeleccionado(val ? Number(val) : null);
+                    }}
+                    className="mt-3 w-full rounded-[14px] border border-[#e5e7eb] bg-white px-4 py-3 text-[13px] text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#ff5a36]"
+                  >
+                    <option value="">Lugares destacados</option>
+                    {itinerariosMapa.map((it) => (
+                      <option key={it.id_itinerario} value={it.id_itinerario}>
+                        {it.titulo ?? `Itinerario #${it.id_itinerario}`}
+                      </option>
+                    ))}
+                  </select>
+
+                  {idItinerarioSeleccionado && itinerarioSeleccionado && (
+                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                      {itinerarioSeleccionado.dias.map((dia) => (
+                        <button
+                          key={dia.id_dia_itinerario}
+                          type="button"
+                          onClick={() => setIdDiaSeleccionado(dia.id_dia_itinerario)}
+                          className={`flex-shrink-0 rounded-full px-4 py-2 text-[12px] font-semibold transition ${
+                            idDiaSeleccionado === dia.id_dia_itinerario
+                              ? "bg-[#111827] text-white"
+                              : "border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f3f4f6]"
+                          }`}
+                        >
+                          Día {dia.numero_dia}
+                          {dia.fecha && (
+                            <span className="ml-1 text-[10px] opacity-60">{dia.fecha}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {idItinerarioSeleccionado && (
+                    <button
+                      type="button"
+                      onClick={limpiarItinerario}
+                      className="mt-3 w-full rounded-[14px] border border-[#e5e7eb] bg-white px-4 py-3 text-[13px] font-semibold text-[#111827] transition hover:bg-[#f9f9f9]"
+                    >
+                      Volver a lugares destacados
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           <div ref={mapaSectionRef} className="mt-5">
-            {centroMapa ? (
-              <MapaInteractivo
-                longitude={centroMapa.longitude}
-                latitude={centroMapa.latitude}
-                zoom={centroMapa.zoom}
-                pois={poisMapa}
-                onPoiClick={(poiId) => navigate(`/poi/${poiId}`)}
-              />
-            ) : (
-              <div className="rounded-[24px] bg-white p-6 shadow-sm">
-                <p className="text-[14px] text-[#7c6b69]">
-                  No hay configuración de mapa interactivo para este destino.
-                </p>
-              </div>
-            )}
+            <MapaInteractivo
+              longitude={centroMapa.longitude}
+              latitude={centroMapa.latitude}
+              zoom={centroMapa.zoom}
+              pois={poisMapa}
+              onPoiClick={(poiId) => navigate(`/poi/${poiId}`)}
+            />
           </div>
 
           {poiSeleccionado && (
@@ -507,7 +676,8 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
 
               {poiSeleccionado.direccion && (
                 <div className="mt-4 rounded-[18px] bg-white px-4 py-3 text-sm text-[#475467]">
-                  <span className="font-semibold text-[#111827]">Dirección:</span> {poiSeleccionado.direccion}
+                  <span className="font-semibold text-[#111827]">Dirección:</span>{" "}
+                  {poiSeleccionado.direccion}
                 </div>
               )}
 
@@ -533,7 +703,7 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
           )}
         </div>
 
-        {!poiSeleccionado && (
+        {!poiSeleccionado && !idItinerarioSeleccionado && (
           <section className="mt-8 pb-24">
             <div className="mb-4">
               <h3 className="text-[30px] font-bold text-black">Lugares destacados</h3>
@@ -543,7 +713,9 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
                   ? `${poisReales.length} lugares destacados disponibles en este destino.`
                   : loading
                   ? "Cargando destacados..."
-                  : "Aún no hay destacados reales para este destino."}
+                  : destinoSeleccionado
+                  ? "Aún no hay destacados reales para este destino."
+                  : "Selecciona un itinerario para explorar sus lugares en el mapa."}
               </p>
             </div>
 
@@ -626,7 +798,10 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
                                 lng: item.lng,
                                 direccion: item.direccion ?? undefined,
                               });
-                              mapaSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                              mapaSectionRef.current?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
                             }}
                             className="min-h-[44px] rounded-full bg-[#111827] px-4 py-2 text-center text-[12px] font-black leading-4 text-white transition hover:bg-[#020617] disabled:cursor-not-allowed disabled:opacity-40"
                           >
@@ -648,10 +823,116 @@ const poi: PoiDetalle = await getPoiById(poiIdParam);
                 })}
               </div>
             ) : (
+              !loading && (
+                <div className="rounded-[22px] bg-white p-5 shadow-sm">
+                  <p className="text-[14px] text-[#7c6b69]">
+                    {destinoSeleccionado
+                      ? "No hay lugares destacados disponibles todavía para este destino."
+                      : "Selecciona un itinerario para ver sus lugares en el mapa."}
+                  </p>
+                </div>
+              )
+            )}
+          </section>
+        )}
+
+        {!poiSeleccionado && idItinerarioSeleccionado && (
+          <section className="mt-8 pb-24">
+            <div className="mb-4">
+              <h3 className="text-[30px] font-bold text-black">Lugares del día</h3>
+              <p className="mt-1 text-[14px] leading-[24px] text-[#7c6b69]">
+                {diaSeleccionado
+                  ? `Día ${diaSeleccionado.numero_dia}${diaSeleccionado.fecha ? ` · ${diaSeleccionado.fecha}` : ""} · ${poisDiaSeleccionado.length} lugar${poisDiaSeleccionado.length !== 1 ? "es" : ""}`
+                  : "Sin días disponibles en este itinerario."}
+              </p>
+            </div>
+
+            {!diaSeleccionado || poisDiaSeleccionado.length === 0 ? (
               <div className="rounded-[22px] bg-white p-5 shadow-sm">
                 <p className="text-[14px] text-[#7c6b69]">
-                  No hay lugares destacados disponibles todavía para este destino.
+                  {diaSeleccionado
+                    ? "Este día no tiene lugares con coordenadas disponibles."
+                    : "Este itinerario no tiene días disponibles."}
                 </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {poisDiaSeleccionado.map((poi) => {
+                  const googleUrl = buildGoogleUrl(poi.nombre, poi.direccion);
+
+                  return (
+                    <article
+                      key={poi.id}
+                      className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[28px] border border-[#eef2f7] bg-white text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/poi/${poi.id}`)}
+                        className="block w-full text-left"
+                        aria-label={`Abrir detalle de ${poi.nombre}`}
+                      >
+                        <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#f3f4f6]">
+                          <img
+                            src={poi.imagen}
+                            alt={poi.nombre}
+                            loading="lazy"
+                            className="block h-full w-full object-cover object-center transition duration-300 group-hover:scale-[1.03]"
+                          />
+                          <div className="absolute left-4 top-4 max-w-[calc(100%-2rem)] rounded-full bg-white/95 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#ff5a36] shadow-sm backdrop-blur">
+                            <span className="block truncate">{poi.categoria}</span>
+                          </div>
+                        </div>
+                      </button>
+
+                      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/poi/${poi.id}`)}
+                          className="min-w-0 text-left"
+                        >
+                          <h4 className="line-clamp-2 break-words text-[18px] font-black leading-[1.25] text-[#0f172a] sm:text-[19px]">
+                            {poi.nombre}
+                          </h4>
+                        </button>
+
+                        {poi.direccion && (
+                          <p className="mt-2 line-clamp-1 break-words text-[12px] font-semibold leading-5 text-[#98a2b3]">
+                            {poi.direccion}
+                          </p>
+                        )}
+
+                        <p className="mt-3 line-clamp-3 break-words text-[14px] leading-[23px] text-[#667085] sm:line-clamp-4">
+                          {poi.descripcion}
+                        </p>
+
+                        <div className="mt-auto grid grid-cols-1 gap-2 pt-5 min-[420px]:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPoiEnfocado(poi);
+                              mapaSectionRef.current?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                            }}
+                            className="min-h-[44px] rounded-full bg-[#111827] px-4 py-2 text-center text-[12px] font-black leading-4 text-white transition hover:bg-[#020617]"
+                          >
+                            Ver en mapa
+                          </button>
+
+                          <a
+                            href={googleUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex min-h-[44px] items-center justify-center rounded-full bg-[#fff4ef] px-4 py-2 text-center text-[12px] font-black leading-4 text-[#ff5a36] transition hover:bg-[#ffe6dc]"
+                          >
+                            Buscar en Google
+                          </a>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
