@@ -112,6 +112,25 @@ function traducirCategoriaPoi(valor?: string | null): string {
   return valor.replaceAll("_", " ");
 }
 
+function formatearFechaDiaItinerario(fecha: string | null): string | null {
+  if (!fecha) return null;
+  try {
+    const fechaBase = fecha.split("T")[0];
+    const partes = fechaBase.split("-");
+    if (partes.length !== 3) return null;
+    const [y, m, d] = partes.map(Number);
+    if (!y || !m || !d) return null;
+    const formatted = new Intl.DateTimeFormat("es-ES", {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    }).format(Date.UTC(y, m - 1, d));
+    return formatted.replace(/\.$/, "");
+  } catch {
+    return null;
+  }
+}
+
 function buildGoogleUrl(nombre: string, direccion?: string | null): string {
   const query = [nombre, direccion].filter(Boolean).join(" ").trim();
   return `https://www.google.com/search?q=${encodeURIComponent(query || nombre)}`;
@@ -605,23 +624,28 @@ export default function MapaPantalla() {
 
                   {idItinerarioSeleccionado && itinerarioSeleccionado && (
                     <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                      {itinerarioSeleccionado.dias.map((dia) => (
-                        <button
-                          key={dia.id_dia_itinerario}
-                          type="button"
-                          onClick={() => setIdDiaSeleccionado(dia.id_dia_itinerario)}
-                          className={`flex-shrink-0 rounded-full px-4 py-2 text-[12px] font-semibold transition ${
-                            idDiaSeleccionado === dia.id_dia_itinerario
-                              ? "bg-[#111827] text-white"
-                              : "border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f3f4f6]"
-                          }`}
-                        >
-                          Día {dia.numero_dia}
-                          {dia.fecha && (
-                            <span className="ml-1 text-[10px] opacity-60">{dia.fecha}</span>
-                          )}
-                        </button>
-                      ))}
+                      {itinerarioSeleccionado.dias.map((dia) => {
+                        const fechaCorta = formatearFechaDiaItinerario(dia.fecha);
+                        return (
+                          <button
+                            key={dia.id_dia_itinerario}
+                            type="button"
+                            onClick={() => setIdDiaSeleccionado(dia.id_dia_itinerario)}
+                            className={`flex flex-shrink-0 flex-col items-center rounded-[14px] px-4 py-2 text-[12px] font-semibold transition ${
+                              idDiaSeleccionado === dia.id_dia_itinerario
+                                ? "bg-[#111827] text-white"
+                                : "border border-[#e5e7eb] bg-white text-[#111827] hover:bg-[#f3f4f6]"
+                            }`}
+                          >
+                            <span>Día {dia.numero_dia}</span>
+                            {fechaCorta && (
+                              <span className="mt-0.5 text-[10px] font-normal opacity-60">
+                                {fechaCorta}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
 
