@@ -6,10 +6,11 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import {
   generarItinerario,
   type PayloadRecomendador,
+  type RespuestaRecomendador,
 } from "@/app/servicios/recomendador";
 import { useAuthStore } from "@/app/store/useAuthStore";
 import { getPreferencias } from "@/app/servicios/preferencias";
-import { despertarServicioIA } from "@/app/servicios/auth";
+import { warmupIaService, isWarmupInProgress } from "@/app/servicios/iaWarmupService";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
@@ -635,6 +636,10 @@ export default function CrearItinerarioPantalla() {
   const [avisoValidacion, setAvisoValidacion] = useState<string | null>(null);
   const [generando, setGenerando] = useState(false);
   const [progresoGeneracion, setProgresoGeneracion] = useState(0);
+  const [calentandoIA, setCalentandoIA] = useState(false);
+  const [mensajeOverlay, setMensajeOverlay] = useState(
+    "Estamos generando el itinerario con la IA. Si el servicio estaba en reposo, SpainWay lo despierta automáticamente.",
+  );
 
   const daysPlaceholder = useMemo(
     () => getDaysPlaceholder(range.start, range.end),
@@ -667,8 +672,8 @@ export default function CrearItinerarioPantalla() {
   }, [generando]);
 
   useEffect(() => {
-    // Calienta Render mientras el usuario rellena el formulario. No bloquea la pantalla.
-    void despertarServicioIA({ force: true });
+    setCalentandoIA(true);
+    void warmupIaService({ silent: true }).finally(() => setCalentandoIA(false));
   }, []);
 
   useEffect(() => {
@@ -1454,7 +1459,7 @@ export default function CrearItinerarioPantalla() {
   }
 
   async function generarItinerarioAhora() {
-    if (generando) return;
+    if (generando || calentandoIA) return;
 
     const erroresValidacion = getErroresValidacion();
 
@@ -1473,12 +1478,21 @@ export default function CrearItinerarioPantalla() {
       return;
     }
 
+    setGenerando(true);
+    setProgresoGeneracion(8);
+    setAvisoValidacion(null);
+    setErrorBase(null);
+    setErrorFormulario(null);
+    setMensajeOverlay(
+      "Estamos generando el itinerario con la IA. Si el servicio estaba en reposo, SpainWay lo despierta automáticamente.",
+    );
+
     try {
-      setGenerando(true);
-      setProgresoGeneracion(8);
-      setAvisoValidacion(null);
-      setErrorBase(null);
-      setErrorFormulario(null);
+      if (isWarmupInProgress()) {
+        setMensajeOverlay("Preparando el motor de recomendaciones...");
+        await warmupIaService({ silent: true });
+        setMensajeOverlay("Generando tu itinerario personalizado...");
+      }
 
       const destinoPermitido = getDestinoPermitido(form.destino);
       if (destinoPermitido) {
@@ -1488,7 +1502,38 @@ export default function CrearItinerarioPantalla() {
       const payload = generarPayloadRecomendador();
       localStorage.setItem(STORAGE_KEY_RECOMMENDER_DRAFT, JSON.stringify(payload));
 
-      const resultado = await generarItinerario(payload);
+      const llamarBackend = () => generarItinerario(payload);
+
+      const obtenerResultado = async (): Promise<RespuestaRecomendador> => {
+        try {
+          return await llamarBackend();
+        } catch (errPrimero) {
+          const msgPrimero = errPrimero instanceof Error ? errPrimero.message : "";
+          if (msgPrimero.includes(": 409")) throw new Error("__busy__");
+          const esSobrecarga =
+            msgPrimero.includes(": 429") ||
+            msgPrimero.includes(": 503") ||
+            msgPrimero.toLowerCase().includes("too many requests");
+          if (!esSobrecarga) throw errPrimero;
+          setMensajeOverlay(
+            "El motor de recomendaciones se está preparando. Reintentando en unos segundos...",
+          );
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 7000));
+          return llamarBackend();
+        }
+      };
+
+      let resultado = await obtenerResultado();
+
+      const statusRespuesta = (resultado as unknown as { status?: string }).status;
+      if (statusRespuesta === "busy") throw new Error("__busy__");
+      if (statusRespuesta === "warming" || statusRespuesta === "cooldown") {
+        setMensajeOverlay(
+          "El motor de recomendaciones se está preparando. Reintentando en unos segundos...",
+        );
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 7000));
+        resultado = await llamarBackend();
+      }
 
       localStorage.removeItem(STORAGE_KEY_FORM_DRAFT);
       localStorage.removeItem(STORAGE_KEY_BASE_COORDS);
@@ -1496,19 +1541,35 @@ export default function CrearItinerarioPantalla() {
       setForm(FORM_INICIAL);
       setRange({ start: null, end: null });
       setBaseCoords(null);
-
       setProgresoGeneracion(100);
 
       window.setTimeout(() => {
         navigate(`/chat/conversacion/${resultado.id_conversacion}`);
       }, 350);
     } catch (error) {
-      console.error(error);
-      setErrorFormulario(
-        error instanceof Error
-          ? error.message
-          : "No se pudo generar el itinerario ahora mismo. Revisa los datos del viaje e inténtalo de nuevo en unos segundos.",
-      );
+      const msg = error instanceof Error ? error.message : "";
+      if (msg === "__busy__" || msg.includes(": 409")) {
+        setErrorFormulario("Ya se está generando un itinerario. Espera unos segundos.");
+      } else if (
+        msg.includes(": 429") ||
+        msg.includes(": 503") ||
+        msg.toLowerCase().includes("too many requests")
+      ) {
+        setErrorFormulario(
+          "El motor de recomendaciones se está preparando. Espera unos segundos y vuelve a intentarlo.",
+        );
+      } else if (
+        msg.toLowerCase().includes("failed to fetch") ||
+        msg.toLowerCase().includes("network error")
+      ) {
+        setErrorFormulario(
+          "No se pudo conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.",
+        );
+      } else {
+        setErrorFormulario(
+          "No se pudo generar el itinerario ahora mismo. Revisa los datos del viaje e inténtalo de nuevo en unos segundos.",
+        );
+      }
     } finally {
       window.setTimeout(() => {
         setGenerando(false);
@@ -2009,11 +2070,15 @@ export default function CrearItinerarioPantalla() {
 
               <button
                 type="button"
-                disabled={generando}
+                disabled={generando || calentandoIA}
                 onClick={() => void generarItinerarioAhora()}
                 className="flex-1 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {generando ? "Generando..." : "Generar itinerario"}
+                {generando
+                  ? "Generando..."
+                  : calentandoIA
+                    ? "Preparando IA..."
+                    : "Generar itinerario"}
               </button>
             </div>
           </div>
@@ -2149,7 +2214,7 @@ export default function CrearItinerarioPantalla() {
             <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#ffe0d6] border-t-[#ff5a36]" />
             <h2 className="mt-5 text-xl font-bold text-[#111827]">Creando tu ruta</h2>
             <p className="mt-2 text-sm leading-6 text-[#667085]">
-              Estamos generando el itinerario con la IA. Si Render estaba en reposo, SpainWay lo despierta automáticamente.
+              {mensajeOverlay}
             </p>
             <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#f3f4f6]">
               <div
