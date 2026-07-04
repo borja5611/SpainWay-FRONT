@@ -82,6 +82,29 @@ export interface DiaItinerario {
   eventos?: ItinerarioEvento[];
 }
 
+export type ScoreBreakdown = Record<string, number>;
+
+export interface IaScheduleSlot {
+  slot_type?: string;
+  start_time?: string;
+  end_time?: string;
+  poi_global_id?: string | null;
+  poi_name?: string | null;
+  estimated_visit_minutes?: number;
+  travel_from_previous_minutes?: number;
+  estimated_distance_km?: number;
+  reason?: string;
+}
+
+export interface IaRouteMetrics {
+  total_visit_minutes?: number;
+  total_travel_minutes?: number;
+  estimated_distance_km?: number;
+  pace_feasibility?: string;
+  weather_feasibility?: string;
+  empty_day?: boolean;
+}
+
 export interface IaPoiPlan {
   global_id?: string;
   id_global?: string;
@@ -92,6 +115,10 @@ export interface IaPoiPlan {
   image_url?: string;
   imagen_url?: string;
   google_search_url?: string;
+  // Explicabilidad por POI (opcional; retrocompatible con itinerarios antiguos).
+  score_breakdown?: ScoreBreakdown;
+  selection_reasons?: string[];
+  confidence?: number | null;
 }
 
 export interface IaDayPlan {
@@ -105,6 +132,27 @@ export interface IaDayPlan {
   items?: IaPoiPlan[];
   local_tips?: string[];
   consejos?: string[];
+  // Planificación horaria y métricas de ruta (opcional).
+  schedule?: IaScheduleSlot[];
+  route_metrics?: IaRouteMetrics | null;
+}
+
+export interface IaEngineMetadata {
+  engine_name?: string;
+  engine_version?: string;
+  generation_mode?: string;
+  llm_used_for_generation?: boolean;
+  llm_role?: string;
+}
+
+export interface IaDecisionTrace {
+  input_summary?: Record<string, unknown>;
+  candidate_pipeline?: Array<{ stage: string; count: number }>;
+  scoring_weights?: Record<string, number>;
+  selected_summary?: Record<string, unknown>;
+  quality_flags?: string[];
+  runtime_warnings?: string[];
+  user_summary?: string;
 }
 
 export interface IaJsonItinerario {
@@ -118,7 +166,27 @@ export interface IaJsonItinerario {
   generated_at?: string;
   live_events?: unknown[];
   live_events_by_day?: unknown[];
+  // Explicabilidad a nivel de itinerario (opcional).
+  engine_metadata?: IaEngineMetadata;
+  decision_trace?: IaDecisionTrace;
+  quality_metrics?: Record<string, unknown>;
+  request_seed?: string;
   [key: string]: unknown;
+}
+
+export interface ItinerarioAuditoria {
+  ok: boolean;
+  available: boolean;
+  id_itinerario?: number;
+  engine?: IaEngineMetadata | null;
+  input_summary?: Record<string, unknown> | null;
+  candidate_pipeline?: Array<{ stage: string; count: number }> | null;
+  scoring_weights?: Record<string, number> | null;
+  selected_summary?: Record<string, unknown> | null;
+  quality_flags?: string[] | null;
+  quality_metrics?: Record<string, unknown> | null;
+  summary_message?: string;
+  message?: string;
 }
 
 export interface Itinerario {
@@ -182,6 +250,10 @@ export const getItinerariosResumen = (idUsuario: number) =>
 
 export const getItinerarioDetalle = (idItinerario: number) =>
   apiGet<Itinerario>(`/api/itinerarios/detalle/${idItinerario}`);
+
+/** Traza de auditoría del recomendador para un itinerario (available:false si es antiguo). */
+export const getItinerarioAuditoria = (idItinerario: number) =>
+  apiGet<ItinerarioAuditoria>(`/api/itinerarios/${idItinerario}/auditoria`);
 
 export const crearItinerario = (payload: CrearItinerarioPayload) =>
   apiPost<Itinerario, CrearItinerarioPayload>("/api/itinerarios", payload);

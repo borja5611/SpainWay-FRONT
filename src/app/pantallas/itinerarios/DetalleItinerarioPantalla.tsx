@@ -27,6 +27,9 @@ import {
 import { itinerariosMock } from "../../datos/mock/itinerariosMock";
 import { crearFavorito, eliminarFavorito, getFavoritos } from "@/app/servicios/favoritos";
 import { searchPoisDestacados, type PoiDestacado } from "@/app/servicios/poisDestacados";
+import { TrustPanel } from "@/components/ui/TrustPanel";
+import { ItineraryInsightCard, type ItineraryInsight } from "@/components/ui/ItineraryInsightCard";
+import { ScheduleTimeline } from "@/components/ui/ScheduleTimeline";
 
 type DiaUi = {
   numero: number;
@@ -630,6 +633,38 @@ export default function DetalleItinerarioPantalla() {
   const diasUi = useMemo(() => (itinerario ? buildDiasUi(itinerario) : []), [itinerario]);
   const totalPois = diasUi.reduce((acc, dia) => acc + dia.pois.length, 0);
 
+  // Métricas explicables del itinerario derivadas de la traza de decisión.
+  const insightItinerario = useMemo<ItineraryInsight | null>(() => {
+    const ia = itinerario?.ia_json;
+    if (!ia) return null;
+    const trace = ia.decision_trace;
+    const qm = (ia.quality_metrics as Record<string, unknown> | undefined) ?? undefined;
+    const selected = (trace?.selected_summary as Record<string, unknown> | undefined) ?? undefined;
+    if (!trace && !qm) return null;
+    const num = (value: unknown): number | null =>
+      typeof value === "number" ? value : null;
+    return {
+      totalPois,
+      coveredMunicipalities:
+        num(selected?.covered_municipalities) ?? num(qm?.territorial_coverage),
+      premiumPois: num(selected?.premium_pois) ?? num(qm?.premium_pois),
+      averageConfidence: num(selected?.average_confidence),
+      qualityFlags: Array.isArray(trace?.quality_flags) ? trace?.quality_flags : [],
+      scoringWeights: trace?.scoring_weights ?? null,
+      pipeline: Array.isArray(trace?.candidate_pipeline) ? trace?.candidate_pipeline : null,
+    };
+  }, [itinerario, totalPois]);
+
+  // Horario estimado por número de día (desde el schedule que emite el recomendador).
+  const scheduleByDay = useMemo(() => {
+    const map = new Map<number, IaDayPlan>();
+    for (const plan of getIaDayPlans(itinerario)) {
+      const numero = plan.day_number ?? plan.dia;
+      if (typeof numero === "number") map.set(numero, plan);
+    }
+    return map;
+  }, [itinerario]);
+
   function abrirPoiEnMapa(poi: PoiUi) {
     if (poi.idPoi) {
       sessionStorage.setItem(
@@ -967,6 +1002,15 @@ export default function DetalleItinerarioPantalla() {
           </div>
         </section>
 
+        {insightItinerario ? (
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <TrustPanel />
+            <ItineraryInsightCard insight={insightItinerario} />
+          </div>
+        ) : (
+          <TrustPanel className="mt-5" />
+        )}
+
         <SeccionDesplegable
           eyebrow="Regeneración inteligente"
           titulo="Regenerar con nuevas preferencias"
@@ -977,8 +1021,8 @@ export default function DetalleItinerarioPantalla() {
         >
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <p className="max-w-[680px] text-sm leading-6 text-[#667085]">
-              La nueva versión usa la IA2 actual, el contexto guardado del usuario, favoritos,
-              mensajes recientes y la meteorología del destino. La versión actual no se borra.
+              La nueva versión combina tus preferencias, tu contexto guardado, tus favoritos,
+              tus últimos mensajes y la meteorología del destino. La versión actual no se borra.
             </p>
 
             <button
@@ -1356,9 +1400,15 @@ export default function DetalleItinerarioPantalla() {
                       </div>
                     )}
 
+                    <ScheduleTimeline
+                      schedule={scheduleByDay.get(dia.numero)?.schedule ?? []}
+                      routeMetrics={scheduleByDay.get(dia.numero)?.route_metrics ?? null}
+                      className="mb-4"
+                    />
+
                     {dia.pois.length === 0 ? (
                       <div className="rounded-2xl bg-[#f8fafc] p-4 text-sm text-[#667085]">
-                        El modelo no asignó POIs para este día.
+                        Aún no hay paradas asignadas para este día.
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

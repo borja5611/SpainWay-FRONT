@@ -1,6 +1,6 @@
 import svgPaths from "./svg-irjqafk06h";
 
-function Wrapper({ children }: React.PropsWithChildren<{}>) {
+function Wrapper({ children }: { children?: React.ReactNode }) {
   return (
     <div className="absolute left-[17px] size-[36px] top-[15px]">
       <svg className="absolute block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 36 36">

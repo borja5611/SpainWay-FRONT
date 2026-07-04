@@ -290,7 +290,7 @@ export default function MenuConfiguracionGlobal({ abierto, onCerrar, onClose }: 
                   SpainWay es una aplicación de planificación turística centrada en explorar destinos españoles, guardar lugares relevantes y crear itinerarios personalizados.
                 </p>
                 <p>
-                  Esta versión prioriza navegación clara, mapa interactivo, POIs destacados y un flujo de generación de viajes preparado para integrarse con el motor IA del TFG.
+                  Esta versión prioriza una navegación clara, el mapa interactivo, los lugares destacados y un motor propio de recomendación que construye itinerarios a partir de tus preferencias y de la calidad turística de cada lugar.
                 </p>
               </div>
             )}

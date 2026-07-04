@@ -12,6 +12,13 @@
   --popover-foreground: oklch(0.145 0 0);
   --primary: #030213;
   --primary-foreground: oklch(1 0 0);
+  /* Marca SpainWay: coral como token de primer nivel (antes solo inline). */
+  --coral: #ff5a36;
+  --coral-hover: #e8462a;
+  --coral-strong: #d83a1f;
+  --coral-soft: #fff1ee;
+  --coral-border: rgba(255, 90, 54, 0.22);
+  --coral-foreground: #ffffff;
   --secondary: oklch(0.95 0.0058 264.53);
   --secondary-foreground: #030213;
   --muted: #ececf0;
@@ -52,6 +59,13 @@
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.985 0 0);
   --primary-foreground: oklch(0.205 0 0);
+  /* Coral se mantiene consistente en modo oscuro, con soft translúcido. */
+  --coral: #ff6a47;
+  --coral-hover: #ff5a36;
+  --coral-strong: #ff7a58;
+  --coral-soft: rgba(255, 90, 54, 0.16);
+  --coral-border: rgba(255, 90, 54, 0.32);
+  --coral-foreground: #ffffff;
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -89,6 +103,15 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-coral: var(--coral);
+  --color-coral-hover: var(--coral-hover);
+  --color-coral-strong: var(--coral-strong);
+  --color-coral-soft: var(--coral-soft);
+  --color-coral-border: var(--coral-border);
+  --color-coral-foreground: var(--coral-foreground);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.06), 0 16px 40px rgba(15, 23, 42, 0.1);
+  --shadow-premium: 0 14px 40px rgba(255, 90, 54, 0.18);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
