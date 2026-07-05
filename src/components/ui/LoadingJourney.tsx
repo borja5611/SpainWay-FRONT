@@ -16,19 +16,35 @@ type LoadingJourneyProps = {
   currentStep?: number;
   title?: string;
   className?: string;
+  /**
+   * Si se pasa, se muestra un botón "Cancelar y volver al formulario". Pensado
+   * para que el usuario nunca se quede atrapado ante un servicio que despierta.
+   */
+  onCancel?: () => void;
+  /** Umbrales de aviso (segundos). Por defecto 20s y 45s. */
+  slowAfterSeconds?: number;
+  wakingAfterSeconds?: number;
 };
 
 /**
  * Cargador premium por pasos para la generación de viajes. Sustituye a los
  * "Cargando..." de texto plano por una experiencia de producto guiada.
+ *
+ * Incluye feedback por tiempo real: a los 20s avisa de que tarda más de lo
+ * habitual y a los 45s de que el servicio puede estar despertando, ofreciendo
+ * cancelar sin perder datos. Así nunca hay un spinner eterno sin explicación.
  */
 export function LoadingJourney({
   steps = DEFAULT_STEPS,
   currentStep,
   title = "Preparando tu viaje",
   className,
+  onCancel,
+  slowAfterSeconds = 20,
+  wakingAfterSeconds = 45,
 }: LoadingJourneyProps) {
   const [auto, setAuto] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const controlled = currentStep !== undefined;
   const active = controlled ? Math.min(currentStep, steps.length - 1) : auto;
 
@@ -39,6 +55,18 @@ export function LoadingJourney({
     }, 1600);
     return () => window.clearInterval(id);
   }, [controlled, steps.length]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const avisoTiempo =
+    elapsed >= wakingAfterSeconds
+      ? "El servicio puede estar despertando. Puedes cancelar y reintentar sin perder los datos."
+      : elapsed >= slowAfterSeconds
+        ? "Está tardando más de lo habitual, seguimos intentándolo…"
+        : null;
 
   const progress = ((active + 1) / steps.length) * 100;
 
@@ -106,6 +134,22 @@ export function LoadingJourney({
           );
         })}
       </ul>
+
+      {avisoTiempo && (
+        <p className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+          {avisoTiempo}
+        </p>
+      )}
+
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="mt-4 w-full rounded-2xl border border-black/5 bg-muted/60 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-muted"
+        >
+          Cancelar y volver al formulario
+        </button>
+      )}
     </div>
   );
 }
