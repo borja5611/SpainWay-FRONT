@@ -19,10 +19,15 @@ import {
   regenerarItinerarioCompleto,
   type DiaItinerario,
   type ElementoItinerario,
+  type DecisionTrace,
+  type EngineMetadata,
   type IaDayPlan,
   type IaPoiPlan,
   type Itinerario,
   type PoiItinerario,
+  type ScheduleSlot,
+  type ScoreBreakdown,
+  type RouteMetrics,
 } from "@/app/servicios/itinerarios";
 import { itinerariosMock } from "../../datos/mock/itinerariosMock";
 import { crearFavorito, eliminarFavorito, getFavoritos } from "@/app/servicios/favoritos";
@@ -36,6 +41,10 @@ type DiaUi = {
   fecha: string | null;
   tips: string[];
   pois: PoiUi[];
+  // Planificación por horarios del motor SpainWay (opcional): itinerarios
+  // generados antes de esta versión simplemente no traen `schedule`.
+  schedule: ScheduleSlot[];
+  routeMetrics: RouteMetrics | null;
 };
 
 
@@ -123,6 +132,10 @@ type PoiUi = {
   googleUrl: string | null;
   latitud: number | null;
   longitud: number | null;
+  // Explicabilidad del motor SpainWay (opcional, ver DecisionTrace/ScoreBreakdown)
+  scoreBreakdown: ScoreBreakdown | null;
+  selectionReasons: string[];
+  isCuratedHighlight: boolean;
 };
 
 type ItinerarioConBase = Itinerario & {
@@ -313,13 +326,13 @@ function findElementoForIaPoi(
   return null;
 }
 
-function buildPoiFromElemento(elemento: ElementoItinerario, index: number): PoiUi {
+function buildPoiFromElemento(elemento: ElementoItinerario, index: number, iaPoi?: IaPoiPlan | null): PoiUi {
   const poi = elemento.poi;
 
   return {
     key: `db-${elemento.id_elemento_itinerario}-${index}`,
     nombre: poi?.nombre ?? "POI",
-    motivo: poi?.descripcion ?? null,
+    motivo: poi?.descripcion ?? iaPoi?.reason ?? iaPoi?.motivo ?? null,
     idPoi: poi?.id_poi ?? elemento.id_poi ?? null,
     idGlobal: poi?.id_global ?? null,
     imagen: getPoiImage(poi),
@@ -328,7 +341,20 @@ function buildPoiFromElemento(elemento: ElementoItinerario, index: number): PoiU
     googleUrl: poi?.google_search_url ?? null,
     latitud: poi?.latitud ?? null,
     longitud: poi?.longitud ?? null,
+    scoreBreakdown: iaPoi?.score_breakdown ?? null,
+    selectionReasons: iaPoi?.selection_reasons ?? [],
+    isCuratedHighlight: iaPoi?.is_curated_highlight ?? false,
   };
+}
+
+function iaPoisByGlobalId(day?: IaDayPlan | null): Map<string, IaPoiPlan> {
+  const map = new Map<string, IaPoiPlan>();
+  if (!day) return map;
+  for (const iaPoi of getIaPois(day)) {
+    const gid = iaPoi.global_id ?? iaPoi.id_global;
+    if (gid) map.set(gid, iaPoi);
+  }
+  return map;
 }
 
 function buildDiasUi(itinerario: Itinerario): DiaUi[] {
@@ -342,6 +368,7 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
     return dbDays.map((dia: DiaItinerario, index) => {
       const iaDay = iaDays[index];
       const numero = iaDay?.day_number ?? iaDay?.dia ?? index + 1;
+      const iaPoisMap = iaPoisByGlobalId(iaDay);
 
       return {
         numero,
@@ -356,7 +383,15 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
               .map((item) => item.trim())
               .filter(Boolean)
           : [],
-        pois: (dia.elementos ?? []).map(buildPoiFromElemento),
+        pois: (dia.elementos ?? []).map((elemento, poiIndex) =>
+          buildPoiFromElemento(
+            elemento,
+            poiIndex,
+            elemento.poi?.id_global ? iaPoisMap.get(elemento.poi.id_global) ?? null : null
+          )
+        ),
+        schedule: iaDay?.schedule ?? [],
+        routeMetrics: iaDay?.route_metrics ?? null,
       };
     });
   }
@@ -384,6 +419,9 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
           googleUrl: iaPoi.google_search_url ?? dbPoi?.google_search_url ?? null,
           latitud: dbPoi?.latitud ?? null,
           longitud: dbPoi?.longitud ?? null,
+          scoreBreakdown: iaPoi.score_breakdown ?? null,
+          selectionReasons: iaPoi.selection_reasons ?? [],
+          isCuratedHighlight: iaPoi.is_curated_highlight ?? false,
         };
       });
 
@@ -395,6 +433,8 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
         fecha: dbDay?.fecha ?? null,
         tips: getIaTips(day),
         pois,
+        schedule: day.schedule ?? [],
+        routeMetrics: day.route_metrics ?? null,
       };
     });
   }
@@ -412,7 +452,9 @@ function buildDiasUi(itinerario: Itinerario): DiaUi[] {
           .map((item) => item.trim())
           .filter(Boolean)
       : [],
-    pois: (dia.elementos ?? []).map(buildPoiFromElemento),
+    pois: (dia.elementos ?? []).map((elemento, poiIndex) => buildPoiFromElemento(elemento, poiIndex)),
+    schedule: [],
+    routeMetrics: null,
   }));
 }
 
@@ -461,6 +503,122 @@ function getAnchors(itinerario: Itinerario): string[] {
   return Array.isArray(itinerario.ia_json?.anchors_used)
     ? itinerario.ia_json.anchors_used
     : [];
+}
+
+// --- Explicabilidad del motor SpainWay --------------------------------------
+
+function getEngineMetadata(itinerario: Itinerario): EngineMetadata | null {
+  return itinerario.ia_json?.engine_metadata ?? null;
+}
+
+function getDecisionTrace(itinerario: Itinerario): DecisionTrace | null {
+  return itinerario.ia_json?.decision_trace ?? null;
+}
+
+const SCORE_FACTOR_LABELS: Record<keyof ScoreBreakdown, string> = {
+  touristic_quality: "Calidad turística",
+  editorial_curation: "Selección de calidad",
+  semantic_affinity: "Afinidad con tus intereses",
+  distance_coherence: "Coherencia de ruta",
+  territorial_diversity: "Variedad de zonas",
+  user_profile_affinity: "Tu perfil y favoritos",
+  weather_context: "Contexto meteorológico",
+  negative_preference_penalty: "Penalización por preferencias negativas",
+  noise_penalty: "Penalización por baja calidad",
+  final_score: "Puntuación final",
+};
+
+// Convierte los `selection_reasons` técnicos que devuelve el motor (pensados
+// para auditoría/tests) en frases naturales de cara al usuario. Es una lista
+// blanca deliberada: si un motivo no coincide con ninguna frase conocida, se
+// usa un mensaje genérico seguro en vez de mostrar el texto técnico original.
+// Así el copy que llega a pantalla siempre sale de un conjunto controlado
+// aquí, sin depender de reconocer ni enumerar palabras "no permitidas".
+function normalizarMotivoUsuario(reason: string): string {
+  const texto = reason.toLowerCase();
+
+  if (texto.includes("destacado") || texto.includes("curad")) {
+    return "Es uno de los puntos destacados de la zona.";
+  }
+  if (texto.includes("calidad turística") || texto.includes("relevancia turística") || texto.includes("filtros editoriales")) {
+    return "Tiene buena relevancia turística dentro del destino.";
+  }
+  if (texto.includes("semánticamente") || texto.includes("preferencias de viaje") || texto.includes("intereses")) {
+    return "Encaja con los intereses indicados para el viaje.";
+  }
+  if (texto.includes("coherencia geográfica") || texto.includes("ubicación base") || texto.includes("ruta")) {
+    return "Ayuda a mantener una ruta equilibrada durante el día.";
+  }
+  if (texto.includes("favoritos") || texto.includes("perfil")) {
+    return "Coincide con tus preferencias guardadas.";
+  }
+  if (texto.includes("meteorológica") || texto.includes("previsión")) {
+    return "Es una buena opción según el contexto meteorológico.";
+  }
+  if (texto.includes("diversidad territorial") || texto.includes("cobertura")) {
+    return "Aporta variedad de zonas a la ruta.";
+  }
+  if (texto.includes("procedente de la base") || texto.includes("verificado")) {
+    return "Lugar registrado en SpainWay.";
+  }
+
+  return "Encaja con el destino y el tipo de viaje solicitado.";
+}
+
+function topScoreFactors(breakdown: ScoreBreakdown | null | undefined, limit = 2): string[] {
+  if (!breakdown) return [];
+  const positivos: Array<keyof ScoreBreakdown> = [
+    "touristic_quality",
+    "editorial_curation",
+    "semantic_affinity",
+    "distance_coherence",
+    "territorial_diversity",
+    "user_profile_affinity",
+    "weather_context",
+  ];
+  return positivos
+    .map((key) => ({ key, value: breakdown[key] ?? 0 }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit)
+    .filter((item) => item.value > 0)
+    .map((item) => `${SCORE_FACTOR_LABELS[item.key]} (${Math.round(item.value * 100)}%)`);
+}
+
+function formatPercent(value?: number | null): string | null {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  return `${Math.round(value * 100)}%`;
+}
+
+type MomentoDia = "Mañana" | "Comida" | "Tarde" | "Noche";
+
+function scheduleMomentLabel(slot: ScheduleSlot): MomentoDia {
+  if (slot.slot_type === "meal_break") return "Comida";
+  const hour = Number(slot.start_time?.split(":")[0] ?? "12");
+  if (Number.isNaN(hour)) return "Tarde";
+  if (hour < 14) return "Mañana";
+  if (hour < 20) return "Tarde";
+  return "Noche";
+}
+
+function groupScheduleByMoment(schedule: ScheduleSlot[]): Array<{ etiqueta: MomentoDia; slots: ScheduleSlot[] }> {
+  const orden: MomentoDia[] = ["Mañana", "Comida", "Tarde", "Noche"];
+  const buckets = new Map<MomentoDia, ScheduleSlot[]>();
+  for (const slot of schedule) {
+    const etiqueta = scheduleMomentLabel(slot);
+    if (!buckets.has(etiqueta)) buckets.set(etiqueta, []);
+    buckets.get(etiqueta)!.push(slot);
+  }
+  return orden
+    .filter((etiqueta) => buckets.has(etiqueta))
+    .map((etiqueta) => ({ etiqueta, slots: buckets.get(etiqueta)! }));
+}
+
+function scheduleSlotLabel(slot: ScheduleSlot): string {
+  if (slot.poi_name) return slot.poi_name;
+  if (slot.slot_type === "meal_break") return "Comida";
+  if (slot.slot_type === "rest_break") return "Descanso";
+  if (slot.slot_type === "transfer") return "Traslado";
+  return "Actividad";
 }
 function buildGoogleMapsDirectionsUrl(poi: PoiUi): string {
   if (
@@ -529,6 +687,7 @@ export default function DetalleItinerarioPantalla() {
     favoritos: false,
     anclas: false,
     destacados: false,
+    explicabilidad: false,
   });
 
   function toggleSeccion(key: keyof typeof seccionesAbiertas) {
@@ -891,6 +1050,8 @@ export default function DetalleItinerarioPantalla() {
   }
 
   const anchors = getAnchors(itinerario);
+  const engineMetadata = getEngineMetadata(itinerario);
+  const decisionTrace = getDecisionTrace(itinerario);
 
   return (
     <div className="min-h-full bg-[#f3f5f9] text-[#111827]">
@@ -966,6 +1127,90 @@ export default function DetalleItinerarioPantalla() {
             />
           </div>
         </section>
+
+        {(engineMetadata || decisionTrace) && (
+          <SeccionDesplegable
+            eyebrow="Motor SpainWay"
+            titulo="Por qué SpainWay te recomienda este viaje"
+            resumen="SpainWay ha organizado este viaje combinando tus preferencias, la calidad turística de los lugares, la coherencia de la ruta y el contexto disponible del destino."
+            abierto={seccionesAbiertas.explicabilidad}
+            onToggle={() => toggleSeccion("explicabilidad")}
+            accent="orange"
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-[#f8fafc] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#94a3b8]">
+                  Sistema de recomendación
+                </p>
+                <p className="mt-1 text-sm font-black text-[#111827]">Motor SpainWay</p>
+                <p className="mt-1 text-xs leading-5 text-[#667085]">
+                  Recomendación personalizada basada en datos reales del destino.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#f8fafc] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#94a3b8]">
+                  Lugares analizados
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#344054]">
+                  {decisionTrace?.candidate_pipeline?.total_pois_loaded ?? "—"} lugares considerados
+                </p>
+                <p className="text-sm font-semibold text-[#344054]">
+                  {decisionTrace?.candidate_pipeline?.final_selected ?? totalPois} seleccionados para tu viaje
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#f8fafc] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#94a3b8]">
+                  Cobertura territorial
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#344054]">
+                  {decisionTrace?.selected_summary?.zones_used?.length ?? anchors.length} zonas usadas
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-[#f8fafc] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#94a3b8]">Calidad media</p>
+                <p className="mt-1 text-sm font-semibold text-[#344054]">
+                  {formatPercent(decisionTrace?.selected_summary?.average_score) ?? "—"}
+                  {decisionTrace?.selected_summary?.pois_with_explanation !== undefined
+                    ? ` · ${decisionTrace.selected_summary.pois_with_explanation} lugares con explicación`
+                    : ""}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span
+                className={`rounded-full px-3 py-2 text-xs font-bold ${
+                  decisionTrace?.input_summary?.has_user_context
+                    ? "bg-[#ecfdf3] text-[#027a48]"
+                    : "bg-[#f8fafc] text-[#94a3b8]"
+                }`}
+              >
+                {decisionTrace?.input_summary?.has_user_context
+                  ? "✓ Usa tus preferencias y favoritos"
+                  : "Sin preferencias guardadas todavía"}
+              </span>
+              <span
+                className={`rounded-full px-3 py-2 text-xs font-bold ${
+                  decisionTrace?.input_summary?.has_weather_context
+                    ? "bg-[#eff6ff] text-[#2563eb]"
+                    : "bg-[#f8fafc] text-[#94a3b8]"
+                }`}
+              >
+                {decisionTrace?.input_summary?.has_weather_context
+                  ? "✓ Ajustado por el contexto meteorológico"
+                  : "Sin contexto meteorológico aplicado"}
+              </span>
+            </div>
+
+            <p className="mt-4 rounded-2xl bg-[#fff7f3] p-4 text-sm leading-6 text-[#9a3412]">
+              Las recomendaciones se basan en lugares reales registrados en SpainWay y se ordenan según
+              criterios de relevancia, distancia y encaje con tu viaje.
+            </p>
+          </SeccionDesplegable>
+        )}
 
         <SeccionDesplegable
           eyebrow="Regeneración inteligente"
@@ -1406,6 +1651,38 @@ export default function DetalleItinerarioPantalla() {
                                   </p>
                                 )}
 
+                                {(poi.selectionReasons.length > 0 || poi.scoreBreakdown) && (
+                                  <details className="mt-3 rounded-2xl bg-[#f8fafc] p-3">
+                                    <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.1em] text-[#344054]">
+                                      Motivo de recomendación
+                                    </summary>
+                                    <div className="mt-2 space-y-1">
+                                      {poi.isCuratedHighlight && (
+                                        <p className="text-xs font-bold text-[#ca8a04]">
+                                          ★ Es uno de los puntos destacados de la zona.
+                                        </p>
+                                      )}
+                                      {Array.from(new Set(poi.selectionReasons.map(normalizarMotivoUsuario)))
+                                        .slice(0, 4)
+                                        .map((razon) => (
+                                          <p key={razon} className="text-xs leading-5 text-[#667085]">
+                                            ✓ {razon}
+                                          </p>
+                                        ))}
+                                      {topScoreFactors(poi.scoreBreakdown).map((factor) => (
+                                        <p key={factor} className="text-xs leading-5 text-[#667085]">
+                                          · {factor}
+                                        </p>
+                                      ))}
+                                      {formatPercent(poi.scoreBreakdown?.final_score) && (
+                                        <p className="mt-2 text-xs font-black text-[#ff5a36]">
+                                          Nivel de coincidencia: {formatPercent(poi.scoreBreakdown?.final_score)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </details>
+                                )}
+
                                 {poi.direccion && (
                                   <p className="mt-3 text-xs font-semibold leading-5 text-[#98a2b3]">
                                     {poi.direccion}
@@ -1457,6 +1734,49 @@ export default function DetalleItinerarioPantalla() {
                           );
                         })}
                       </div>
+                    )}
+
+                    {dia.schedule.length > 0 && (
+                      <details className="mb-5 rounded-2xl border border-[#eef2f7] bg-white p-4">
+                        <summary className="cursor-pointer text-sm font-black text-[#111827]">
+                          Plan horario estimado
+                          {dia.routeMetrics?.estimated_distance_km !== undefined && (
+                            <span className="ml-2 text-xs font-semibold text-[#94a3b8]">
+                              · {dia.routeMetrics.estimated_distance_km} km de desplazamiento estimado
+                            </span>
+                          )}
+                        </summary>
+
+                        <div className="mt-4 space-y-4">
+                          {groupScheduleByMoment(dia.schedule).map((grupo) => (
+                            <div key={grupo.etiqueta}>
+                              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#ff5a36]">
+                                {grupo.etiqueta}
+                              </p>
+                              <div className="mt-2 space-y-2">
+                                {grupo.slots.map((slot, slotIndex) => (
+                                  <div
+                                    key={`${grupo.etiqueta}-${slotIndex}`}
+                                    className="rounded-xl bg-[#f8fafc] p-3"
+                                  >
+                                    <p className="text-sm font-bold text-[#111827]">
+                                      {slot.start_time}–{slot.end_time} · {scheduleSlotLabel(slot)}
+                                    </p>
+                                    {slot.reason && (
+                                      <p className="mt-1 text-xs leading-5 text-[#667085]">{slot.reason}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <p className="mt-4 text-xs italic leading-5 text-[#94a3b8]">
+                          Horarios y desplazamientos estimados por el motor SpainWay. Pueden ajustarse según
+                          ritmo real, tráfico o disponibilidad.
+                        </p>
+                      </details>
                     )}
 
                     {itinerario.id_itinerario ? (

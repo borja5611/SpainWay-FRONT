@@ -195,6 +195,43 @@ export default function ResultadoChatPantalla() {
         </section>
 
         <section className="px-5 pt-5">
+          <div className="rounded-[28px] border border-[#eef2f7] bg-white p-5 shadow-[0_14px_30px_rgba(15,23,42,0.06)]">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#ff6a47]">
+              Motor SpainWay
+            </p>
+            <h2 className="mt-2 text-[16px] font-black text-[#111827]">
+              Itinerario preparado por SpainWay
+            </h2>
+
+            <div className="mt-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#fff4ef] text-[#ff6a47]">
+                  <IconoCheck />
+                </span>
+                <p className="text-sm leading-6 text-[#475467]">Lugares reales verificados en SpainWay.</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#fff4ef] text-[#ff6a47]">
+                  <IconoCheck />
+                </span>
+                <p className="text-sm leading-6 text-[#475467]">
+                  Ruta planificada por criterios de calidad, distancia y preferencias.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#fff4ef] text-[#ff6a47]">
+                  <IconoCheck />
+                </span>
+                <p className="text-sm leading-6 text-[#475467]">
+                  La ruta se organiza teniendo en cuenta tus intereses, el ritmo del viaje, la distancia
+                  y el contexto del destino.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-5 pt-5">
           <div className="flex gap-3">
             <button
               type="button"
