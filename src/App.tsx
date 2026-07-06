@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import NavegacionApp from "@/app/navegacion";
 import { warmupIaService } from "@/app/servicios/iaWarmupService";
+import { Toaster } from "@/components/ui/Toaster";
 
 function App() {
   useEffect(() => {
@@ -14,7 +15,12 @@ function App() {
     return () => window.clearInterval(intervalId);
   }, []);
 
-  return <NavegacionApp />;
+  return (
+    <>
+      <NavegacionApp />
+      <Toaster />
+    </>
+  );
 }
 
 export default App;

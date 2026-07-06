@@ -82,87 +82,21 @@ export interface DiaItinerario {
   eventos?: ItinerarioEvento[];
 }
 
-// --- Explicabilidad del motor SpainWay (opcional: itinerarios generados antes
-// de esta versión simplemente no traen estos campos) ------------------------
+export type ScoreBreakdown = Record<string, number>;
 
-export interface ScoreBreakdown {
-  touristic_quality?: number;
-  editorial_curation?: number;
-  semantic_affinity?: number;
-  distance_coherence?: number;
-  territorial_diversity?: number;
-  user_profile_affinity?: number;
-  weather_context?: number;
-  negative_preference_penalty?: number;
-  noise_penalty?: number;
-  final_score?: number;
-}
-
-export interface EngineMetadata {
-  engine_name?: string;
-  engine_version?: string;
-  generation_mode?: string;
-  llm_role?: string;
-  llm_used_for_generation?: boolean;
-}
-
-export interface CandidatePipeline {
-  total_pois_loaded?: number;
-  after_destination_filter?: number;
-  after_quality_filter?: number;
-  after_noise_filter?: number;
-  after_negative_preferences?: number;
-  final_selected?: number;
-}
-
-export interface SelectedSummary {
-  zones_used?: string[];
-  categories_used?: Record<string, number>;
-  average_score?: number;
-  average_distance_to_base_km?: number;
-  curated_highlights?: number;
-  pois_with_explanation?: number;
-}
-
-export interface RejectedExample {
-  name?: string;
-  global_id?: string;
+export interface IaScheduleSlot {
+  slot_type?: string;
+  start_time?: string;
+  end_time?: string;
+  poi_global_id?: string | null;
+  poi_name?: string | null;
+  estimated_visit_minutes?: number;
+  travel_from_previous_minutes?: number;
+  estimated_distance_km?: number;
   reason?: string;
 }
 
-// Trazabilidad técnica del motor: pensada para auditoría interna, no para
-// mostrarse como texto al usuario. La UI solo debe leer estos campos para
-// construir chips/porcentajes con lenguaje de producto (ver
-// `normalizarMotivoUsuario` en DetalleItinerarioPantalla.tsx).
-export interface DecisionTrace {
-  input_summary?: {
-    destination?: string;
-    days?: number;
-    pace?: string;
-    transport?: string;
-    has_user_context?: boolean;
-    has_weather_context?: boolean;
-  };
-  candidate_pipeline?: CandidatePipeline;
-  scoring_weights?: Record<string, number>;
-  selected_summary?: SelectedSummary;
-  rejected_examples?: RejectedExample[];
-}
-
-export interface ScheduleSlot {
-  slot_type: string;
-  start_time: string;
-  end_time: string;
-  poi_global_id?: string | null;
-  poi_name?: string | null;
-  estimated_visit_minutes?: number | null;
-  travel_from_previous_minutes?: number | null;
-  travel_minutes?: number | null;
-  estimated_distance_km?: number | null;
-  reason?: string | null;
-}
-
-export interface RouteMetrics {
+export interface IaRouteMetrics {
   total_visit_minutes?: number;
   total_travel_minutes?: number;
   estimated_distance_km?: number;
@@ -181,13 +115,10 @@ export interface IaPoiPlan {
   image_url?: string;
   imagen_url?: string;
   google_search_url?: string;
+  // Explicabilidad por POI (opcional; retrocompatible con itinerarios antiguos).
   score_breakdown?: ScoreBreakdown;
   selection_reasons?: string[];
-  confidence?: number;
-  semantic_affinity?: number;
-  weather_adjustment?: number;
-  user_context_adjustment?: number;
-  is_curated_highlight?: boolean;
+  confidence?: number | null;
 }
 
 export interface IaDayPlan {
@@ -201,9 +132,27 @@ export interface IaDayPlan {
   items?: IaPoiPlan[];
   local_tips?: string[];
   consejos?: string[];
-  schedule?: ScheduleSlot[];
-  route_metrics?: RouteMetrics;
-  quality_metrics?: Record<string, unknown>;
+  // Planificación horaria y métricas de ruta (opcional).
+  schedule?: IaScheduleSlot[];
+  route_metrics?: IaRouteMetrics | null;
+}
+
+export interface IaEngineMetadata {
+  engine_name?: string;
+  engine_version?: string;
+  generation_mode?: string;
+  llm_used_for_generation?: boolean;
+  llm_role?: string;
+}
+
+export interface IaDecisionTrace {
+  input_summary?: Record<string, unknown>;
+  candidate_pipeline?: Array<{ stage: string; count: number }>;
+  scoring_weights?: Record<string, number>;
+  selected_summary?: Record<string, unknown>;
+  quality_flags?: string[];
+  runtime_warnings?: string[];
+  user_summary?: string;
 }
 
 export interface IaJsonItinerario {
@@ -217,11 +166,27 @@ export interface IaJsonItinerario {
   generated_at?: string;
   live_events?: unknown[];
   live_events_by_day?: unknown[];
-  engine_metadata?: EngineMetadata;
-  decision_trace?: DecisionTrace;
+  // Explicabilidad a nivel de itinerario (opcional).
+  engine_metadata?: IaEngineMetadata;
+  decision_trace?: IaDecisionTrace;
   quality_metrics?: Record<string, unknown>;
-  audit_history?: unknown[];
+  request_seed?: string;
   [key: string]: unknown;
+}
+
+export interface ItinerarioAuditoria {
+  ok: boolean;
+  available: boolean;
+  id_itinerario?: number;
+  engine?: IaEngineMetadata | null;
+  input_summary?: Record<string, unknown> | null;
+  candidate_pipeline?: Array<{ stage: string; count: number }> | null;
+  scoring_weights?: Record<string, number> | null;
+  selected_summary?: Record<string, unknown> | null;
+  quality_flags?: string[] | null;
+  quality_metrics?: Record<string, unknown> | null;
+  summary_message?: string;
+  message?: string;
 }
 
 export interface Itinerario {
@@ -285,6 +250,10 @@ export const getItinerariosResumen = (idUsuario: number) =>
 
 export const getItinerarioDetalle = (idItinerario: number) =>
   apiGet<Itinerario>(`/api/itinerarios/detalle/${idItinerario}`);
+
+/** Traza de auditoría del recomendador para un itinerario (available:false si es antiguo). */
+export const getItinerarioAuditoria = (idItinerario: number) =>
+  apiGet<ItinerarioAuditoria>(`/api/itinerarios/${idItinerario}/auditoria`);
 
 export const crearItinerario = (payload: CrearItinerarioPayload) =>
   apiPost<Itinerario, CrearItinerarioPayload>("/api/itinerarios", payload);
@@ -418,41 +387,3 @@ export interface ItinerarioMapa {
 
 export const getItinerariosMapa = (idUsuario: number) =>
   apiGet<ItinerarioMapa[]>(`/api/itinerarios/mapa/${idUsuario}`);
-
-// --- Auditoría explicable del motor (Fase 14 backend) -----------------------
-
-export interface ItinerarioAuditoriaDisponible {
-  available: true;
-  engine: {
-    name: string;
-    version: string;
-    generation_mode: string;
-    llm_role: string;
-    llm_used_for_generation: boolean;
-  };
-  candidate_pipeline: CandidatePipeline;
-  selected_summary: SelectedSummary;
-  scoring_weights: Record<string, number>;
-  quality_metrics: Record<string, unknown>;
-  rejected_examples: RejectedExample[];
-  audit_history_count: number;
-  // Texto fijo definido por el backend (no es copy de usuario): ver la
-  // documentación de trazabilidad del backend, sección "Separación entre
-  // trazabilidad técnica y comunicación al usuario".
-  summary_message: string;
-}
-
-export interface ItinerarioAuditoriaNoDisponible {
-  available: false;
-  summary_message: string;
-}
-
-export type ItinerarioAuditoria = ItinerarioAuditoriaDisponible | ItinerarioAuditoriaNoDisponible;
-
-export interface RespuestaAuditoriaItinerario {
-  ok: boolean;
-  data: ItinerarioAuditoria;
-}
-
-export const getAuditoriaItinerario = (idItinerario: number) =>
-  apiGet<RespuestaAuditoriaItinerario>(`/api/itinerarios/${idItinerario}/auditoria`);

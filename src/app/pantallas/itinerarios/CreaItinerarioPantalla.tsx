@@ -6,11 +6,16 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import {
   generarItinerario,
   type PayloadRecomendador,
-  type RespuestaRecomendador,
 } from "@/app/servicios/recomendador";
 import { useAuthStore } from "@/app/store/useAuthStore";
 import { getPreferencias } from "@/app/servicios/preferencias";
-import { warmupIaService, isWarmupInProgress } from "@/app/servicios/iaWarmupService";
+import { useEstadoRecomendador } from "@/app/utilidades/useEstadoRecomendador";
+import EstadoRecomendadorAviso from "@/app/componentes/itinerarios/EstadoRecomendadorAviso";
+import {
+  consultarEstadoRecomendador,
+  extraerCodigoIaDeError,
+  MENSAJE_GENERACION_WARMING,
+} from "@/app/servicios/iaHealth";
 import { useDestinoStore } from "@/app/store/useDestinoStore";
 import type { DestinoId } from "@/app/datos/mock/destinos";
 
@@ -621,6 +626,10 @@ export default function CrearItinerarioPantalla() {
   const [mostrarRecomendaciones, setMostrarRecomendaciones] = useState(false);
   const [buscandoBase, setBuscandoBase] = useState(false);
   const [errorBase, setErrorBase] = useState<string | null>(null);
+  // Solo se activa ante un fallo REAL del mapa (token/estilo/tiles). El error
+  // benigno de telemetría de Mapbox (events.mapbox.com, ERR_BLOCKED_BY_CLIENT)
+  // NO cuenta como fallo y nunca se muestra al usuario.
+  const [mapaError, setMapaError] = useState(false);
   const [baseCoords, setBaseCoords] = useState<CoordenadasBase | null>(() => readStoredBaseCoords());
   const [sugerencias, setSugerencias] = useState<SugerenciaBase[]>([]);
   const [mostrandoSugerencias, setMostrandoSugerencias] = useState(false);
@@ -634,12 +643,24 @@ export default function CrearItinerarioPantalla() {
   const [fechaFinTemp, setFechaFinTemp] = useState("");
   const [errorFormulario, setErrorFormulario] = useState<string | null>(null);
   const [avisoValidacion, setAvisoValidacion] = useState<string | null>(null);
+  // Aviso AMABLE (no rojo) para cuando la IA aún calienta al pulsar Generar.
+  const [avisoGeneracion, setAvisoGeneracion] = useState<string | null>(null);
   const [generando, setGenerando] = useState(false);
   const [progresoGeneracion, setProgresoGeneracion] = useState(0);
-  const [calentandoIA, setCalentandoIA] = useState(false);
+  const [segundosGeneracion, setSegundosGeneracion] = useState(0);
+  // Si el usuario cancela la espera, evitamos navegar aunque la petición acabe.
+  const cancelGeneracionRef = useRef(false);
   const [mensajeOverlay, setMensajeOverlay] = useState(
     "Estamos generando el itinerario con la IA. Si el servicio estaba en reposo, SpainWay lo despierta automáticamente.",
   );
+  // Aviso ocultable con "Seguir editando" (solo para estados no-ready).
+  const [avisoIaOculto, setAvisoIaOculto] = useState(false);
+
+  // Estado del motor de recomendaciones: se comprueba en segundo plano con
+  // retry+backoff y NUNCA bloquea el formulario ni el mapa.
+  const { estadoRecomendador, reintentar: reintentarEstadoIa } =
+    useEstadoRecomendador();
+  const iaReady = estadoRecomendador.estado === "ready";
 
   const daysPlaceholder = useMemo(
     () => getDaysPlaceholder(range.start, range.end),
@@ -671,10 +692,21 @@ export default function CrearItinerarioPantalla() {
     return () => window.clearInterval(intervalId);
   }, [generando]);
 
+  // Contador de segundos de la generación para dar feedback por tiempo y evitar
+  // cualquier sensación de "spinner eterno".
   useEffect(() => {
-    setCalentandoIA(true);
-    void warmupIaService({ silent: true }).finally(() => setCalentandoIA(false));
-  }, []);
+    if (!generando) {
+      setSegundosGeneracion(0);
+      return;
+    }
+    const id = window.setInterval(() => setSegundosGeneracion((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [generando]);
+
+  // Cuando la IA pasa a estar lista, ocultamos cualquier aviso previo.
+  useEffect(() => {
+    if (iaReady) setAvisoIaOculto(false);
+  }, [iaReady]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_FORM_DRAFT, JSON.stringify(form));
@@ -693,16 +725,47 @@ export default function CrearItinerarioPantalla() {
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/streets-v12",
-      center: baseCoords ? [baseCoords.lon, baseCoords.lat] : [-3.7038, 40.4168],
-      zoom: baseCoords ? 14 : 11,
+    let map: mapboxgl.Map;
+    try {
+      map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: "mapbox://styles/mapbox/streets-v12",
+        center: baseCoords ? [baseCoords.lon, baseCoords.lat] : [-3.7038, 40.4168],
+        zoom: baseCoords ? 14 : 11,
+      });
+    } catch (error) {
+      // Fallo real al instanciar el mapa (p. ej. WebGL no disponible).
+      console.warn("[SpainWay] No se pudo inicializar el mapa:", error);
+      setMapaError(true);
+      return;
+    }
+
+    // Los errores de telemetría/eventos de Mapbox (events.mapbox.com bloqueado
+    // por un adblock -> ERR_BLOCKED_BY_CLIENT) llegan aquí como errores benignos.
+    // NO deben romper la pantalla ni mostrarse: solo tratamos como fallo real la
+    // caída de estilo o de tiles.
+    map.on("error", (event) => {
+      const mensaje = String(event?.error?.message ?? "").toLowerCase();
+      const esTelemetria =
+        mensaje.includes("events.mapbox") ||
+        mensaje.includes("telemetry") ||
+        mensaje.includes("blocked_by_client") ||
+        mensaje.includes("err_blocked");
+      if (esTelemetria) return; // ruido de adblock: se ignora en silencio
+
+      const esFalloDeCarga =
+        mensaje.includes("style") ||
+        mensaje.includes("tile") ||
+        mensaje.includes("token") ||
+        mensaje.includes("unauthorized");
+      if (esFalloDeCarga) {
+        console.warn("[SpainWay] Error de carga del mapa:", event?.error);
+        setMapaError(true);
+      }
     });
 
-    map.addControl(new mapboxgl.NavigationControl(), "top-right");
-
     map.on("load", () => {
+      setMapaError(false);
       if (baseCoords) {
         colocarMarker(baseCoords.lon, baseCoords.lat, false);
       }
@@ -1458,8 +1521,17 @@ export default function CrearItinerarioPantalla() {
     };
   }
 
+  // Muestra un aviso AMABLE (no rojo) porque la IA aún calienta, conservando
+  // todos los datos del formulario y refrescando el estado del recomendador.
+  function avisarIaCalentando(mensaje: string) {
+    setAvisoGeneracion(mensaje);
+    setErrorFormulario(null);
+    setAvisoIaOculto(false);
+    reintentarEstadoIa();
+  }
+
   async function generarItinerarioAhora() {
-    if (generando || calentandoIA) return;
+    if (generando) return;
 
     const erroresValidacion = getErroresValidacion();
 
@@ -1478,22 +1550,33 @@ export default function CrearItinerarioPantalla() {
       return;
     }
 
-    setGenerando(true);
-    setProgresoGeneracion(8);
     setAvisoValidacion(null);
     setErrorBase(null);
     setErrorFormulario(null);
+    setAvisoGeneracion(null);
+
+    // Comprobación rápida ANTES de generar: si la IA no está lista, no lanzamos
+    // una generación que se quede colgada. Mostramos aviso amable y salimos.
+    if (!iaReady) {
+      const estado = await consultarEstadoRecomendador();
+      if (estado.estado !== "ready") {
+        avisarIaCalentando(
+          estado.estado === "warming"
+            ? "El motor de recomendaciones todavía se está iniciando. Tus datos están guardados; pulsa «Generar» de nuevo en unos segundos."
+            : MENSAJE_GENERACION_WARMING,
+        );
+        return;
+      }
+    }
+
+    cancelGeneracionRef.current = false;
+    setGenerando(true);
+    setProgresoGeneracion(8);
     setMensajeOverlay(
       "Estamos generando el itinerario con la IA. Si el servicio estaba en reposo, SpainWay lo despierta automáticamente.",
     );
 
     try {
-      if (isWarmupInProgress()) {
-        setMensajeOverlay("Preparando el motor de recomendaciones...");
-        await warmupIaService({ silent: true });
-        setMensajeOverlay("Generando tu itinerario personalizado...");
-      }
-
       const destinoPermitido = getDestinoPermitido(form.destino);
       if (destinoPermitido) {
         setDestinoSeleccionado(destinoPermitido.id);
@@ -1502,39 +1585,13 @@ export default function CrearItinerarioPantalla() {
       const payload = generarPayloadRecomendador();
       localStorage.setItem(STORAGE_KEY_RECOMMENDER_DRAFT, JSON.stringify(payload));
 
-      const llamarBackend = () => generarItinerario(payload);
+      const resultado = await generarItinerario(payload);
 
-      const obtenerResultado = async (): Promise<RespuestaRecomendador> => {
-        try {
-          return await llamarBackend();
-        } catch (errPrimero) {
-          const msgPrimero = errPrimero instanceof Error ? errPrimero.message : "";
-          if (msgPrimero.includes(": 409")) throw new Error("__busy__");
-          const esSobrecarga =
-            msgPrimero.includes(": 429") ||
-            msgPrimero.includes(": 503") ||
-            msgPrimero.toLowerCase().includes("too many requests");
-          if (!esSobrecarga) throw errPrimero;
-          setMensajeOverlay(
-            "El motor de recomendaciones se está preparando. Reintentando en unos segundos...",
-          );
-          await new Promise<void>((resolve) => window.setTimeout(resolve, 7000));
-          return llamarBackend();
-        }
-      };
+      // Si el usuario canceló la espera mientras generábamos, no navegamos ni
+      // tocamos el formulario: sus datos siguen intactos.
+      if (cancelGeneracionRef.current) return;
 
-      let resultado = await obtenerResultado();
-
-      const statusRespuesta = (resultado as unknown as { status?: string }).status;
-      if (statusRespuesta === "busy") throw new Error("__busy__");
-      if (statusRespuesta === "warming" || statusRespuesta === "cooldown") {
-        setMensajeOverlay(
-          "El motor de recomendaciones se está preparando. Reintentando en unos segundos...",
-        );
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 7000));
-        resultado = await llamarBackend();
-      }
-
+      // Éxito real: solo AQUÍ limpiamos el formulario.
       localStorage.removeItem(STORAGE_KEY_FORM_DRAFT);
       localStorage.removeItem(STORAGE_KEY_BASE_COORDS);
       localStorage.removeItem(STORAGE_KEY_RANGE);
@@ -1547,17 +1604,25 @@ export default function CrearItinerarioPantalla() {
         navigate(`/chat/conversacion/${resultado.id_conversacion}`);
       }, 350);
     } catch (error) {
+      // Si el usuario canceló la espera, no mostramos ningún error.
+      if (cancelGeneracionRef.current) return;
+      // NUNCA limpiamos el formulario ante un error: los datos se conservan.
       const msg = error instanceof Error ? error.message : "";
-      if (msg === "__busy__" || msg.includes(": 409")) {
-        setErrorFormulario("Ya se está generando un itinerario. Espera unos segundos.");
-      } else if (
+      const codigoIa = extraerCodigoIaDeError(error);
+      const esWarming =
+        codigoIa !== null ||
         msg.includes(": 429") ||
         msg.includes(": 503") ||
-        msg.toLowerCase().includes("too many requests")
-      ) {
-        setErrorFormulario(
-          "El motor de recomendaciones se está preparando. Espera unos segundos y vuelve a intentarlo.",
+        msg.toLowerCase().includes("too many requests");
+
+      if (msg === "__busy__" || msg.includes(": 409")) {
+        // Doble generación: aviso amable, no rojo permanente.
+        setAvisoGeneracion(
+          "Ya se está generando un itinerario. Espera unos segundos y vuelve a intentarlo.",
         );
+      } else if (esWarming) {
+        // La IA aún calienta: mensaje específico, datos conservados, reintento.
+        avisarIaCalentando(MENSAJE_GENERACION_WARMING);
       } else if (
         msg.toLowerCase().includes("failed to fetch") ||
         msg.toLowerCase().includes("network error")
@@ -1575,6 +1640,15 @@ export default function CrearItinerarioPantalla() {
         setGenerando(false);
       }, 350);
     }
+  }
+
+  function cancelarGeneracion() {
+    cancelGeneracionRef.current = true;
+    setGenerando(false);
+    setProgresoGeneracion(0);
+    setAvisoGeneracion(
+      "Has vuelto al formulario. Tus datos siguen aquí; puedes reintentar la generación cuando quieras.",
+    );
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1651,6 +1725,27 @@ export default function CrearItinerarioPantalla() {
           onSubmit={handleSubmit}
           className="mt-5 rounded-[30px] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.07)]"
         >
+          {(iaReady || !avisoIaOculto) && (
+            <EstadoRecomendadorAviso
+              estado={estadoRecomendador.estado}
+              message={estadoRecomendador.message}
+              onReintentar={reintentarEstadoIa}
+              onSeguirEditando={
+                !iaReady &&
+                (estadoRecomendador.estado === "unavailable" ||
+                  estadoRecomendador.estado === "error")
+                  ? () => setAvisoIaOculto(true)
+                  : undefined
+              }
+            />
+          )}
+
+          {avisoGeneracion && (
+            <div className="mb-4 rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+              {avisoGeneracion}
+            </div>
+          )}
+
           {errorFormulario && (
             <div className="mb-4 rounded-[18px] bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
               {errorFormulario}
@@ -1775,9 +1870,24 @@ export default function CrearItinerarioPantalla() {
                 </div>
               )}
 
-              <div className="mt-4 h-[280px] overflow-hidden rounded-[22px] border border-[#e5e7eb] bg-[#eef2f7]">
+              <div className="relative mt-4 h-[280px] overflow-hidden rounded-[22px] border border-[#e5e7eb] bg-[#eef2f7]">
                 {MAPBOX_TOKEN ? (
-                  <div ref={mapContainerRef} className="h-full w-full" />
+                  <>
+                    <div ref={mapContainerRef} className="h-full w-full" />
+                    {mapaError && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-[#eef2f7]/95 p-6 text-center">
+                        <div>
+                          <p className="text-sm font-semibold text-[#344054]">
+                            No se ha podido cargar el mapa.
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-[#667085]">
+                            Puedes continuar introduciendo la zona base manualmente con el
+                            buscador de arriba.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="flex h-full items-center justify-center p-6 text-center text-sm text-[#667085]">
                     Falta configurar VITE_MAPBOX_TOKEN en el .env del frontend.
@@ -2070,15 +2180,11 @@ export default function CrearItinerarioPantalla() {
 
               <button
                 type="button"
-                disabled={generando || calentandoIA}
+                disabled={generando}
                 onClick={() => void generarItinerarioAhora()}
                 className="flex-1 rounded-2xl bg-[#ff5a36] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(255,90,54,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {generando
-                  ? "Generando..."
-                  : calentandoIA
-                    ? "Preparando IA..."
-                    : "Generar itinerario"}
+                {generando ? "Generando..." : "Generar itinerario"}
               </button>
             </div>
           </div>
@@ -2223,6 +2329,22 @@ export default function CrearItinerarioPantalla() {
               />
             </div>
             <p className="mt-3 text-sm font-black text-[#ff5a36]">{progresoGeneracion}%</p>
+
+            {segundosGeneracion >= 20 && (
+              <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                {segundosGeneracion >= 45
+                  ? "El servicio puede estar despertando. Puedes cancelar y reintentar sin perder los datos."
+                  : "Está tardando más de lo habitual, seguimos intentándolo…"}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={cancelarGeneracion}
+              className="mt-4 w-full rounded-2xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-semibold text-[#111827] transition hover:bg-[#f9fafb]"
+            >
+              Cancelar y volver al formulario
+            </button>
           </div>
         </div>
       )}

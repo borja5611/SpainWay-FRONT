@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import RoseAvatar from "../../../assets/chat/RoseAvatar.png";
+import { LoadingJourney } from "@/components/ui/LoadingJourney";
 
 export default function CargandoItinerarioPantalla() {
   const navigate = useNavigate();
@@ -72,6 +73,8 @@ export default function CargandoItinerarioPantalla() {
             </div>
           </div>
         </div>
+
+        <LoadingJourney className="mt-6" title="Preparando tu viaje" />
 
         <div className="mt-6 w-full rounded-[28px] bg-white p-5 shadow-[0_14px_30px_rgba(15,23,42,0.08)]">
           <h2 className="text-[18px] font-bold text-[#111827]">
