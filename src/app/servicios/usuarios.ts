@@ -1,8 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL;
-
-if (!API_URL) {
-  throw new Error("VITE_API_URL no está definida en el .env del front");
-}
+import { apiGet, apiPatch } from "./api";
 
 export interface UsuarioDetalle {
   id_usuario: number;
@@ -24,33 +20,18 @@ export interface UpdateUsuarioPayload {
   confirmNewPassword?: string;
 }
 
+// Estas llamadas van a rutas protegidas (`/api/usuarios/:id`): apiGet/apiPatch
+// adjuntan automáticamente el token JWT del usuario autenticado.
 export async function getUsuarioById(idUsuario: number): Promise<UsuarioDetalle> {
-  const response = await fetch(`${API_URL}/api/usuarios/${idUsuario}`);
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Error obteniendo usuario: ${response.status} ${text}`);
-  }
-
-  return response.json() as Promise<UsuarioDetalle>;
+  return apiGet<UsuarioDetalle>(`/api/usuarios/${idUsuario}`);
 }
 
 export async function actualizarUsuario(
   idUsuario: number,
   payload: UpdateUsuarioPayload
 ): Promise<UsuarioDetalle> {
-  const response = await fetch(`${API_URL}/api/usuarios/${idUsuario}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Error actualizando usuario: ${response.status} ${text}`);
-  }
-
-  return response.json() as Promise<UsuarioDetalle>;
+  return apiPatch<UsuarioDetalle, UpdateUsuarioPayload>(
+    `/api/usuarios/${idUsuario}`,
+    payload
+  );
 }
